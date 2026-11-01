@@ -1,0 +1,175 @@
+"use client";
+import Link from "next/link";
+import { ArrowRight, BookOpenCheck, CalendarDays, CheckCircle2, GraduationCap, Library, Megaphone, Phone, Trophy, Users, BellRing } from "lucide-react";
+import { useI18n } from "@/lib/i18n";
+import { useStore } from "@/lib/store";
+import { CourseCard, DemoNote, EnquiryForm, SectionHead } from "@/components/public";
+import { Badge, StatusBadge } from "@/components/ui";
+import { WhatsAppIcon } from "@/components/brand";
+import { academy } from "@/config/academy";
+import { fmtINR } from "@/lib/utils";
+
+export default function HomeView() {
+  const { t, l, d } = useI18n();
+  const db = useStore((s) => s.db);
+  const cms = db.settings.cms;
+  const courses = db.courses.filter((c) => c.published);
+  const upcoming = [...db.batches].filter((b) => b.admissionOpen).sort((a, b) => a.startDate.localeCompare(b.startDate)).slice(0, 4);
+  const anns = db.announcements.filter((a) => a.published).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date)).slice(0, 3);
+  const results = db.achievements.filter((a) => a.published && a.consent).slice(0, 3);
+  const updates = db.updates.filter((u) => u.status === "published").slice(0, 3);
+  const minLib = Math.min(...db.libraryPlans.filter((p) => p.kind === "library").map((p) => p.fee));
+
+  return (
+    <>
+      {/* Hero */}
+      <section className="relative overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-brand-700 text-white">
+        <div className="absolute -right-24 -top-24 size-96 rounded-full bg-saffron-500/20 blur-3xl" aria-hidden />
+        <div className="container-page relative grid gap-10 py-14 lg:grid-cols-[1.2fr_1fr] lg:py-20">
+          <div>
+            <Badge tone="orange" className="mb-4">{t("Maharashtra competitive exams", "महाराष्ट्र स्पर्धा परीक्षा")}</Badge>
+            <h1 className="text-3xl font-bold leading-tight !text-white sm:text-5xl">{l(cms.heroTitle)}</h1>
+            <p className="mt-4 max-w-xl text-base text-brand-100 sm:text-lg">{l(cms.heroSubtitle)}</p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link href="/admission" className="btn-accent px-5 py-3 text-base">{t("Apply for admission", "प्रवेशासाठी अर्ज करा")}<ArrowRight className="size-4" /></Link>
+              <Link href="/courses" className="btn px-5 py-3 text-base bg-white/10 text-white hover:bg-white/20">{t("Explore courses", "अभ्यासक्रम पहा")}</Link>
+            </div>
+            <dl className="mt-10 grid max-w-lg grid-cols-3 gap-4 text-center">
+              {[[String(courses.length), t("Courses", "अभ्यासक्रम")], [String(db.batches.length), t("Active batches", "सक्रिय बॅचेस")], ["2", t("Mediums", "माध्यमे")]].map(([v, k]) => (
+                <div key={k} className="rounded-xl bg-white/5 p-3 ring-1 ring-white/10"><dt className="text-xs text-brand-200">{k}</dt><dd className="text-2xl font-bold">{v}</dd></div>
+              ))}
+            </dl>
+          </div>
+          <div className="rounded-2xl bg-white p-5 text-slate-800 shadow-2xl sm:p-6">
+            <h2 className="text-lg font-semibold">{t("Quick enquiry", "त्वरित चौकशी")}</h2>
+            <p className="mb-4 text-sm text-slate-500">{t("Leave your number — we'll call you back.", "आपला क्रमांक द्या — आम्ही परत कॉल करू.")}</p>
+            <EnquiryForm variant="quick" />
+          </div>
+        </div>
+      </section>
+
+      {/* Courses */}
+      <section className="container-page py-14">
+        <SectionHead title={t("Courses we offer", "आमचे अभ्यासक्रम")} subtitle={t("Choose your target examination", "आपली लक्ष्य परीक्षा निवडा")} action={<Link href="/courses" className="btn-outline">{t("All courses", "सर्व अभ्यासक्रम")}<ArrowRight className="size-4" /></Link>} />
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{courses.slice(0, 6).map((c) => <CourseCard key={c.id} c={c} />)}</div>
+        <DemoNote>{t("Fees shown are demo values, not actual academy prices.", "दाखवलेले शुल्क डेमो असून प्रत्यक्ष अकॅडमीचे दर नाहीत.")}</DemoNote>
+      </section>
+
+      {/* Why us */}
+      <section className="bg-white py-14">
+        <div className="container-page">
+          <SectionHead title={t("Why Vidyadhan Academy", "विद्याधन अकॅडमीच का?")} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {cms.whyUs.map((w, i) => {
+              const I = [BookOpenCheck, Trophy, GraduationCap, Users, Library, CheckCircle2][i % 6];
+              return (
+                <div key={i} className="flex items-start gap-3 rounded-xl border border-slate-200 p-4">
+                  <span className="rounded-lg bg-brand-50 p-2 text-brand-700"><I className="size-5" /></span>
+                  <p className="pt-1 font-medium">{l(w)}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Batches + Announcements */}
+      <section className="container-page grid gap-8 py-14 lg:grid-cols-[1.4fr_1fr]">
+        <div>
+          <SectionHead title={t("Upcoming & open batches", "आगामी व सुरू बॅचेस")} action={<Link href="/batches" className="text-sm font-semibold text-brand-700 hover:underline">{t("View schedule", "वेळापत्रक पहा")} →</Link>} />
+          <div className="space-y-3">
+            {upcoming.map((b) => {
+              const c = db.courses.find((x) => x.id === b.courseId)!;
+              return (
+                <div key={b.id} className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-medium text-brand-700">{l(c.name)}</p>
+                    <p className="font-semibold">{b.name}</p>
+                    <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-slate-500"><CalendarDays className="size-4" />{t("Starts", "सुरुवात")} {d(b.startDate)} · {b.days} · {b.time} <StatusBadge s={b.mode} /></p>
+                  </div>
+                  <Link href={`/admission?batch=${b.id}`} className="btn-primary btn-sm self-start sm:self-center">{t("Enrol", "प्रवेश")}</Link>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <SectionHead title={t("Latest updates", "ताज्या सूचना")} action={<Link href="/announcements" className="text-sm font-semibold text-brand-700 hover:underline">{t("All", "सर्व")} →</Link>} />
+          <ul className="card divide-y divide-slate-100">
+            {anns.map((a) => (
+              <li key={a.id} className="flex gap-3 p-4">
+                <Megaphone className="mt-0.5 size-5 shrink-0 text-saffron-600" />
+                <div><p className="font-medium">{l(a.title)}</p><p className="text-xs text-slate-500">{d(a.date)}</p></div>
+              </li>
+            ))}
+            {updates.map((u) => (
+              <li key={u.id} className="flex gap-3 p-4">
+                <BellRing className="mt-0.5 size-5 shrink-0 text-brand-600" />
+                <div><p className="font-medium">{l(u.title)}</p><Link href="/exam-updates" className="text-xs text-brand-700 hover:underline">{t("Official exam update", "अधिकृत परीक्षा अपडेट")}</Link></div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* Results */}
+      <section className="bg-white py-14">
+        <div className="container-page">
+          <SectionHead title={t("Results & achievements", "निकाल व यश")} action={<Link href="/results" className="btn-outline">{t("View all", "सर्व पहा")}</Link>} />
+          <div className="grid gap-4 sm:grid-cols-3">
+            {results.map((r) => (
+              <div key={r.id} className="card p-5 text-center">
+                <div className="mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-slate-100 text-xs text-slate-400">{t("Photo", "फोटो")}</div>
+                <p className="font-semibold">{r.name}</p>
+                <p className="text-sm text-slate-500">{r.exam} · {r.year}</p>
+                <Badge tone="green" className="mt-2">{r.result}</Badge>
+              </div>
+            ))}
+          </div>
+          <DemoNote>{t("Demo entries only. Real results will be published with student consent.", "फक्त डेमो नोंदी. खरे निकाल विद्यार्थ्यांच्या संमतीनेच प्रकाशित होतील.")}</DemoNote>
+        </div>
+      </section>
+
+      {/* Faculty + library */}
+      <section className="container-page grid gap-8 py-14 lg:grid-cols-2">
+        <div>
+          <SectionHead title={t("Our faculty", "आमचे प्राध्यापक")} action={<Link href="/faculty" className="text-sm font-semibold text-brand-700 hover:underline">{t("Meet the team", "टीमला भेटा")} →</Link>} />
+          <div className="grid gap-3 sm:grid-cols-3">
+            {db.facultyProfiles.filter((f) => f.published).map((f) => (
+              <div key={f.id} className="card p-4 text-center">
+                <div className="mx-auto mb-2 flex size-14 items-center justify-center rounded-full bg-brand-50 text-brand-400"><GraduationCap className="size-6" /></div>
+                <p className="text-sm font-semibold">{f.name}</p>
+                <p className="text-xs text-slate-500">{l(f.subject)}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="card overflow-hidden">
+          <div className="bg-gradient-to-br from-saffron-600 to-saffron-500 p-6 text-white">
+            <Library className="mb-2 size-8" />
+            <h2 className="text-2xl font-bold !text-white">{t("Self-study library", "अभ्यासिका / ग्रंथालय")}</h2>
+            <p className="mt-2 text-saffron-50">{l(cms.libraryBlurb)}</p>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 p-5">
+            <p className="text-sm text-slate-600">{t("Plans from", "योजना")} <b className="text-slate-900">{fmtINR(minLib)}</b>{t("/month", "/महिना पासून")} <span className="text-xs text-saffron-700">{t("(demo)", "(डेमो)")}</span></p>
+            <Link href="/library" className="btn-primary">{t("View plans", "योजना पहा")}</Link>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="container-page">
+        <div className="flex flex-col items-start justify-between gap-6 rounded-2xl bg-brand-900 p-8 text-white sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-2xl font-bold !text-white">{t("Talk to our admissions team", "प्रवेश विभागाशी बोला")}</h2>
+            <p className="mt-1 text-brand-200">{t("Call or WhatsApp us for batch availability and fee details.", "बॅच उपलब्धता व शुल्क माहितीसाठी कॉल किंवा व्हॉट्सअ‍ॅप करा.")}</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <a href={`tel:${academy.phone.replace(/\s/g, "")}`} className="btn bg-white text-brand-900 hover:bg-brand-50"><Phone className="size-4" />{t("Call", "कॉल करा")}</a>
+            <a href={`https://wa.me/${academy.whatsapp}`} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] text-white hover:bg-[#1ebe5a]"><WhatsAppIcon className="size-4" />WhatsApp</a>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
