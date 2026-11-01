@@ -40,7 +40,7 @@ The site shows **genuine Google reviews** through the official Google Places API
 2. Create an API key and restrict it to Places API (New).
 3. Find the academy's **Place ID** with Google's [Place ID Finder](https://developers.google.com/maps/documentation/places/web-service/place-id).
 4. Vercel → Project → Settings → Environment Variables → add `GOOGLE_PLACES_API_KEY` and `GOOGLE_PLACE_ID` → **Redeploy**.
-5. Optionally set `googleMapsUrl` in `src/config/academy.ts` (the Google Maps "Share" link) for the "See reviews on Google" button.
+5. `googleMapsUrl` in `src/config/academy.ts` is already set to the academy's Google listing (https://share.google/VwVBzYt5DnkekqyiU) for the "See reviews on Google" and "Get directions" buttons.
 
 Google returns **up to 5 reviews** (selected by Google), refreshed every 6 hours, with the required author attribution. Showing *all* reviews would need the Google Business Profile API (owner sign-in), which needs the real backend.
 

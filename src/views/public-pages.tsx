@@ -525,6 +525,7 @@ export function ContactView() {
             <div className="flex flex-wrap gap-2 pt-2">
               <a href={`tel:${academy.phone.replace(/\s/g, "")}`} className="btn-primary"><Phone className="size-4" />{t("Call", "कॉल")}</a>
               <a href={`https://wa.me/${academy.whatsapp}`} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] text-white"><WhatsAppIcon className="size-4" />WhatsApp</a>
+              {academy.googleMapsUrl && <a href={academy.googleMapsUrl} target="_blank" rel="noopener noreferrer" className="btn-outline"><MapPin className="size-4" />{t("Get directions", "मार्ग पहा")}</a>}
             </div>
             {isPlaceholder(academy.phone) && <Notice tone="warn">{t("These are placeholders. Update src/config/academy.ts with real details.", "ही नमुना माहिती आहे. src/config/academy.ts मध्ये खरी माहिती भरा.")}</Notice>}
           </div>

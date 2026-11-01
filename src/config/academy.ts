@@ -20,23 +20,23 @@ export const academy = {
     text: "ओले मुळ भेदी खडकाचे अंग, अभ्यासाशी सांग कार्यसिद्धी",
     author: { en: "Sant Tukaram", mr: "संत तुकाराम" },
   },
-  // PLACEHOLDER – replace with the real address
+  // TODO: add building / street / landmark / PIN when available
   address: {
-    en: "[Academy address – to be provided], Maharashtra",
-    mr: "[अकॅडमीचा पत्ता – लवकरच], महाराष्ट्र",
+    en: "Hadapsar, Pune, Maharashtra",
+    mr: "हडपसर, पुणे, महाराष्ट्र",
   },
   phone: "+91 84840 04737",
   // Assumed to be the same number on WhatsApp – change if different (country code, no +)
   whatsapp: "918484004737",
   email: "info@example.com", // PLACEHOLDER
   hours: { en: "Mon–Sat, 8:00 AM – 8:00 PM", mr: "सोम–शनि, सकाळी ८ – रात्री ८" }, // PLACEHOLDER
-  mapEmbedUrl: "", // PLACEHOLDER – Google Maps embed URL
+  mapEmbedUrl: "https://maps.google.com/maps?q=Vidhyadhan%20Academy%20MPSC%20Hadapsar%20Pune&output=embed",
   /**
    * Google Business Profile link (the "Share" link from Google Maps), used for
    * "See all reviews on Google" / "Write a review" buttons. Reviews themselves are
    * fetched server-side when GOOGLE_PLACES_API_KEY and GOOGLE_PLACE_ID are set.
    */
-  googleMapsUrl: "", // PLACEHOLDER – e.g. https://maps.app.goo.gl/xxxx
+  googleMapsUrl: "https://share.google/VwVBzYt5DnkekqyiU",
   social: {
     youtube: "",
     instagram: "",
