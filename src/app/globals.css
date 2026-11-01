@@ -5,17 +5,17 @@
 @theme {
   --font-sans: "Mukta", ui-sans-serif, system-ui, "Noto Sans Devanagari", sans-serif;
 
-  --color-brand-50: #eef2ff;
-  --color-brand-100: #e0e7ff;
-  --color-brand-200: #c3cdfb;
-  --color-brand-300: #9eacf3;
-  --color-brand-400: #6f7fe6;
-  --color-brand-500: #4a5bd4;
-  --color-brand-600: #3442b8;
-  --color-brand-700: #2a3594;
-  --color-brand-800: #232c74;
-  --color-brand-900: #1b2257;
-  --color-brand-950: #11163a;
+  --color-brand-50: #eef7fc;
+  --color-brand-100: #d6ecf7;
+  --color-brand-200: #aed8ee;
+  --color-brand-300: #7cbde0;
+  --color-brand-400: #3f9acb;
+  --color-brand-500: #1a7db2;
+  --color-brand-600: #0d6698;
+  --color-brand-700: #0b5583;
+  --color-brand-800: #0d466b;
+  --color-brand-900: #0f3a58;
+  --color-brand-950: #0a253a;
 
   --color-saffron-50: #fff7ed;
   --color-saffron-100: #ffedd5;

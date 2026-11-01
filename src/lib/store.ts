@@ -45,7 +45,7 @@ export const useStore = create<State>()(
       resetDemo: () => set({ db: buildSeed() }),
     }),
     {
-      name: "vidyadhan-demo-v1",
+      name: "vidyadhan-demo-v2",
       storage: createJSONStorage(() => {
         try {
           return localStorage;

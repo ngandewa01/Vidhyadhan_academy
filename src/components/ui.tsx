@@ -252,7 +252,7 @@ export function BarChart({ data, format = (n) => String(n), height = 160 }: { da
   );
 }
 
-export function Donut({ value, label, size = 96, tone = "#3442b8" }: { value: number; label?: string; size?: number; tone?: string }) {
+export function Donut({ value, label, size = 96, tone = "#0d6698" }: { value: number; label?: string; size?: number; tone?: string }) {
   const r = 40, c = 2 * Math.PI * r;
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>

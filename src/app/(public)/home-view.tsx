@@ -6,6 +6,7 @@ import { useStore } from "@/lib/store";
 import { CourseCard, DemoNote, EnquiryForm, SectionHead } from "@/components/public";
 import { Badge, StatusBadge } from "@/components/ui";
 import { WhatsAppIcon } from "@/components/brand";
+import { GoogleReviews, ResultCard } from "@/components/GoogleReviews";
 import { academy } from "@/config/academy";
 import { fmtINR } from "@/lib/utils";
 
@@ -16,7 +17,7 @@ export default function HomeView() {
   const courses = db.courses.filter((c) => c.published);
   const upcoming = [...db.batches].filter((b) => b.admissionOpen).sort((a, b) => a.startDate.localeCompare(b.startDate)).slice(0, 4);
   const anns = db.announcements.filter((a) => a.published).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date)).slice(0, 3);
-  const results = db.achievements.filter((a) => a.published && a.consent).slice(0, 3);
+  const results = db.achievements.filter((a) => a.published && a.consent).sort((a, b) => Number(!!b.featured) - Number(!!a.featured)).slice(0, 3);
   const updates = db.updates.filter((u) => u.status === "published").slice(0, 3);
   const minLib = Math.min(...db.libraryPlans.filter((p) => p.kind === "library").map((p) => p.fee));
 
@@ -27,7 +28,14 @@ export default function HomeView() {
         <div className="absolute -right-24 -top-24 size-96 rounded-full bg-saffron-500/20 blur-3xl" aria-hidden />
         <div className="container-page relative grid gap-10 py-14 lg:grid-cols-[1.2fr_1fr] lg:py-20">
           <div>
-            <Badge tone="orange" className="mb-4">{t("Maharashtra competitive exams", "महाराष्ट्र स्पर्धा परीक्षा")}</Badge>
+            <div className="mb-5 flex items-center gap-3">
+              <img src={academy.logoUrl} alt="" width={64} height={64} className="size-16 rounded-full bg-white shadow-lg ring-2 ring-saffron-400/60" />
+              <div>
+                <p className="text-sm text-brand-200">{t("Nikhil Rudrawar's", "निखिल रुद्रवार यांची")}</p>
+                <p className="font-semibold text-saffron-200">“{l(academy.tagline)}”</p>
+              </div>
+            </div>
+            <Badge tone="orange" className="mb-4">{academy.focus}</Badge>
             <h1 className="text-3xl font-bold leading-tight !text-white sm:text-5xl">{l(cms.heroTitle)}</h1>
             <p className="mt-4 max-w-xl text-base text-brand-100 sm:text-lg">{l(cms.heroSubtitle)}</p>
             <div className="mt-7 flex flex-wrap gap-3">
@@ -115,19 +123,17 @@ export default function HomeView() {
       {/* Results */}
       <section className="bg-white py-14">
         <div className="container-page">
-          <SectionHead title={t("Results & achievements", "निकाल व यश")} action={<Link href="/results" className="btn-outline">{t("View all", "सर्व पहा")}</Link>} />
-          <div className="grid gap-4 sm:grid-cols-3">
-            {results.map((r) => (
-              <div key={r.id} className="card p-5 text-center">
-                <div className="mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-slate-100 text-xs text-slate-400">{t("Photo", "फोटो")}</div>
-                <p className="font-semibold">{r.name}</p>
-                <p className="text-sm text-slate-500">{r.exam} · {r.year}</p>
-                <Badge tone="green" className="mt-2">{r.result}</Badge>
-              </div>
-            ))}
-          </div>
-          <DemoNote>{t("Demo entries only. Real results will be published with student consent.", "फक्त डेमो नोंदी. खरे निकाल विद्यार्थ्यांच्या संमतीनेच प्रकाशित होतील.")}</DemoNote>
+          <SectionHead title={t("Our successful students", "आमचे यशस्वी विद्यार्थी")} subtitle={t("Proud moments of the Vidyadhan family", "विद्याधन परिवाराचे अभिमानाचे क्षण")} action={<Link href="/results" className="btn-outline">{t("View all", "सर्व पहा")}</Link>} />
+          {results.length ? (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{results.map((r) => <ResultCard key={r.id} a={r} courseName={l(db.courses.find((c) => c.id === r.courseId)?.name)} />)}</div>
+          ) : <p className="text-sm text-slate-500">{t("Results will be published here.", "निकाल येथे प्रसिद्ध होतील.")}</p>}
         </div>
+      </section>
+
+      {/* Google reviews */}
+      <section className="container-page py-14">
+        <SectionHead title={t("What students say", "विद्यार्थी काय म्हणतात")} />
+        <GoogleReviews limit={3} />
       </section>
 
       {/* Faculty + library */}

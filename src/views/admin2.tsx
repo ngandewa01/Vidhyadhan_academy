@@ -9,10 +9,11 @@ import { buildSeed } from "@/lib/seed";
 import { addMonths, cn, daysBetween, downloadFile, fmtINR, isValidMobile, nowISO, toCSV, today, uid } from "@/lib/utils";
 import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, SearchBox, Select, StatCard, StatusBadge, Table, Tabs, Toggle, toast, statusLabel } from "@/components/ui";
 import { ReceiptModal } from "@/components/Receipt";
+import { GoogleReviews } from "@/components/GoogleReviews";
 import { IdCardFace, TICKET_CATS } from "./student";
 import { DATE_LABEL } from "./public-pages";
 import { academy } from "@/config/academy";
-import type { Achievement, Announcement, Channel, ExamUpdate, ImportantDateKind, L, LibraryPlan, PayMethod, PromoCode, Ticket, UpdateSource } from "@/lib/types";
+import type { Achievement, Announcement, Testimonial, Channel, ExamUpdate, ImportantDateKind, L, LibraryPlan, PayMethod, PromoCode, Ticket, UpdateSource } from "@/lib/types";
 
 function useA() {
   const db = useStore((s) => s.db);
@@ -424,26 +425,100 @@ export function Tickets({ canManage }: { canManage: boolean }) {
 }
 
 /* ---------------- Achievements & testimonials ---------------- */
+/** Resize an uploaded image in the browser (keeps the prototype's local storage small). */
+function resizeImage(file: File, max = 900): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL("image/jpeg", 0.82));
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
 export function Achievements({ canManage }: { canManage: boolean }) {
   const { t, l } = useI18n();
   const { db, update } = useA();
   const [edit, setEdit] = useState<Achievement | null>(null);
+  const [tm, setTm] = useState<Testimonial | null>(null);
+  const blank = (): Achievement => ({ id: "", name: { en: "", mr: "" }, exam: { en: "", mr: "" }, result: { en: "", mr: "" }, year: new Date().getFullYear(), consent: false, published: false, demo: false });
   const save = () => {
-    if (!edit?.name) return;
+    if (!edit || (!edit.name.en && !edit.name.mr)) return toast.error(t("Student name is required", "विद्यार्थ्याचे नाव आवश्यक"));
     if (edit.published && !edit.consent) return toast.error(t("Student consent is required before publishing", "प्रकाशनापूर्वी विद्यार्थ्याची संमती आवश्यक"));
-    update((db) => { if (edit.id) Object.assign(db.achievements.find((x) => x.id === edit.id)!, edit); else db.achievements.push({ ...edit, id: uid("ac") }); }, { action: "achievement.save", entity: edit.name });
+    const fill = (x: L) => ({ en: x.en || x.mr, mr: x.mr || x.en });
+    const rec = { ...edit, name: fill(edit.name), exam: fill(edit.exam), result: fill(edit.result) };
+    update((db) => { if (rec.id) Object.assign(db.achievements.find((x) => x.id === rec.id)!, rec); else db.achievements.unshift({ ...rec, id: uid("ac") }); }, { action: "achievement.save", entity: rec.name.en });
     setEdit(null);
   };
+  const onPhoto = async (f?: File) => { if (f && edit) setEdit({ ...edit, photo: await resizeImage(f) }); };
   return (
-    <div className="space-y-5">
-      <PageHeader title={t("Results & achievements", "निकाल व यश")} actions={canManage && <button className="btn-primary" onClick={() => setEdit({ id: "", name: "", exam: "", year: new Date().getFullYear(), result: "", courseId: db.courses[0].id, consent: false, published: false, demo: false })}><Plus className="size-4" />{t("Add", "जोडा")}</button>} />
-      <Notice tone="warn">{t("Never publish results or photos without the student's recorded consent. Do not publish unverified claims. Records are kept internally even when unpublished.", "विद्यार्थ्याच्या नोंदवलेल्या संमतीशिवाय निकाल/फोटो प्रकाशित करू नका. पडताळणी न केलेले दावे प्रकाशित करू नका. अप्रकाशित नोंदी अंतर्गत जतन राहतात.")}</Notice>
-      <Table head={[t("Name", "नाव"), t("Exam / year", "परीक्षा / वर्ष"), t("Result", "निकाल"), t("Course", "अभ्यासक्रम"), t("Consent", "संमती"), t("Published", "प्रकाशित"), ""]}>
-        {db.achievements.map((a) => <tr key={a.id}><td className="font-medium">{a.name} {a.demo && <Badge tone="orange">demo</Badge>}</td><td className="text-xs">{a.exam} · {a.year}</td><td>{a.result}</td><td className="text-xs">{l(db.courses.find((c) => c.id === a.courseId)?.name)}</td><td>{a.consent ? <Badge tone="green">✓</Badge> : <Badge tone="red">{t("Missing", "नाही")}</Badge>}</td><td><Toggle disabled={!canManage || !a.consent} checked={a.published} onChange={(v) => update((db) => { db.achievements.find((x) => x.id === a.id)!.published = v; }, { action: v ? "achievement.publish" : "achievement.unpublish", entity: a.name })} /></td><td>{canManage && <button className="btn-ghost btn-sm" onClick={() => setEdit(structuredClone(a))}><Pencil className="size-4" /></button>}</td></tr>)}
-      </Table>
-      <Card title={t("Testimonials", "अभिप्राय")}><ul className="space-y-2 text-sm">{db.testimonials.map((x) => <li key={x.id} className="flex items-center justify-between gap-2"><span>{l(x.text)} — <b>{x.name}</b></span><Toggle disabled={!canManage || !x.consent} checked={x.published} onChange={(v) => update((db) => { db.testimonials.find((y) => y.id === x.id)!.published = v; })} /></li>)}</ul></Card>
-      <Modal open={!!edit} onClose={() => setEdit(null)} title={t("Achievement", "यश")} footer={<button className="btn-primary" onClick={save}>{t("Save", "जतन")}</button>}>
-        {edit && <div className="grid gap-3 sm:grid-cols-2"><Field label={t("Student name", "विद्यार्थी नाव")}>{(id) => <input id={id} className="input" value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} />}</Field><Field label={t("Exam", "परीक्षा")}>{(id) => <input id={id} className="input" value={edit.exam} onChange={(e) => setEdit({ ...edit, exam: e.target.value })} />}</Field><Field label={t("Year", "वर्ष")}>{(id) => <input id={id} type="number" className="input" value={edit.year} onChange={(e) => setEdit({ ...edit, year: Number(e.target.value) })} />}</Field><Field label={t("Rank / selection", "क्रमांक / निवड")}>{(id) => <input id={id} className="input" value={edit.result} onChange={(e) => setEdit({ ...edit, result: e.target.value })} />}</Field><Field label={t("Course", "अभ्यासक्रम")}>{(id) => <select id={id} className="input" value={edit.courseId} onChange={(e) => setEdit({ ...edit, courseId: e.target.value })}>{db.courses.map((c) => <option key={c.id} value={c.id}>{l(c.name)}</option>)}</select>}</Field><Field label={t("Photo", "फोटो")}>{(id) => <input id={id} type="file" accept="image/*" className="input" />}</Field><Toggle checked={edit.consent} onChange={(v) => setEdit({ ...edit, consent: v })} label={t("Written consent recorded", "लेखी संमती नोंदवली")} /><Toggle checked={edit.published} onChange={(v) => setEdit({ ...edit, published: v })} label={t("Publish on website", "संकेतस्थळावर प्रकाशित")} /></div>}
+    <div className="space-y-6">
+      <PageHeader title={t("Results & achievements", "निकाल व यश")} actions={canManage && <button className="btn-primary" onClick={() => setEdit(blank())}><Plus className="size-4" />{t("Add successful student", "यशस्वी विद्यार्थी जोडा")}</button>} />
+      <Notice tone="warn">{t("Publish names and photos only with the student's consent. Unpublished records stay saved internally.", "विद्यार्थ्याच्या संमतीनेच नाव व फोटो प्रकाशित करा. अप्रकाशित नोंदी अंतर्गत जतन राहतात.")}</Notice>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {db.achievements.map((a) => (
+          <div key={a.id} className="card overflow-hidden">
+            {a.photo ? <img src={a.photo} alt="" className="aspect-[4/3] w-full object-cover" /> : <div className="flex aspect-[4/3] items-center justify-center bg-slate-100 text-sm text-slate-400">{t("No photo", "फोटो नाही")}</div>}
+            <div className="space-y-2 p-4">
+              <p className="font-semibold">{l(a.name)} {a.featured && <Badge tone="orange">{t("Featured", "ठळक")}</Badge>}</p>
+              <p className="text-sm text-emerald-700">{l(a.result)}</p>
+              <p className="text-xs text-slate-500">{[l(a.exam), a.year].filter(Boolean).join(" · ")}</p>
+              <div className="flex flex-wrap items-center gap-3 text-xs">
+                {a.consent ? <Badge tone="green">{t("Consent ✓", "संमती ✓")}</Badge> : <Badge tone="red">{t("No consent", "संमती नाही")}</Badge>}
+                <Toggle disabled={!canManage || !a.consent} checked={a.published} onChange={(v) => update((db) => { db.achievements.find((x) => x.id === a.id)!.published = v; }, { action: v ? "achievement.publish" : "achievement.unpublish", entity: a.name.en })} label={t("On website", "संकेतस्थळावर")} />
+                {canManage && <button className="btn-ghost btn-sm ml-auto" onClick={() => setEdit(structuredClone(a))} aria-label="Edit"><Pencil className="size-4" /></button>}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <Card title={t("Google reviews", "Google रिव्ह्यूज")}>
+        <GoogleReviews limit={3} adminHint />
+        <details className="mt-4 text-sm text-slate-600">
+          <summary className="cursor-pointer font-medium text-slate-800">{t("How to connect Google reviews", "Google रिव्ह्यूज कसे जोडावे")}</summary>
+          <ol className="mt-2 list-decimal space-y-1 pl-5">
+            <li>{t("Google Cloud Console → create a project → enable billing → enable \"Places API (New)\".", "Google Cloud Console → प्रोजेक्ट तयार करा → बिलिंग सुरू करा → \"Places API (New)\" सक्षम करा.")}</li>
+            <li>{t("Create an API key and restrict it to Places API (New).", "API की तयार करा व ती फक्त Places API (New) पुरती मर्यादित करा.")}</li>
+            <li>{t("Find the academy's Place ID with Google's Place ID Finder (developers.google.com/maps/documentation/places/web-service/place-id).", "Google Place ID Finder वापरून अकॅडमीचा Place ID शोधा.")}</li>
+            <li>{t("Vercel → Project → Settings → Environment Variables: add GOOGLE_PLACES_API_KEY and GOOGLE_PLACE_ID, then redeploy.", "Vercel → Project → Settings → Environment Variables: GOOGLE_PLACES_API_KEY व GOOGLE_PLACE_ID जोडा, मग पुन्हा deploy करा.")}</li>
+          </ol>
+          <p className="mt-2 text-xs">{t("Google provides up to 5 reviews through this API and requires showing author attribution. Reviews are refreshed every 6 hours.", "या API द्वारे Google जास्तीत जास्त ५ रिव्ह्यूज देते आणि लेखकाचे नाव दाखवणे आवश्यक आहे. रिव्ह्यूज दर ६ तासांनी अद्ययावत होतात.")}</p>
+        </details>
+      </Card>
+
+      <Card title={t("Testimonials shared with the academy", "अकॅडमीकडे आलेले अभिप्राय")} actions={canManage && <button className="btn-outline btn-sm" onClick={() => setTm({ id: "", name: "", course: "", text: { en: "", mr: "" }, consent: false, published: false, demo: false })}><Plus className="size-4" />{t("Add", "जोडा")}</button>}>
+        {db.testimonials.length ? <ul className="space-y-2 text-sm">{db.testimonials.map((x) => <li key={x.id} className="flex items-center justify-between gap-2"><span>{l(x.text)} — <b>{x.name}</b></span><Toggle disabled={!canManage || !x.consent} checked={x.published} onChange={(v) => update((db) => { db.testimonials.find((y) => y.id === x.id)!.published = v; })} /></li>)}</ul> : <p className="text-sm text-slate-500">{t("None yet. Google reviews are shown on the website automatically once connected.", "अद्याप नाहीत. जोडल्यानंतर Google रिव्ह्यूज संकेतस्थळावर आपोआप दिसतील.")}</p>}
+      </Card>
+
+      <Modal open={!!edit} onClose={() => setEdit(null)} title={t("Successful student", "यशस्वी विद्यार्थी")} size="lg" footer={<button className="btn-primary" onClick={save}>{t("Save", "जतन")}</button>}>
+        {edit && (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Name (English)">{(id) => <input id={id} className="input" value={edit.name.en} onChange={(e) => setEdit({ ...edit, name: { ...edit.name, en: e.target.value } })} />}</Field>
+            <Field label="नाव (मराठी)">{(id) => <input id={id} className="input" value={edit.name.mr} onChange={(e) => setEdit({ ...edit, name: { ...edit.name, mr: e.target.value } })} />}</Field>
+            <Field label="Selection / rank (English)" hint="e.g. Selected – Mumbai Police">{(id) => <input id={id} className="input" value={edit.result.en} onChange={(e) => setEdit({ ...edit, result: { ...edit.result, en: e.target.value } })} />}</Field>
+            <Field label="निवड / क्रमांक (मराठी)" hint="उदा. मुंबई पोलीस पदी निवड">{(id) => <input id={id} className="input" value={edit.result.mr} onChange={(e) => setEdit({ ...edit, result: { ...edit.result, mr: e.target.value } })} />}</Field>
+            <Field label="Exam / department (English)">{(id) => <input id={id} className="input" value={edit.exam.en} onChange={(e) => setEdit({ ...edit, exam: { ...edit.exam, en: e.target.value } })} />}</Field>
+            <Field label="परीक्षा / विभाग (मराठी)">{(id) => <input id={id} className="input" value={edit.exam.mr} onChange={(e) => setEdit({ ...edit, exam: { ...edit.exam, mr: e.target.value } })} />}</Field>
+            <Field label={t("Year (optional)", "वर्ष (ऐच्छिक)")}>{(id) => <input id={id} type="number" className="input" value={edit.year ?? ""} onChange={(e) => setEdit({ ...edit, year: e.target.value ? Number(e.target.value) : undefined })} />}</Field>
+            <Field label={t("Course (optional)", "अभ्यासक्रम (ऐच्छिक)")}>{(id) => <select id={id} className="input" value={edit.courseId ?? ""} onChange={(e) => setEdit({ ...edit, courseId: e.target.value || undefined })}><option value="">—</option>{db.courses.map((c) => <option key={c.id} value={c.id}>{l(c.name)}</option>)}</select>}</Field>
+            <div className="sm:col-span-2">
+              <Field label={t("Photo or congratulations poster", "फोटो किंवा अभिनंदन पोस्टर")} hint={t("Resized automatically. In this prototype the photo is saved in this browser only; permanent website images go in /public/results (or cloud storage once the backend exists).", "आपोआप लहान केले जाते. या प्रोटोटाइपमध्ये फोटो फक्त या ब्राउझरमध्ये जतन होतो; कायमस्वरूपी प्रतिमा /public/results (किंवा बॅकएंड आल्यावर क्लाउड स्टोरेज) मध्ये ठेवा.")}>{(id) => <input id={id} type="file" accept="image/*" className="input" onChange={(e) => onPhoto(e.target.files?.[0])} />}</Field>
+              {edit.photo && <img src={edit.photo} alt="" className="mt-2 h-40 rounded-lg border object-cover" />}
+            </div>
+            <Toggle checked={edit.consent} onChange={(v) => setEdit({ ...edit, consent: v })} label={t("Student consent recorded", "विद्यार्थ्याची संमती नोंदवली")} />
+            <Toggle checked={edit.published} onChange={(v) => setEdit({ ...edit, published: v })} label={t("Show on website", "संकेतस्थळावर दाखवा")} />
+            <Toggle checked={!!edit.featured} onChange={(v) => setEdit({ ...edit, featured: v })} label={t("Feature on home page", "मुख्यपृष्ठावर ठळक")} />
+          </div>
+        )}
+      </Modal>
+      <Modal open={!!tm} onClose={() => setTm(null)} title={t("Testimonial", "अभिप्राय")} footer={<button className="btn-primary" onClick={() => { if (!tm?.name) return; if (tm.published && !tm.consent) return toast.error(t("Consent required", "संमती आवश्यक")); update((db) => db.testimonials.unshift({ ...tm, id: uid("tm"), text: { en: tm.text.en || tm.text.mr, mr: tm.text.mr || tm.text.en } }), { action: "testimonial.add", entity: tm.name }); setTm(null); }}>{t("Save", "जतन")}</button>}>
+        {tm && <div className="grid gap-3"><Field label={t("Student name", "नाव")}>{(id) => <input id={id} className="input" value={tm.name} onChange={(e) => setTm({ ...tm, name: e.target.value })} />}</Field><Field label={t("Course / result", "अभ्यासक्रम / निकाल")}>{(id) => <input id={id} className="input" value={tm.course} onChange={(e) => setTm({ ...tm, course: e.target.value })} />}</Field><Field label="मराठी">{(id) => <textarea id={id} rows={3} className="input" value={tm.text.mr} onChange={(e) => setTm({ ...tm, text: { ...tm.text, mr: e.target.value } })} />}</Field><Field label="English">{(id) => <textarea id={id} rows={3} className="input" value={tm.text.en} onChange={(e) => setTm({ ...tm, text: { ...tm.text, en: e.target.value } })} />}</Field><Toggle checked={tm.consent} onChange={(v) => setTm({ ...tm, consent: v })} label={t("Consent recorded", "संमती नोंदवली")} /><Toggle checked={tm.published} onChange={(v) => setTm({ ...tm, published: v })} label={t("Show on website", "संकेतस्थळावर दाखवा")} /></div>}
       </Modal>
     </div>
   );
@@ -520,7 +595,7 @@ export function Certificates({ canManage }: { canManage: boolean }) {
       {cert && (
         <Modal open onClose={() => setView(null)} title={cert.number} size="xl" footer={<button className="btn-primary" onClick={() => window.print()}><Printer className="size-4" />{t("Print / PDF", "प्रिंट / PDF")}</button>}>
           <div className="print-area relative mx-auto aspect-[1.414] w-full max-w-3xl border-8 border-double border-brand-700 bg-gradient-to-br from-white to-brand-50 p-8 text-center">
-            <p className="text-sm font-semibold tracking-widest text-brand-700">{academy.name.en.toUpperCase()} · {academy.name.mr}</p>
+            <img src={academy.logoUrl} alt="" className="mx-auto mb-2 size-20 rounded-full" /><p className="text-sm font-semibold tracking-widest text-brand-700">{academy.name.en.toUpperCase()} · {academy.name.mr}</p>
             <p className="mt-4 text-3xl font-bold text-brand-950">{cert.kind === "completion" ? "Certificate of Completion" : cert.kind === "participation" ? "Certificate of Participation" : "Certificate of Achievement"}</p>
             <p className="text-lg text-brand-800">{cert.kind === "completion" ? "अभ्यासक्रम पूर्ती प्रमाणपत्र" : cert.kind === "participation" ? "सहभाग प्रमाणपत्र" : "गौरव प्रमाणपत्र"}</p>
             <p className="mt-6 text-sm text-slate-600">This is to certify that / प्रमाणित करण्यात येते की</p>

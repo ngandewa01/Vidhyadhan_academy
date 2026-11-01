@@ -12,14 +12,14 @@ export function Logo({ compact, light }: { compact?: boolean; light?: boolean })
     <Link href="/" className="flex items-center gap-2" aria-label={academy.name.en}>
       {academy.logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={academy.logoUrl} alt="" className="size-9 rounded-lg" />
+        <img src={academy.logoUrl} alt="" width={44} height={44} className="size-11 rounded-full bg-white shadow-sm" />
       ) : (
         <span className="flex size-9 items-center justify-center rounded-lg bg-gradient-to-br from-brand-700 to-brand-500 text-lg font-bold text-white shadow-sm" title="Logo placeholder">वि</span>
       )}
       {!compact && (
         <span className="leading-tight">
           <span className={cn("block text-[15px] font-bold", light ? "text-white" : "text-brand-900")}>{l(academy.name)}</span>
-          <span className={cn("block text-[11px]", light ? "text-brand-200" : "text-slate-500")}>{l({ en: "विद्याधन अकॅडमी", mr: "Vidyadhan Academy" })}</span>
+          <span className={cn("block text-[11px] font-medium tracking-wide", light ? "text-brand-200" : "text-saffron-700")}>{academy.focus}</span>
         </span>
       )}
     </Link>

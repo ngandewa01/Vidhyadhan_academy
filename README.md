@@ -32,6 +32,22 @@ Everything that must not be invented is a placeholder in **one file**: [`src/con
 
 Other content is editable from **Admin → Website CMS** (hero text, why-us, about, announcements, FAQs, faculty profiles, SEO) and **Admin → Courses / Batches / Library → Plans** (fees). For permanent defaults, edit [`src/lib/seed.ts`](src/lib/seed.ts).
 
+## Google reviews on the website
+
+The site shows **genuine Google reviews** through the official Google Places API (no scraping), via the server route `src/app/api/google-reviews/route.ts`. It's shown on the Home, Results and Testimonials pages and in Admin → Results & Achievements.
+
+1. Google Cloud Console → create a project → enable billing → enable **Places API (New)**.
+2. Create an API key and restrict it to Places API (New).
+3. Find the academy's **Place ID** with Google's [Place ID Finder](https://developers.google.com/maps/documentation/places/web-service/place-id).
+4. Vercel → Project → Settings → Environment Variables → add `GOOGLE_PLACES_API_KEY` and `GOOGLE_PLACE_ID` → **Redeploy**.
+5. `googleMapsUrl` in `src/config/academy.ts` is already set to the academy's Google listing (https://share.google/VwVBzYt5DnkekqyiU) for the "See reviews on Google" and "Get directions" buttons.
+
+Google returns **up to 5 reviews** (selected by Google), refreshed every 6 hours, with the required author attribution. Showing *all* reviews would need the Google Business Profile API (owner sign-in), which needs the real backend.
+
+## Successful-student photos
+
+Real results live in `src/lib/seed.ts` (`achievements`) with images in `public/results/`. To add one permanently: put the image in `public/results/`, add an entry, commit, and Vercel redeploys. Admin → Results & Achievements also lets you upload photos and posters, but in this prototype they're saved only in that browser until the backend and cloud storage exist.
+
 ## What's in the prototype
 
 | Area | Routes | Highlights |

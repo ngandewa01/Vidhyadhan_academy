@@ -794,7 +794,7 @@ export function IdCardFace({ studentId }: { studentId: string }) {
   return (
     <div className="print-area mx-auto w-[340px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-md">
       <div className="flex items-center gap-2 bg-gradient-to-r from-brand-800 to-brand-600 px-4 py-3 text-white">
-        <span className="flex size-9 items-center justify-center rounded-lg bg-white/15 font-bold">वि</span>
+        <img src={academy.logoUrl} alt="" className="size-10 rounded-full bg-white" />
         <div className="leading-tight"><p className="text-sm font-bold">{academy.name.en}</p><p className="text-[11px] text-brand-100">{academy.name.mr} · {t("Student ID", "विद्यार्थी ओळखपत्र")}</p></div>
       </div>
       <div className="flex gap-3 p-4">
