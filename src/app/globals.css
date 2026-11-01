@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+/* Design tokens – Vidyadhan Academy
+   Primary: deep academic indigo. Accent: saffron (used sparingly for key CTAs/highlights). */
+@theme {
+  --font-sans: "Mukta", ui-sans-serif, system-ui, "Noto Sans Devanagari", sans-serif;
+
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c3cdfb;
+  --color-brand-300: #9eacf3;
+  --color-brand-400: #6f7fe6;
+  --color-brand-500: #4a5bd4;
+  --color-brand-600: #3442b8;
+  --color-brand-700: #2a3594;
+  --color-brand-800: #232c74;
+  --color-brand-900: #1b2257;
+  --color-brand-950: #11163a;
+
+  --color-saffron-50: #fff7ed;
+  --color-saffron-100: #ffedd5;
+  --color-saffron-200: #fed7aa;
+  --color-saffron-400: #fb923c;
+  --color-saffron-500: #f97316;
+  --color-saffron-600: #ea580c;
+  --color-saffron-700: #c2410c;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-slate-50 text-slate-800 antialiased;
+    font-feature-settings: "kern";
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-500;
+  }
+  h1, h2, h3, h4 {
+    @apply text-slate-900;
+    line-height: 1.25;
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary { @apply btn bg-brand-700 text-white hover:bg-brand-800; }
+@utility btn-accent { @apply btn bg-saffron-600 text-white hover:bg-saffron-700; }
+@utility btn-outline { @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50; }
+@utility btn-ghost { @apply btn text-slate-600 hover:bg-slate-100; }
+@utility btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
+@utility btn-sm { @apply px-3 py-1.5 text-xs; }
+@utility card { @apply rounded-xl border border-slate-200 bg-white shadow-sm; }
+@utility input {
+  @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:bg-slate-100;
+}
+@utility label { @apply mb-1 block text-sm font-medium text-slate-700; }
+@utility container-page { @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8; }
+@utility section-title { @apply text-2xl font-bold sm:text-3xl; }
+
+@layer components {
+  .table-base { @apply w-full text-left text-sm; }
+  .table-base th { @apply bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap; }
+  .table-base td { @apply border-t border-slate-100 px-3 py-2.5 align-top; }
+}
+
+@media print {
+  .no-print { display: none !important; }
+  body { background: white; }
+}
+
+/* When a printable area (receipt, ID card, certificate) is open, print only that */
+@media print {
+  body:has(.print-area) * { visibility: hidden; }
+  body:has(.print-area) .print-area, body:has(.print-area) .print-area * { visibility: visible; }
+  body:has(.print-area) .print-area { position: absolute; left: 0; top: 0; width: 100%; border: none; }
+}
