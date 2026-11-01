@@ -406,14 +406,17 @@ export interface Ticket {
 
 export interface Achievement {
   id: string;
-  name: string;
-  exam: string;
-  year: number;
-  result: string;
-  courseId: string;
+  name: L;
+  exam: L;
+  result: L;
+  year?: number;
+  photo?: string; // URL (public/results/...) or data URL uploaded in the prototype
+  courseId?: string;
   consent: boolean;
+  consentNote?: string;
   published: boolean;
   demo: boolean;
+  featured?: boolean;
 }
 export interface Testimonial { id: string; name: string; course: string; text: L; consent: boolean; published: boolean; demo: boolean }
 export interface Announcement { id: string; title: L; body: L; date: string; pinned: boolean; published: boolean }

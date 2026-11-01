@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { CourseCard, DemoNote, EnquiryForm, PageHero, SectionHead } from "@/components/public";
 import { Badge, Card, EmptyState, Notice, StatusBadge, Tabs } from "@/components/ui";
 import { WhatsAppIcon } from "@/components/brand";
+import { GoogleReviews, ResultCard } from "@/components/GoogleReviews";
 import { academy, isPlaceholder } from "@/config/academy";
 import { fmtINR } from "@/lib/utils";
 import type { ImportantDateKind } from "@/lib/types";
@@ -19,7 +20,12 @@ export function AboutView() {
       <PageHero title={t("About the Academy", "अकॅडमीविषयी")} subtitle={l(academy.tagline)} />
       <section className="container-page grid gap-8 py-12 lg:grid-cols-[2fr_1fr]">
         <div className="prose max-w-none space-y-4 text-slate-700">
+          <img src={academy.bannerUrl} alt={`${academy.name.en} – ${academy.focus}`} className="w-full rounded-xl border border-slate-200" />
           <p className="text-lg">{l(cms.aboutBody)}</p>
+          <blockquote className="rounded-xl border-l-4 border-saffron-500 bg-saffron-50 px-5 py-4 text-saffron-900">
+            <p className="text-lg font-semibold">॥ {academy.quote.text} ॥</p>
+            <p className="mt-1 text-sm">– {l(academy.quote.author)}</p>
+          </blockquote>
           <h2 className="text-xl font-semibold">{t("Our approach", "आमची पद्धत")}</h2>
           <ul className="grid gap-2 sm:grid-cols-2">
             {cms.whyUs.map((w, i) => <li key={i} className="flex gap-2"><Check className="mt-1 size-4 shrink-0 text-emerald-600" />{l(w)}</li>)}
@@ -28,6 +34,10 @@ export function AboutView() {
         </div>
         <Card title={t("At a glance", "थोडक्यात")}>
           <dl className="space-y-3 text-sm">
+            <div><dt className="text-slate-500">{t("Founder", "संस्थापक")}</dt><dd className="font-medium">{l(academy.founder)}</dd></div>
+            <div><dt className="text-slate-500">{t("Exams", "परीक्षा")}</dt><dd className="font-medium">{academy.focus}</dd></div>
+            <div><dt className="text-slate-500">{t("Our belief", "आमचा विश्वास")}</dt><dd className="font-medium">{l(academy.tagline)}</dd></div>
+            <div><dt className="text-slate-500">{t("Phone", "फोन")}</dt><dd className="font-medium"><a className="text-brand-700" href={`tel:${academy.phone.replace(/\s/g, "")}`}>{academy.phone}</a></dd></div>
             <div><dt className="text-slate-500">{t("Location", "स्थान")}</dt><dd className="font-medium">{l(academy.address)}</dd></div>
             <div><dt className="text-slate-500">{t("Mode", "पद्धत")}</dt><dd className="font-medium">{t("Classroom, online and hybrid", "वर्ग, ऑनलाइन व हायब्रिड")}</dd></div>
             <div><dt className="text-slate-500">{t("Medium", "माध्यम")}</dt><dd className="font-medium">{t("Marathi and English", "मराठी व इंग्रजी")}</dd></div>
@@ -342,30 +352,27 @@ export function FacultyView() {
 export function ResultsView() {
   const { t, l } = useI18n();
   const db = useStore((s) => s.db);
-  const list = db.achievements.filter((a) => a.published && a.consent);
-  const years = [...new Set(list.map((a) => a.year))].sort((a, b) => b - a);
+  const list = db.achievements.filter((a) => a.published && a.consent).sort((a, b) => Number(!!b.featured) - Number(!!a.featured) || (b.year ?? 0) - (a.year ?? 0));
+  const years = [...new Set(list.map((a) => a.year).filter((y): y is number => !!y))].sort((a, b) => b - a);
   const [year, setYear] = useState<number | "all">("all");
+  const shown = list.filter((a) => year === "all" || a.year === year);
   return (
     <>
-      <PageHero title={t("Results & achievements", "निकाल व यश")} subtitle={t("Year-wise and course-wise achievements, published only with student consent.", "वर्षनिहाय व अभ्यासक्रमनिहाय यश — केवळ विद्यार्थ्यांच्या संमतीने प्रकाशित.")} />
+      <PageHero title={t("Our successful students", "आमचे यशस्वी विद्यार्थी")} subtitle={t("Every selection is a proud moment for the Vidyadhan family. Results are published with the student's consent.", "प्रत्येक निवड हा विद्याधन परिवारासाठी अभिमानाचा क्षण आहे. निकाल विद्यार्थ्यांच्या संमतीने प्रसिद्ध केले जातात.")} />
       <section className="container-page py-10">
-        <div className="mb-5 flex flex-wrap gap-2">
-          <button onClick={() => setYear("all")} className={year === "all" ? "btn-primary btn-sm" : "btn-outline btn-sm"}>{t("All years", "सर्व वर्षे")}</button>
-          {years.map((y) => <button key={y} onClick={() => setYear(y)} className={year === y ? "btn-primary btn-sm" : "btn-outline btn-sm"}>{y}</button>)}
+        {years.length > 1 && (
+          <div className="mb-5 flex flex-wrap gap-2">
+            <button onClick={() => setYear("all")} className={year === "all" ? "btn-primary btn-sm" : "btn-outline btn-sm"}>{t("All years", "सर्व वर्षे")}</button>
+            {years.map((y) => <button key={y} onClick={() => setYear(y)} className={year === y ? "btn-primary btn-sm" : "btn-outline btn-sm"}>{y}</button>)}
+          </div>
+        )}
+        {shown.length ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{shown.map((a) => <ResultCard key={a.id} a={a} courseName={l(db.courses.find((c) => c.id === a.courseId)?.name)} />)}</div>
+        ) : <EmptyState title={t("Results will be published soon", "निकाल लवकरच प्रसिद्ध होतील")} />}
+        <div className="mt-10">
+          <SectionHead title={t("What students say", "विद्यार्थी काय म्हणतात")} />
+          <GoogleReviews />
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {list.filter((a) => year === "all" || a.year === year).map((a) => (
-            <div key={a.id} className="card p-5 text-center">
-              <div className="mx-auto mb-3 flex size-16 items-center justify-center rounded-full bg-slate-100 text-xs text-slate-400">{t("Photo", "फोटो")}</div>
-              <p className="font-semibold">{a.name}</p>
-              <p className="text-sm text-slate-500">{a.exam} · {a.year}</p>
-              <p className="text-xs text-slate-500">{l(db.courses.find((c) => c.id === a.courseId)?.name)}</p>
-              <Badge tone="green" className="mt-2">{a.result}</Badge>
-              {a.demo && <Badge tone="orange" className="ml-1 mt-2">{t("Demo", "डेमो")}</Badge>}
-            </div>
-          ))}
-        </div>
-        <DemoNote>{t("No real results are shown. The academy will publish genuine results after obtaining consent.", "कोणतेही खरे निकाल दाखवलेले नाहीत. संमती मिळाल्यानंतर अकॅडमी खरे निकाल प्रकाशित करेल.")}</DemoNote>
       </section>
     </>
   );
@@ -376,15 +383,20 @@ export function TestimonialsView() {
   const list = useStore((s) => s.db.testimonials).filter((x) => x.published && x.consent);
   return (
     <>
-      <PageHero title={t("Student testimonials", "विद्यार्थ्यांचे अभिप्राय")} />
-      <section className="container-page grid gap-5 py-10 md:grid-cols-2">
-        {list.map((x) => (
-          <figure key={x.id} className="card p-6">
-            <Quote className="size-6 text-saffron-500" />
-            <blockquote className="mt-2 text-slate-700">{l(x.text)}</blockquote>
-            <figcaption className="mt-3 text-sm font-semibold">{x.name} <span className="font-normal text-slate-500">· {x.course}</span> {x.demo && <Badge tone="orange">{t("Demo", "डेमो")}</Badge>}</figcaption>
-          </figure>
-        ))}
+      <PageHero title={t("Student reviews", "विद्यार्थ्यांचे अभिप्राय")} subtitle={t("Genuine reviews from Google, plus testimonials shared with the academy.", "Google वरील खरे रिव्ह्यूज व अकॅडमीकडे आलेले अभिप्राय.")} />
+      <section className="container-page space-y-10 py-10">
+        <GoogleReviews limit={5} />
+        {list.length > 0 && (
+          <div className="grid gap-5 md:grid-cols-2">
+            {list.map((x) => (
+              <figure key={x.id} className="card p-6">
+                <Quote className="size-6 text-saffron-500" />
+                <blockquote className="mt-2 text-slate-700">{l(x.text)}</blockquote>
+                <figcaption className="mt-3 text-sm font-semibold">{x.name} <span className="font-normal text-slate-500">· {x.course}</span></figcaption>
+              </figure>
+            ))}
+          </div>
+        )}
       </section>
     </>
   );

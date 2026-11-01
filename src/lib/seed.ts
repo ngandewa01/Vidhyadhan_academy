@@ -277,10 +277,10 @@ const settings: T.Settings = {
   materialApproval: true,
   receiptPrefix: "VA",
   cms: {
-    heroTitle: L("Prepare with clarity. Succeed with confidence.", "स्पष्ट तयारी. आत्मविश्वासपूर्ण यश."),
+    heroTitle: L("Your dream… our direction.", "स्वप्न तुमचे... दिशा आमची"),
     heroSubtitle: L(
-      "Classroom and online coaching for MPSC, PSI/STI/ASO, Police Bharti, Talathi and other Maharashtra competitive examinations — in Marathi and English medium.",
-      "एमपीएससी, पीएसआय/एसटीआय/एएसओ, पोलीस भरती, तलाठी व इतर महाराष्ट्र स्पर्धा परीक्षांसाठी वर्गातील आणि ऑनलाइन मार्गदर्शन — मराठी व इंग्रजी माध्यमात."
+      "Nikhil Rudrawar's Vidyadhan Academy – focused guidance for MPSC, PSI, STI, ASO and other Maharashtra competitive examinations. Not just a class — a family.",
+      "निखिल रुद्रवार यांची विद्याधन अकॅडमी – एमपीएससी, पीएसआय, एसटीआय, एएसओ व इतर महाराष्ट्र स्पर्धा परीक्षांसाठी लक्ष्यकेंद्रित मार्गदर्शन. क्लास नव्हे, एक कुटुंबच!"
     ),
     whyUs: [
       L("Exam-focused syllabus planning", "परीक्षाकेंद्रित अभ्यासक्रम नियोजन"),
@@ -291,8 +291,8 @@ const settings: T.Settings = {
       L("Personal attention & doubt solving", "वैयक्तिक लक्ष व शंका निरसन"),
     ],
     aboutBody: L(
-      "Vidyadhan Academy is a competitive-examination coaching institute in Maharashtra. [Replace this paragraph with the academy's real story, founding year, mission and approach.]",
-      "विद्याधन अकॅडमी ही महाराष्ट्रातील स्पर्धा परीक्षा मार्गदर्शन संस्था आहे. [हा परिच्छेद अकॅडमीची खरी माहिती, स्थापना वर्ष, ध्येय व कार्यपद्धतीने बदला.]"
+      "Nikhil Rudrawar's Vidyadhan Academy prepares aspirants for MPSC, PSI, STI and ASO examinations. Our belief is simple: this is not just a class, it is a family – your dream, our direction. [Add founding year, director's message and approach.]",
+      "निखिल रुद्रवार यांची विद्याधन अकॅडमी एमपीएससी, पीएसआय, एसटीआय व एएसओ परीक्षांची तयारी करून घेते. आमचा विश्वास साधा आहे – क्लास नव्हे, एक कुटुंबच! स्वप्न तुमचे... दिशा आमची. [स्थापना वर्ष, संचालकांचा संदेश व कार्यपद्धती जोडा.]"
     ),
     libraryBlurb: L(
       "A calm, disciplined reading space with allotted seats, available as a stand-alone membership or bundled with a course.",
@@ -446,16 +446,15 @@ export function buildSeed() {
     { id: "bc_2", title: "Police Bharti weekly test reminder", body: "Weekly test opens tomorrow.", channels: ["inapp", "sms"], audience: { type: "batch", ids: ["b_pol"] }, createdAt: dayOffset(-2) + "T09:00:00", createdBy: "u_office", status: "sent", delivered: 6, failed: 1 },
     { id: "bc_3", title: "Group B batch starts", body: "Orientation session details.", channels: ["inapp", "whatsapp"], audience: { type: "course", ids: ["c_groupb"] }, scheduledAt: dayOffset(10) + "T09:00", createdAt: dayOffset(0) + "T09:00:00", createdBy: "u_office", status: "scheduled", delivered: 0, failed: 0 },
   ];
+  // REAL results supplied by the academy (images in /public/results). Add more here or via Admin → Results & Achievements.
   const achievements: T.Achievement[] = [
-    { id: "ac_1", name: "Demo Student A", exam: "Sample Exam", year: 2025, result: "Selected (demo)", courseId: "c_rajyaseva", consent: true, published: true, demo: true },
-    { id: "ac_2", name: "Demo Student B", exam: "Sample Exam", year: 2025, result: "Selected (demo)", courseId: "c_police", consent: true, published: true, demo: true },
-    { id: "ac_3", name: "Demo Student C", exam: "Sample Exam", year: 2024, result: "Rank (demo)", courseId: "c_psi", consent: true, published: true, demo: true },
-    { id: "ac_4", name: "Demo Student D", exam: "Sample Exam", year: 2024, result: "Selected (demo)", courseId: "c_talathi", consent: false, published: false, demo: true },
+    {
+      id: "ac_arun_gawade", name: L("Major Arun Gawade Sir", "मेजर अरुण गावडे सर"), exam: L("Mumbai Police", "मुंबई पोलीस"),
+      result: L("Selected – Mumbai Police", "मुंबई पोलीस पदी निवड"), photo: "/results/arun-gawade-mumbai-police.jpg",
+      consent: true, consentNote: "Published by the academy on its own poster", published: true, demo: false, featured: true,
+    },
   ];
-  const testimonials: T.Testimonial[] = [
-    { id: "tm_1", name: "Demo testimonial", course: "MPSC Rajyaseva", text: L("[Placeholder] A genuine student testimonial will appear here after consent is recorded.", "[नमुना] संमती नोंदवल्यानंतर विद्यार्थ्याचा खरा अभिप्राय येथे दिसेल."), consent: true, published: true, demo: true },
-    { id: "tm_2", name: "Demo testimonial", course: "Police Bharti", text: L("[Placeholder] Testimonials are published only with written consent.", "[नमुना] अभिप्राय केवळ लेखी संमतीनेच प्रकाशित केले जातात."), consent: true, published: true, demo: true },
-  ];
+  const testimonials: T.Testimonial[] = [];
   const announcements: T.Announcement[] = [
     { id: "an_1", title: L("Admissions open: Rajyaseva evening hybrid batch", "प्रवेश सुरू: राज्यसेवा सायंकाळ हायब्रिड बॅच"), body: L("Limited seats. Visit the office or apply online. (Demo)", "मर्यादित जागा. कार्यालयात भेट द्या किंवा ऑनलाइन अर्ज करा. (डेमो)"), date: dayOffset(-2), pinned: true, published: true },
     { id: "an_2", title: L("Group B online batch starts soon", "गट ब ऑनलाइन बॅच लवकरच सुरू"), body: L("Orientation details will be shared with registered students. (Demo)", "नोंदणीकृत विद्यार्थ्यांना परिचय सत्राची माहिती दिली जाईल. (डेमो)"), date: dayOffset(-5), pinned: false, published: true },

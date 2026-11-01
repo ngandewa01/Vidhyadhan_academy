@@ -44,7 +44,7 @@ export function ReceiptModal({ paymentId, onClose }: { paymentId: string | null;
       <div id="receipt-print" className="print-area rounded-lg border border-slate-200 p-5 text-sm">
         <div className="flex items-start justify-between gap-4 border-b pb-3">
           <div className="flex items-center gap-3">
-            <span className="flex size-11 items-center justify-center rounded-lg bg-brand-700 text-lg font-bold text-white">वि</span>
+            <img src={academy.logoUrl} alt="" className="size-14 rounded-full" />
             <div>
               <p className="text-base font-bold">{academy.name.en} <span className="font-semibold text-slate-500">| {academy.name.mr}</span></p>
               <p className="text-xs text-slate-500">{l(academy.address)} · {academy.phone}</p>

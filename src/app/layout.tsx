@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: { type: "website", siteName: "Vidyadhan Academy", locale: "mr_IN" },
   robots: { index: true, follow: true },
 };
-export const viewport: Viewport = { themeColor: "#2a3594", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#0b5583", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
