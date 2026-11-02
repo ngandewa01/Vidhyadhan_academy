@@ -41,7 +41,7 @@ export function AboutView() {
             <div><dt className="text-slate-500">{t("Location", "स्थान")}</dt><dd className="font-medium">{l(academy.address)}</dd></div>
             <div><dt className="text-slate-500">{t("Mode", "पद्धत")}</dt><dd className="font-medium">{t("Classroom, online and hybrid", "वर्ग, ऑनलाइन व हायब्रिड")}</dd></div>
             <div><dt className="text-slate-500">{t("Medium", "माध्यम")}</dt><dd className="font-medium">{t("Marathi and English", "मराठी व इंग्रजी")}</dd></div>
-            <div><dt className="text-slate-500">{t("Facilities", "सुविधा")}</dt><dd className="font-medium">{t("Multiple classrooms, self-study library", "अनेक वर्गखोल्या, अभ्यासिका")}</dd></div>
+            <div><dt className="text-slate-500">{t("Facilities", "सुविधा")}</dt><dd className="font-medium">{t("Multiple classrooms, Abhyasika Kendra", "अनेक वर्गखोल्या, अभ्यासिका")}</dd></div>
           </dl>
         </Card>
       </section>
@@ -259,7 +259,7 @@ export function FeesView() {
           </Card>
         </div>
         <div>
-          <h2 className="mb-3 text-xl font-semibold">{t("Library plans", "ग्रंथालय योजना")}</h2>
+          <h2 className="mb-3 text-xl font-semibold">{t("Abhyasika Kendra plans", "अभ्यासिका केंद्र योजना")}</h2>
           <LibraryPlans />
         </div>
         <p className="text-sm text-slate-500">{t("Payment methods: Cash, UPI/QR, online gateway and bank transfer. A detailed receipt is issued for every payment. GST, if applicable, is configured by the academy.", "पेमेंट पद्धती: रोख, UPI/QR, ऑनलाइन गेटवे व बँक ट्रान्सफर. प्रत्येक पेमेंटची सविस्तर पावती दिली जाते. GST लागू असल्यास अकॅडमी निश्चित करेल.")}</p>
@@ -293,10 +293,10 @@ export function LibraryView() {
   const active = db.memberships.filter((m) => m.status === "active").length;
   return (
     <>
-      <PageHero title={t("Library", "ग्रंथालय / अभ्यासिका")} subtitle={l(db.settings.cms.libraryBlurb)}>
+      <PageHero title={t("Abhyasika Kendra", "अभ्यासिका केंद्र / अभ्यासिका")} subtitle={l(db.settings.cms.libraryBlurb)}>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/admission?library=lp_m" className="btn-accent">{t("Get membership", "सदस्यत्व घ्या")}</Link>
-          <Link href="/contact" className="btn-outline">{t("Visit the library", "ग्रंथालयाला भेट द्या")}</Link>
+          <Link href="/contact" className="btn-outline">{t("Visit the Abhyasika Kendra", "अभ्यासिका केंद्राला भेट द्या")}</Link>
         </div>
       </PageHero>
       <section className="container-page space-y-10 py-10">
@@ -311,10 +311,10 @@ export function LibraryView() {
           })}
         </div>
         <div>
-          <SectionHead title={t("Membership plans", "सदस्यत्व योजना")} subtitle={t("Library-only membership — no coaching enrolment required — or a discounted course + library bundle.", "फक्त ग्रंथालय सदस्यत्व (कोचिंग प्रवेश आवश्यक नाही) किंवा सवलतीचा अभ्यासक्रम + ग्रंथालय संच.")} />
+          <SectionHead title={t("Membership plans", "सदस्यत्व योजना")} subtitle={t("Abhyasika Kendra only membership — no coaching enrolment required — or a discounted course + Abhyasika Kendra bundle.", "फक्त अभ्यासिका केंद्र सदस्यत्व (कोचिंग प्रवेश आवश्यक नाही) किंवा सवलतीचा अभ्यासक्रम + अभ्यासिका केंद्र संच.")} />
           <LibraryPlans />
         </div>
-        <Card title={t("Library rules (sample)", "ग्रंथालय नियम (नमुना)")}>
+        <Card title={t("Abhyasika Kendra rules (sample)", "अभ्यासिका केंद्र नियम (नमुना)")}>
           <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
             <li>{t("Check in at the desk or by QR on arrival.", "आगमनावेळी डेस्कवर किंवा QR द्वारे नोंद करा.")}</li>
             <li>{t("Maintain silence; phones on silent.", "शांतता राखा; फोन सायलेंट ठेवा.")}</li>
@@ -404,7 +404,7 @@ export function TestimonialsView() {
 
 export function GalleryView() {
   const { t } = useI18n();
-  const items = [t("Classroom", "वर्गखोली"), t("Library", "ग्रंथालय"), t("Seminar", "चर्चासत्र"), t("Felicitation", "सत्कार"), t("Mock test", "सराव परीक्षा"), t("Campus", "परिसर")];
+  const items = [t("Classroom", "वर्गखोली"), t("Abhyasika Kendra", "अभ्यासिका केंद्र"), t("Seminar", "चर्चासत्र"), t("Felicitation", "सत्कार"), t("Mock test", "सराव परीक्षा"), t("Campus", "परिसर")];
   return (
     <>
       <PageHero title={t("Gallery", "छायाचित्रे")} subtitle={t("Photos will be added by the academy through the Website CMS.", "अकॅडमी वेबसाइट CMS मधून छायाचित्रे जोडेल.")} />

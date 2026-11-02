@@ -19,7 +19,7 @@ npm run build && npm start
 Other scripts: `npm run typecheck`.
 
 ### Demo logins
-Open **/login** and use the one-click demo accounts on the right (Student, Library-only member, Faculty, Admin staff, Owner).
+Open **/login** and use the one-click demo accounts on the right (Student, Abhyasika Kendra only member, Faculty, Admin staff, Owner).
 Or log in by mobile: any seeded number + any 4-character password, or OTP **`123456`**.
 New students can self-register with OTP `123456` at **/login → New student** or during **/admission**.
 
@@ -30,7 +30,7 @@ All data lives in your browser's localStorage. **Admin → Settings → Reset de
 Everything that must not be invented is a placeholder in **one file**: [`src/config/academy.ts`](src/config/academy.ts)
 (address, phone, WhatsApp number, email, office hours, map embed, logo, GSTIN, social links).
 
-Other content is editable from **Admin → Website CMS** (hero text, why-us, about, announcements, FAQs, faculty profiles, SEO) and **Admin → Courses / Batches / Library → Plans** (fees). For permanent defaults, edit [`src/lib/seed.ts`](src/lib/seed.ts).
+Other content is editable from **Admin → Website CMS** (hero text, why-us, about, announcements, FAQs, faculty profiles, SEO) and **Admin → Courses / Batches / Abhyasika Kendra → Plans** (fees). For permanent defaults, edit [`src/lib/seed.ts`](src/lib/seed.ts).
 
 ## Google reviews on the website
 
@@ -53,7 +53,7 @@ Real results live in `src/lib/seed.ts` (`achievements`) with images in `public/r
 | Area | Routes | Highlights |
 |---|---|---|
 | Public website | `/`, `/about`, `/courses`, `/courses/[slug]`, `/syllabus`, `/fees`, `/batches`, `/faculty`, `/results`, `/testimonials`, `/gallery`, `/announcements`, `/exam-updates`, `/resources`, `/library`, `/contact`, `/enquiry`, `/admission`, `/login`, `/verify` | Marathi/English, SEO metadata per page, quick + detailed enquiry with duplicate detection, 5-step online admission (OTP → batch → promo/instalments → payment → receipt), WhatsApp CTA, certificate/ID QR verification |
-| Student portal | `/student/...` | Dashboard, course content hierarchy, live classes (join + attendance), recorded lectures (resume playback, data-saver), materials (view/download rules, size shown, watermark), **exam engine**, results & rankings, assignments (multi-file upload, resubmit, late rules), attendance (calendar + QR scan), fees & receipts, library membership & renewal, exam updates (follow/bookmark), calendar, notifications, support tickets + FAQ, digital ID card, profile (content language, consent, data export) |
+| Student portal | `/student/...` | Dashboard, course content hierarchy, live classes (join + attendance), recorded lectures (resume playback, data-saver), materials (view/download rules, size shown, watermark), **exam engine**, results & rankings, assignments (multi-file upload, resubmit, late rules), attendance (calendar + QR scan), fees & receipts, Abhyasika Kendra membership & renewal, exam updates (follow/bookmark), calendar, notifications, support tickets + FAQ, digital ID card, profile (content language, consent, data export) |
 | Faculty portal | `/faculty-portal/...` | Only assigned batches + permitted modules: attendance (manual + rotating QR), live/recorded classes, material upload (→ approval), tests, question bank, assignments & grading, results (if granted), batch notes |
 | Admin portal | `/admin/...` | Dashboard, enquiries CRM, students, admissions/enrolments/batch transfers, courses, syllabus (versioned, CSV import with row errors), batches, branches/classrooms, classes, material approvals, question bank (bilingual, CSV import + duplicate check), exams, results, assignments, attendance (corrections need reason), fees/payments/refunds/offers, receipts (reprints logged), **library module** (memberships, check-in desk, seat map, plans), official exam updates review queue + sources, notifications (channels, audiences, schedule, templates), tickets, achievements (consent-gated), referrals (disabled by default), ID cards & certificates, reports (filters, YoY, CSV/Excel/PDF), CMS, **per-user permission matrix**, settings (gateways, GST, thresholds), audit log |
 
@@ -75,7 +75,7 @@ Next.js front end → modular **NestJS** REST API (one backend for web + future 
 The data model in [`src/lib/types.ts`](src/lib/types.ts) already carries `branchId` on relevant records, plus separate payment, admission and enrolment statuses, so multiple branches can be added later.
 
 ## Recommended phasing
-- **MVP:** public site + CMS, registration/login, students, courses/batches, enquiries, admissions, fees & receipts, basic materials, tests/results, attendance, library memberships, in-app/SMS notifications, essential reports.
+- **MVP:** public site + CMS, registration/login, students, courses/batches, enquiries, admissions, fees & receipts, basic materials, tests/results, attendance, Abhyasika Kendra memberships, in-app/SMS notifications, essential reports.
 - **Phase 2:** assignments, advanced question-bank imports, live-class integrations, exam-update automation, support tickets, ID cards/certificates, advanced analytics.
 - **Phase 3:** referral campaigns, multi-branch operations, deeper integrations and automation, native mobile apps.
 

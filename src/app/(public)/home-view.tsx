@@ -153,7 +153,7 @@ export default function HomeView() {
         <div className="card overflow-hidden">
           <div className="bg-gradient-to-br from-saffron-600 to-saffron-500 p-6 text-white">
             <Library className="mb-2 size-8" />
-            <h2 className="text-2xl font-bold !text-white">{t("Self-study library", "अभ्यासिका / ग्रंथालय")}</h2>
+            <h2 className="text-2xl font-bold !text-white">{t("Abhyasika Kendra", "अभ्यासिका केंद्र")}</h2>
             <p className="mt-2 text-saffron-50">{l(cms.libraryBlurb)}</p>
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 p-5">

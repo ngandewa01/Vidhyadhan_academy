@@ -35,10 +35,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       { href: "/admin/assignments", en: "Assignments", mr: "गृहपाठ", icon: FileText, module: "assignments" },
       { href: "/admin/attendance", en: "Attendance", mr: "उपस्थिती", icon: ClipboardCheck, module: "attendance" },
     ]},
-    { en: "Finance & Library", mr: "वित्त व ग्रंथालय", items: [
+    { en: "Finance & Abhyasika Kendra", mr: "वित्त व अभ्यासिका केंद्र", items: [
       { href: "/admin/fees", en: "Fees & Payments", mr: "शुल्क व पेमेंट", icon: CreditCard, module: "fees" },
       { href: "/admin/receipts", en: "Receipts", mr: "पावत्या", icon: Receipt, module: "fees" },
-      { href: "/admin/library", en: "Library", mr: "ग्रंथालय", icon: Library, module: "library" },
+      { href: "/admin/library", en: "Abhyasika Kendra", mr: "अभ्यासिका केंद्र", icon: Library, module: "library" },
     ]},
     { en: "Engagement", mr: "संवाद", items: [
       { href: "/admin/exam-updates", en: "Official Exam Updates", mr: "अधिकृत परीक्षा अपडेट्स", icon: Newspaper, module: "examUpdates", badge: pendingUpd },

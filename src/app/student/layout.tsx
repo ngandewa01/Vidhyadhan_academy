@@ -18,7 +18,7 @@ const groups: NavGroup[] = [
   ]},
   { en: "Account", mr: "खाते", items: [
     { href: "/student/fees", en: "Fees & Receipts", mr: "शुल्क व पावत्या", icon: CreditCard },
-    { href: "/student/library", en: "Library Membership", mr: "ग्रंथालय सदस्यत्व", icon: Library },
+    { href: "/student/library", en: "Abhyasika Kendra Membership", mr: "अभ्यासिका केंद्र सदस्यत्व", icon: Library },
     { href: "/student/updates", en: "Official Exam Updates", mr: "अधिकृत परीक्षा अपडेट्स", icon: Newspaper },
     { href: "/student/calendar", en: "Calendar", mr: "दिनदर्शिका", icon: CalendarDays },
     { href: "/student/bookmarks", en: "Bookmarks", mr: "बुकमार्क्स", icon: Bookmark },
