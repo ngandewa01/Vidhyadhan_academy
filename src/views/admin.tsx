@@ -110,7 +110,7 @@ function Dashboard() {
         {finance && <StatCard label={t("Overdue", "मुदत उलटलेले")} value={fmtINR(overdue)} icon={<AlertTriangle className="size-5" />} tone="red" />}
         <StatCard label={t("Enquiry conversion", "चौकशी रूपांतरण")} value={`${conv.toFixed(0)}%`} hint={`${db.enquiries.length} ${t("enquiries", "चौकशी")}`} icon={<Inbox className="size-5" />} tone="amber" />
         <StatCard label={t("Attendance shortage", "उपस्थिती कमतरता")} value={shortage} icon={<ClipboardCheck className="size-5" />} tone="red" />
-        <StatCard label={t("Library members", "ग्रंथालय सदस्य")} value={libActive} hint={`${t("Occupancy", "वापर")} ${Math.round((libActive / 80) * 100)}%`} icon={<Library className="size-5" />} tone="violet" />
+        <StatCard label={t("Abhyasika Kendra members", "अभ्यासिका केंद्र सदस्य")} value={libActive} hint={`${t("Occupancy", "वापर")} ${Math.round((libActive / 80) * 100)}%`} icon={<Library className="size-5" />} tone="violet" />
         <StatCard label={t("Courses / batches", "अभ्यासक्रम / बॅचेस")} value={`${db.courses.length} / ${db.batches.length}`} icon={<BookOpen className="size-5" />} />
       </div>
       <div className="grid gap-5 lg:grid-cols-3">
@@ -240,7 +240,7 @@ function Students({ canManage }: { canManage: boolean }) {
       <PageHeader title={t("Students", "विद्यार्थी")} subtitle={`${db.students.length} ${t("registered", "नोंदणीकृत")}`} actions={<><button className="btn-outline" onClick={exp}><Download className="size-4" />CSV</button>{canManage && <button className="btn-primary" onClick={() => setAdd(true)}><Plus className="size-4" />{t("Add student", "विद्यार्थी जोडा")}</button>}</>} />
       <div className="mb-3 flex flex-wrap gap-2">
         <SearchBox value={q} onChange={setQ} placeholder={t("Search name / mobile / ID", "नाव / मोबाईल / ओळख शोधा")} />
-        <Select label="Course" value={course} onChange={setCourse} options={[{ value: "all", label: t("All courses", "सर्व अभ्यासक्रम") }, ...db.courses.map((c) => ({ value: c.id, label: l(c.name) })), { value: "library", label: t("Library-only", "फक्त ग्रंथालय") }]} />
+        <Select label="Course" value={course} onChange={setCourse} options={[{ value: "all", label: t("All courses", "सर्व अभ्यासक्रम") }, ...db.courses.map((c) => ({ value: c.id, label: l(c.name) })), { value: "library", label: t("Abhyasika Kendra only", "फक्त अभ्यासिका केंद्र") }]} />
         <Select label="Status" value={status} onChange={setStatus} options={[{ value: "all", label: t("All statuses", "सर्व स्थिती") }, { value: "active", label: t("Active", "सक्रिय") }, { value: "inactive", label: t("Inactive", "निष्क्रिय") }]} />
       </div>
       <Table head={[t("Student", "विद्यार्थी"), t("Mobile", "मोबाईल"), t("Courses", "अभ्यासक्रम"), t("Attendance", "उपस्थिती"), finance ? t("Balance", "शिल्लक") : "", t("Status", "स्थिती")]} empty={!list.length}>
@@ -252,7 +252,7 @@ function Students({ canManage }: { canManage: boolean }) {
             <tr key={x.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setOpen(x.id)}>
               <td><p className="font-medium">{x.name}</p><p className="text-xs text-slate-500">{x.code}</p></td>
               <td className="text-xs">{fmtMobile(x.mobile)}</td>
-              <td className="text-xs">{enr.map((e) => l(db.courses.find((c) => c.id === e.courseId)?.name)).join(", ") || (db.memberships.some((m) => m.studentId === x.id) ? <Badge tone="orange">{t("Library", "ग्रंथालय")}</Badge> : "—")}</td>
+              <td className="text-xs">{enr.map((e) => l(db.courses.find((c) => c.id === e.courseId)?.name)).join(", ") || (db.memberships.some((m) => m.studentId === x.id) ? <Badge tone="orange">{t("Abhyasika Kendra", "अभ्यासिका केंद्र")}</Badge> : "—")}</td>
               <td className={cn("text-xs", st.total && st.percent < db.settings.attendance.minimumPercent && "font-semibold text-red-600")}>{st.total ? `${st.percent.toFixed(0)}%` : "—"}</td>
               <td className="text-xs">{finance ? (bal ? <span className="font-semibold text-red-600">{fmtINR(bal)}</span> : "—") : ""}</td>
               <td><StatusBadge s={x.status} /></td>
@@ -430,6 +430,7 @@ function Courses({ canManage }: { canManage: boolean }) {
             <Field label="वर्णन (मराठी)">{(id) => <textarea id={id} rows={3} className="input" value={edit.description.mr} onChange={(e) => setEdit({ ...edit, description: { ...edit.description, mr: e.target.value } })} />}</Field>
             <Field label={t("Category", "प्रकार")}>{(id) => <select id={id} className="input" value={edit.category} onChange={(e) => setEdit({ ...edit, category: e.target.value as Course["category"] })}>{["state", "combined", "police", "revenue", "other"].map((c) => <option key={c}>{c}</option>)}</select>}</Field>
             <div className="grid grid-cols-2 gap-2"><Field label={t("Duration (months)", "कालावधी (महिने)")}>{(id) => <input id={id} type="number" className="input" value={edit.durationMonths} onChange={(e) => setEdit({ ...edit, durationMonths: Number(e.target.value) })} />}</Field><Field label={t("Base fee (₹)", "मूळ शुल्क (₹)")}>{(id) => <input id={id} type="number" className="input" value={edit.fee} onChange={(e) => setEdit({ ...edit, fee: Number(e.target.value) })} />}</Field></div>
+            <div className="sm:col-span-2"><Toggle checked={edit.showFee !== false} onChange={(v) => setEdit({ ...edit, showFee: v })} label={t("Show fee on website", "वेबसाइटवर शुल्क दाखवा")} /></div>
             <div><p className="label">{t("Medium", "माध्यम")}</p><div className="flex gap-3 text-sm">{(["mr", "en"] as const).map((m) => <label key={m} className="flex items-center gap-1"><input type="checkbox" checked={edit.mediums.includes(m)} onChange={(e) => setEdit({ ...edit, mediums: e.target.checked ? [...edit.mediums, m] : edit.mediums.filter((x) => x !== m) })} />{m === "mr" ? "मराठी" : "English"}</label>)}</div></div>
             <Field label={t("Documents required (comma separated, optional)", "आवश्यक कागदपत्रे (ऐच्छिक)")}>{(id) => <input id={id} className="input" value={edit.documentsRequired.join(", ")} onChange={(e) => setEdit({ ...edit, documentsRequired: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />}</Field>
             <Field label={t("Course image", "अभ्यासक्रम प्रतिमा")}>{(id) => <input id={id} type="file" accept="image/*" className="input" />}</Field>
@@ -607,7 +608,7 @@ function Staff({ canManage }: { canManage: boolean }) {
 
 /* ---------------- Permissions ---------------- */
 const MOD_LABEL: Record<Module, [string, string]> = {
-  enquiries: ["Enquiries", "चौकशी"], students: ["Students", "विद्यार्थी"], admissions: ["Admissions", "प्रवेश"], courses: ["Courses & syllabus", "अभ्यासक्रम"], batches: ["Batches & classrooms", "बॅचेस"], fees: ["Fees & payments", "शुल्क"], library: ["Library", "ग्रंथालय"], materials: ["Study materials", "साहित्य"], classes: ["Live/recorded classes", "वर्ग"], questionBank: ["Question bank", "प्रश्नपेढी"], exams: ["Examinations", "परीक्षा"], assignments: ["Assignments", "गृहपाठ"], attendance: ["Attendance", "उपस्थिती"], examUpdates: ["Exam updates", "परीक्षा अपडेट्स"], notifications: ["Notifications", "सूचना"], support: ["Support", "मदत"], results: ["Results & achievements", "निकाल"], referrals: ["Referrals", "रेफरल"], certificates: ["ID cards & certificates", "प्रमाणपत्रे"], reports: ["Reports", "अहवाल"], cms: ["Website CMS", "वेबसाइट"], settings: ["Settings", "सेटिंग्ज"], staff: ["Staff & permissions", "कर्मचारी"], audit: ["Audit logs", "ऑडिट"],
+  enquiries: ["Enquiries", "चौकशी"], students: ["Students", "विद्यार्थी"], admissions: ["Admissions", "प्रवेश"], courses: ["Courses & syllabus", "अभ्यासक्रम"], batches: ["Batches & classrooms", "बॅचेस"], fees: ["Fees & payments", "शुल्क"], library: ["Abhyasika Kendra", "अभ्यासिका केंद्र"], materials: ["Study materials", "साहित्य"], classes: ["Live/recorded classes", "वर्ग"], questionBank: ["Question bank", "प्रश्नपेढी"], exams: ["Examinations", "परीक्षा"], assignments: ["Assignments", "गृहपाठ"], attendance: ["Attendance", "उपस्थिती"], examUpdates: ["Exam updates", "परीक्षा अपडेट्स"], notifications: ["Notifications", "सूचना"], support: ["Support", "मदत"], results: ["Results & achievements", "निकाल"], referrals: ["Referrals", "रेफरल"], certificates: ["ID cards & certificates", "प्रमाणपत्रे"], reports: ["Reports", "अहवाल"], cms: ["Website CMS", "वेबसाइट"], settings: ["Settings", "सेटिंग्ज"], staff: ["Staff & permissions", "कर्मचारी"], audit: ["Audit logs", "ऑडिट"],
 };
 const SENSITIVE: Module[] = ["fees", "admissions", "settings", "staff", "audit", "enquiries"];
 function PermissionsMatrix({ canManage }: { canManage: boolean }) {

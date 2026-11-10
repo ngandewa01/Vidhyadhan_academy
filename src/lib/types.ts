@@ -53,6 +53,7 @@ export interface Course {
   mediums: Lang[];
   fee: number;
   admissionOpen: boolean;
+  showFee?: boolean; // public website hides the fee when false
   published: boolean;
   color: string; // tailwind gradient key for the placeholder image
   seo: { title: string; description: string };
@@ -181,6 +182,9 @@ export interface LibraryPlan {
   name: L;
   months: number;
   fee: number;
+  registrationFee: number;
+  locker: boolean;
+  spaciousSeat: boolean;
   kind: "library" | "bundle";
   bundleCourseId?: string;
   active: boolean;

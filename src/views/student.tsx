@@ -117,7 +117,7 @@ function Dashboard() {
         </Card>
       </div>
       {mem && (
-        <Card title={t("Library membership", "ग्रंथालय सदस्यत्व")}>
+        <Card title={t("Abhyasika Kendra membership", "अभ्यासिका केंद्र सदस्यत्व")}>
           <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <span>{l(db.libraryPlans.find((p) => p.id === mem.planId)?.name)} · {t("Seat", "आसन")} {mem.seat} · {t("expires", "मुदत")} {d(mem.end)}</span>
             <StatusBadge s={mem.status} />
@@ -574,7 +574,7 @@ function LibraryMembership() {
     let pid = "";
     update((db) => {
       const start = cur && cur.end >= today() ? dayOffset(1, new Date(cur.end)) : today();
-      const m = createMembership(db, { studentId: me.id, planId, start, discount: 0 });
+      const m = createMembership(db, { studentId: me.id, planId, start, discount: 0, renewal: true });
       if (cur?.seat) m.seat = cur.seat;
       pid = recordPayment(db, { studentId: me.id, membershipId: m.id, amount: m.fee, method: "upi", reference: `DEMO${Date.now().toString().slice(-6)}`, by: "online" }).id;
     }, { action: "library.renew", entity: me.code, detail: planId });
@@ -585,8 +585,8 @@ function LibraryMembership() {
   const daysLeft = cur ? daysBetween(today(), cur.end) : 0;
   return (
     <div className="space-y-5">
-      <PageHeader title={t("Library membership", "ग्रंथालय सदस्यत्व")} />
-      {!cur ? <EmptyState icon={<Library className="size-6" />} title={t("No library membership", "ग्रंथालय सदस्यत्व नाही")} hint={t("Library-only plans don't require course enrolment.", "फक्त ग्रंथालय योजनांसाठी अभ्यासक्रम प्रवेश आवश्यक नाही.")} action={<Link href="/admission?library=lp_m" className="btn-accent">{t("Get membership", "सदस्यत्व घ्या")}</Link>} /> : (
+      <PageHeader title={t("Abhyasika Kendra membership", "अभ्यासिका केंद्र सदस्यत्व")} />
+      {!cur ? <EmptyState icon={<Library className="size-6" />} title={t("No Abhyasika Kendra membership", "अभ्यासिका केंद्र सदस्यत्व नाही")} hint={t("Abhyasika Kendra only plans don't require course enrolment.", "फक्त अभ्यासिका केंद्र योजनांसाठी अभ्यासक्रम प्रवेश आवश्यक नाही.")} action={<Link href="/admission?library=lp_m" className="btn-accent">{t("Get membership", "सदस्यत्व घ्या")}</Link>} /> : (
         <>
           {cur.status === "active" && daysLeft <= 7 && <Notice tone="warn">{t(`Your membership expires in ${daysLeft} day(s). Renew to keep your seat.`, `आपले सदस्यत्व ${daysLeft} दिवसांत संपेल. आसन टिकवण्यासाठी नूतनीकरण करा.`)}</Notice>}
           <div className="grid gap-4 sm:grid-cols-4">
@@ -663,7 +663,7 @@ function CalendarView() {
     db.assignments.filter((a) => batchIds.includes(a.batchId)).forEach((a) => ev.push({ date: a.due, label: `${t("Assignment due", "गृहपाठ अंतिम")}: ${a.title}`, tone: "bg-amber-500" }));
     db.updates.filter((u) => u.status === "published" && me.follows.includes(u.authorityId)).forEach((u) => u.dates.forEach((x) => ev.push({ date: x.date, label: `${DATE_LABEL[x.kind][lang === "mr" ? 1 : 0]} – ${l(db.authorities.find((a) => a.id === u.authorityId)?.name)}`, tone: "bg-red-600" })));
     enrolments.forEach((e) => e.installments.forEach((i) => ev.push({ date: i.due, label: `${t("Instalment due", "हप्ता देय")} ${fmtINR(i.amount)}`, tone: "bg-emerald-600" })));
-    db.memberships.filter((m) => m.studentId === me.id && m.status === "active").forEach((m) => ev.push({ date: m.end, label: t("Library membership expires", "ग्रंथालय सदस्यत्व संपते"), tone: "bg-saffron-600" }));
+    db.memberships.filter((m) => m.studentId === me.id && m.status === "active").forEach((m) => ev.push({ date: m.end, label: t("Abhyasika Kendra membership expires", "अभ्यासिका केंद्र सदस्यत्व संपते"), tone: "bg-saffron-600" }));
     return ev;
   }, [db, batchIds, me, enrolments, t, l, lc, lang]);
   const [y, m] = month.split("-").map(Number);
@@ -692,7 +692,7 @@ function CalendarView() {
         <Card title={d(sel, { weekday: "long", day: "numeric", month: "long" })}>
           {selEv.length ? <ul className="space-y-2 text-sm">{selEv.map((e, i) => <li key={i} className="flex gap-2"><span className={cn("mt-1.5 size-2 shrink-0 rounded-full", e.tone)} />{e.label}</li>)}</ul> : <p className="text-sm text-slate-500">{t("Nothing scheduled", "काहीही नियोजित नाही")}</p>}
           <div className="mt-4 space-y-1 border-t pt-3 text-xs text-slate-500">
-            {[["bg-brand-600", t("Live class", "लाईव्ह वर्ग")], ["bg-violet-600", t("Test", "चाचणी")], ["bg-amber-500", t("Assignment", "गृहपाठ")], ["bg-red-600", t("Exam date (official)", "परीक्षा तारीख (अधिकृत)")], ["bg-emerald-600", t("Fee", "शुल्क")], ["bg-saffron-600", t("Library", "ग्रंथालय")]].map(([c, x]) => <p key={x} className="flex items-center gap-2"><span className={cn("size-2 rounded-full", c)} />{x}</p>)}
+            {[["bg-brand-600", t("Live class", "लाईव्ह वर्ग")], ["bg-violet-600", t("Test", "चाचणी")], ["bg-amber-500", t("Assignment", "गृहपाठ")], ["bg-red-600", t("Exam date (official)", "परीक्षा तारीख (अधिकृत)")], ["bg-emerald-600", t("Fee", "शुल्क")], ["bg-saffron-600", t("Abhyasika Kendra", "अभ्यासिका केंद्र")]].map(([c, x]) => <p key={x} className="flex items-center gap-2"><span className={cn("size-2 rounded-full", c)} />{x}</p>)}
           </div>
         </Card>
       </div>
@@ -802,7 +802,7 @@ export function IdCardFace({ studentId }: { studentId: string }) {
         <div className="min-w-0 flex-1 text-xs">
           <p className="text-sm font-bold">{s.name}</p>
           <p className="font-mono text-brand-800">{s.code}</p>
-          <p className="mt-1 text-slate-600">{e.map((x) => `${l(db.courses.find((c) => c.id === x.courseId)?.name)} · ${db.batches.find((b) => b.id === x.batchId)?.name}`).join("; ") || (m ? t("Library member", "ग्रंथालय सदस्य") : "—")}</p>
+          <p className="mt-1 text-slate-600">{e.map((x) => `${l(db.courses.find((c) => c.id === x.courseId)?.name)} · ${db.batches.find((b) => b.id === x.batchId)?.name}`).join("; ") || (m ? t("Abhyasika Kendra member", "अभ्यासिका केंद्र सदस्य") : "—")}</p>
           <p className="mt-1">{t("Valid till", "वैधता")}: <b>{validTill || "—"}</b></p>
           <p>{t("Status", "स्थिती")}: <b className={s.status === "active" ? "text-emerald-700" : "text-red-700"}>{s.status.toUpperCase()}</b></p>
         </div>

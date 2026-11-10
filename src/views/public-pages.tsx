@@ -41,7 +41,7 @@ export function AboutView() {
             <div><dt className="text-slate-500">{t("Location", "स्थान")}</dt><dd className="font-medium">{l(academy.address)}</dd></div>
             <div><dt className="text-slate-500">{t("Mode", "पद्धत")}</dt><dd className="font-medium">{t("Classroom, online and hybrid", "वर्ग, ऑनलाइन व हायब्रिड")}</dd></div>
             <div><dt className="text-slate-500">{t("Medium", "माध्यम")}</dt><dd className="font-medium">{t("Marathi and English", "मराठी व इंग्रजी")}</dd></div>
-            <div><dt className="text-slate-500">{t("Facilities", "सुविधा")}</dt><dd className="font-medium">{t("Multiple classrooms, self-study library", "अनेक वर्गखोल्या, अभ्यासिका")}</dd></div>
+            <div><dt className="text-slate-500">{t("Facilities", "सुविधा")}</dt><dd className="font-medium">{t("Multiple classrooms, Abhyasika Kendra", "अनेक वर्गखोल्या, अभ्यासिका")}</dd></div>
           </dl>
         </Card>
       </section>
@@ -118,7 +118,10 @@ export function CourseDetailView({ slug }: { slug: string }) {
         )}
         {tab === "syllabus" && <SyllabusTree courseId={c.id} />}
         {tab === "batches" && <BatchList courseId={c.id} />}
-        {tab === "fees" && (
+        {tab === "fees" && c.showFee === false && (
+          <Notice>{t("Fee details are not listed online. Call or WhatsApp us for the current fee.", "शुल्काची माहिती ऑनलाइन दिलेली नाही. सध्याच्या शुल्कासाठी फोन किंवा व्हॉट्सअॅप करा.")}</Notice>
+        )}
+        {tab === "fees" && c.showFee !== false && (
           <div className="max-w-xl space-y-3">
             <Card>
               <div className="flex items-baseline justify-between"><span className="text-slate-600">{t("Course fee", "अभ्यासक्रम शुल्क")}</span><span className="text-2xl font-bold">{fmtINR(c.fee)}</span></div>
@@ -210,7 +213,7 @@ function BatchList({ courseId }: { courseId?: string }) {
                 <div><dt className="text-slate-500">{t("Seats left", "उपलब्ध जागा")}</dt><dd className={seats < 10 ? "font-semibold text-saffron-700" : ""}>{seats} / {b.capacity}</dd></div>
               </dl>
               <div className="mt-4 flex items-center justify-between">
-                <span className="font-semibold">{fmtINR(b.fee)} <span className="text-[10px] font-normal text-saffron-700">{t("demo", "डेमो")}</span></span>
+                {c.showFee !== false ? <span className="font-semibold">{fmtINR(b.fee)} <span className="text-[10px] font-normal text-saffron-700">{t("demo", "डेमो")}</span></span> : <span className="text-sm text-slate-500">{t("Fee on request", "शुल्क विनंतीनुसार")}</span>}
                 {b.admissionOpen ? <Link href={`/admission?batch=${b.id}`} className="btn-primary btn-sm">{t("Enrol", "प्रवेश")} · {t("till", "पर्यंत")} {d(b.admissionCloses, { day: "numeric", month: "short" })}</Link> : <Badge>{t("Closed", "बंद")}</Badge>}
               </div>
             </div>
@@ -246,7 +249,7 @@ export function FeesView() {
             <tbody>
               {db.batches.map((b) => {
                 const c = db.courses.find((x) => x.id === b.courseId)!;
-                return <tr key={b.id}><td className="font-medium">{l(c.name)}</td><td>{b.name}</td><td><StatusBadge s={b.mode} /></td><td>{c.durationMonths} {t("months", "महिने")}</td><td className="text-right font-semibold">{fmtINR(b.fee)}</td></tr>;
+                return <tr key={b.id}><td className="font-medium">{l(c.name)}</td><td>{b.name}</td><td><StatusBadge s={b.mode} /></td><td>{c.durationMonths} {t("months", "महिने")}</td><td className="text-right font-semibold">{c.showFee !== false ? fmtINR(b.fee) : <span className="font-normal text-slate-500">{t("On request", "विनंतीनुसार")}</span>}</td></tr>;
               })}
             </tbody>
           </table>
@@ -259,7 +262,7 @@ export function FeesView() {
           </Card>
         </div>
         <div>
-          <h2 className="mb-3 text-xl font-semibold">{t("Library plans", "ग्रंथालय योजना")}</h2>
+          <h2 className="mb-3 text-xl font-semibold">{t("Abhyasika Kendra plans", "अभ्यासिका केंद्र योजना")}</h2>
           <LibraryPlans />
         </div>
         <p className="text-sm text-slate-500">{t("Payment methods: Cash, UPI/QR, online gateway and bank transfer. A detailed receipt is issued for every payment. GST, if applicable, is configured by the academy.", "पेमेंट पद्धती: रोख, UPI/QR, ऑनलाइन गेटवे व बँक ट्रान्सफर. प्रत्येक पेमेंटची सविस्तर पावती दिली जाते. GST लागू असल्यास अकॅडमी निश्चित करेल.")}</p>
@@ -279,6 +282,8 @@ function LibraryPlans() {
           <h3 className="font-semibold">{l(p.name)}</h3>
           <p className="mt-2 text-2xl font-bold">{fmtINR(p.fee)}</p>
           <p className="text-xs text-slate-500">{p.months} {t("month(s)", "महिने")} · <span className="text-saffron-700">{t("demo price", "डेमो किंमत")}</span></p>
+          {p.registrationFee > 0 && <p className="mt-1 text-xs text-slate-600">{t("+ one-time registration", "+ एकदाच नोंदणी शुल्क")} {fmtINR(p.registrationFee)}</p>}
+          {(p.locker || p.spaciousSeat) && <p className="mt-2 text-xs text-slate-600">{[p.locker && t("Locker included", "लॉकर समाविष्ट"), p.spaciousSeat && t("Spacious seat", "प्रशस्त आसन")].filter(Boolean).join(" · ")}</p>}
           <Link href={`/admission?library=${p.id}`} className="btn-outline btn-sm mt-4">{t("Choose plan", "योजना निवडा")}</Link>
         </div>
       ))}
@@ -293,10 +298,10 @@ export function LibraryView() {
   const active = db.memberships.filter((m) => m.status === "active").length;
   return (
     <>
-      <PageHero title={t("Library", "ग्रंथालय / अभ्यासिका")} subtitle={l(db.settings.cms.libraryBlurb)}>
+      <PageHero title={t("Abhyasika Kendra", "अभ्यासिका केंद्र / अभ्यासिका")} subtitle={l(db.settings.cms.libraryBlurb)}>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/admission?library=lp_m" className="btn-accent">{t("Get membership", "सदस्यत्व घ्या")}</Link>
-          <Link href="/contact" className="btn-outline">{t("Visit the library", "ग्रंथालयाला भेट द्या")}</Link>
+          <Link href="/admission?library=lp_seat" className="btn-accent">{t("Get membership", "सदस्यत्व घ्या")}</Link>
+          <Link href="/contact" className="btn-outline">{t("Visit the Abhyasika Kendra", "अभ्यासिका केंद्राला भेट द्या")}</Link>
         </div>
       </PageHero>
       <section className="container-page space-y-10 py-10">
@@ -311,10 +316,10 @@ export function LibraryView() {
           })}
         </div>
         <div>
-          <SectionHead title={t("Membership plans", "सदस्यत्व योजना")} subtitle={t("Library-only membership — no coaching enrolment required — or a discounted course + library bundle.", "फक्त ग्रंथालय सदस्यत्व (कोचिंग प्रवेश आवश्यक नाही) किंवा सवलतीचा अभ्यासक्रम + ग्रंथालय संच.")} />
+          <SectionHead title={t("Membership plans", "सदस्यत्व योजना")} subtitle={t("Abhyasika Kendra only membership — no coaching enrolment required — or a discounted course + Abhyasika Kendra bundle.", "फक्त अभ्यासिका केंद्र सदस्यत्व (कोचिंग प्रवेश आवश्यक नाही) किंवा सवलतीचा अभ्यासक्रम + अभ्यासिका केंद्र संच.")} />
           <LibraryPlans />
         </div>
-        <Card title={t("Library rules (sample)", "ग्रंथालय नियम (नमुना)")}>
+        <Card title={t("Abhyasika Kendra rules (sample)", "अभ्यासिका केंद्र नियम (नमुना)")}>
           <ul className="list-disc space-y-1 pl-5 text-sm text-slate-600">
             <li>{t("Check in at the desk or by QR on arrival.", "आगमनावेळी डेस्कवर किंवा QR द्वारे नोंद करा.")}</li>
             <li>{t("Maintain silence; phones on silent.", "शांतता राखा; फोन सायलेंट ठेवा.")}</li>
@@ -404,7 +409,7 @@ export function TestimonialsView() {
 
 export function GalleryView() {
   const { t } = useI18n();
-  const items = [t("Classroom", "वर्गखोली"), t("Library", "ग्रंथालय"), t("Seminar", "चर्चासत्र"), t("Felicitation", "सत्कार"), t("Mock test", "सराव परीक्षा"), t("Campus", "परिसर")];
+  const items = [t("Classroom", "वर्गखोली"), t("Abhyasika Kendra", "अभ्यासिका केंद्र"), t("Seminar", "चर्चासत्र"), t("Felicitation", "सत्कार"), t("Mock test", "सराव परीक्षा"), t("Campus", "परिसर")];
   return (
     <>
       <PageHero title={t("Gallery", "छायाचित्रे")} subtitle={t("Photos will be added by the academy through the Website CMS.", "अकॅडमी वेबसाइट CMS मधून छायाचित्रे जोडेल.")} />

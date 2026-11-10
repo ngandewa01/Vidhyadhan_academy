@@ -50,7 +50,7 @@ export function CourseCard({ c }: { c: Course }) {
         <p className="mt-1 flex-1 text-sm text-slate-600">{l(c.short)}</p>
         <div className="mt-3 flex items-center justify-between text-sm">
           <span className="flex items-center gap-1 text-slate-500"><Clock className="size-4" />{c.durationMonths} {t("months", "महिने")}</span>
-          <span className="font-semibold text-brand-800">{t("from", "पासून")} {fmtINR(Math.min(c.fee, ...batches.map((b) => b.fee)))}<span className="ml-1 text-[10px] font-normal text-saffron-700">{t("(demo)", "(डेमो)")}</span></span>
+          {c.showFee !== false && <span className="font-semibold text-brand-800">{t("from", "पासून")} {fmtINR(Math.min(c.fee, ...batches.map((b) => b.fee)))}<span className="ml-1 text-[10px] font-normal text-saffron-700">{t("(demo)", "(डेमो)")}</span></span>}
         </div>
         <Link href={`/courses/${c.slug}`} className="btn-outline mt-4 w-full">{t("View details", "तपशील पहा")}<ArrowRight className="size-4" /></Link>
       </div>

@@ -250,11 +250,10 @@ const tests: T.Test[] = [
 ];
 
 const libraryPlans: T.LibraryPlan[] = [
-  { id: "lp_m", name: L("Monthly (Library only)", "मासिक (फक्त ग्रंथालय)"), months: 1, fee: 800, kind: "library", active: true },
-  { id: "lp_q", name: L("Quarterly (Library only)", "त्रैमासिक (फक्त ग्रंथालय)"), months: 3, fee: 2200, kind: "library", active: true },
-  { id: "lp_h", name: L("Half-yearly (Library only)", "सहामाही (फक्त ग्रंथालय)"), months: 6, fee: 4000, kind: "library", active: true },
-  { id: "lp_y", name: L("Annual (Library only)", "वार्षिक (फक्त ग्रंथालय)"), months: 12, fee: 7500, kind: "library", active: true },
-  { id: "lp_b_rs", name: L("Rajyaseva + Library bundle (12 months)", "राज्यसेवा + ग्रंथालय संच (१२ महिने)"), months: 12, fee: 50000, kind: "bundle", bundleCourseId: "c_rajyaseva", active: true },
+  { id: "lp_seat", name: L("Library seat only", "फक्त अभ्यासिका आसन"), months: 1, fee: 800, registrationFee: 200, kind: "library", locker: false, spaciousSeat: false, active: true },
+  { id: "lp_locker", name: L("Library seat + locker", "अभ्यासिका आसन + लॉकर"), months: 1, fee: 1000, registrationFee: 200, kind: "library", locker: true, spaciousSeat: false, active: true },
+  { id: "lp_spacious", name: L("Spacious seat", "प्रशस्त आसन"), months: 1, fee: 1200, registrationFee: 200, kind: "library", locker: false, spaciousSeat: true, active: true },
+  { id: "lp_bundle", name: L("Course + library", "अभ्यासक्रम + अभ्यासिका केंद्र"), months: 12, fee: 50000, registrationFee: 500, kind: "bundle", bundleCourseId: "c_rajyaseva", locker: false, spaciousSeat: false, active: true },
 ];
 
 const settings: T.Settings = {
@@ -287,7 +286,7 @@ const settings: T.Settings = {
       L("Regular tests with detailed analysis", "सविस्तर विश्लेषणासह नियमित चाचण्या"),
       L("Marathi & English study material", "मराठी व इंग्रजी अभ्यास साहित्य"),
       L("Offline, online and hybrid batches", "ऑफलाइन, ऑनलाइन व हायब्रिड बॅचेस"),
-      L("Quiet physical library for self-study", "स्वयं-अभ्यासासाठी शांत ग्रंथालय"),
+      L("Quiet physical Abhyasika Kendra for self-study", "स्वयं-अभ्यासासाठी शांत अभ्यासिका केंद्र"),
       L("Personal attention & doubt solving", "वैयक्तिक लक्ष व शंका निरसन"),
     ],
     aboutBody: L(
@@ -302,7 +301,7 @@ const settings: T.Settings = {
   seo: {
     home: { title: "Vidyadhan Academy | MPSC, Police Bharti & Competitive Exam Coaching", description: "Competitive exam coaching in Maharashtra – MPSC Rajyaseva, PSI/STI/ASO, Police Bharti, Talathi and more." },
     courses: { title: "Courses | Vidyadhan Academy", description: "Explore competitive exam courses and batches." },
-    library: { title: "Library Membership | Vidyadhan Academy", description: "Self-study library with seat allocation." },
+    library: { title: "Abhyasika Kendra Membership | Vidyadhan Academy", description: "Abhyasika Kendra with seat allocation." },
     contact: { title: "Contact | Vidyadhan Academy", description: "Contact Vidyadhan Academy for admissions." },
   },
 };
@@ -332,7 +331,7 @@ export function buildSeed() {
       telegramLinked: i % 4 === 0, dataSaver: false,
     };
     students.push(s);
-    if (i >= 22) continue; // two students are library-only members
+    if (i >= 22) continue; // two students are Abhyasika Kendra only members
     const batchId = i === 0 ? "b_rs_m" : batchPool[Math.floor(rnd() * batchPool.length)];
     const b = batches.find((x) => x.id === batchId)!;
     const discount = i % 5 === 0 ? 3000 : i % 7 === 0 ? 5000 : 0;
@@ -458,13 +457,13 @@ export function buildSeed() {
   const announcements: T.Announcement[] = [
     { id: "an_1", title: L("Admissions open: Rajyaseva evening hybrid batch", "प्रवेश सुरू: राज्यसेवा सायंकाळ हायब्रिड बॅच"), body: L("Limited seats. Visit the office or apply online. (Demo)", "मर्यादित जागा. कार्यालयात भेट द्या किंवा ऑनलाइन अर्ज करा. (डेमो)"), date: dayOffset(-2), pinned: true, published: true },
     { id: "an_2", title: L("Group B online batch starts soon", "गट ब ऑनलाइन बॅच लवकरच सुरू"), body: L("Orientation details will be shared with registered students. (Demo)", "नोंदणीकृत विद्यार्थ्यांना परिचय सत्राची माहिती दिली जाईल. (डेमो)"), date: dayOffset(-5), pinned: false, published: true },
-    { id: "an_3", title: L("Library: new seats added", "ग्रंथालय: नवीन आसने उपलब्ध"), body: L("Additional seats are available for the annual plan. (Demo)", "वार्षिक योजनेसाठी अतिरिक्त आसने उपलब्ध. (डेमो)"), date: dayOffset(-8), pinned: false, published: true },
+    { id: "an_3", title: L("Abhyasika Kendra: new seats added", "अभ्यासिका केंद्र: नवीन आसने उपलब्ध"), body: L("Additional seats are available for the annual plan. (Demo)", "वार्षिक योजनेसाठी अतिरिक्त आसने उपलब्ध. (डेमो)"), date: dayOffset(-8), pinned: false, published: true },
   ];
   const faqs: T.Faq[] = [
     { id: "fq_1", q: L("Can I pay the fee in instalments?", "शुल्क हप्त्यांमध्ये भरता येते का?"), a: L("Yes. Instalment schedules are shown during admission and in your Fees section.", "होय. हप्त्यांचे वेळापत्रक प्रवेशावेळी व 'शुल्क' विभागात दिसते.") },
     { id: "fq_2", q: L("Can I study in Marathi and switch to English later?", "मी मराठीत अभ्यास करून नंतर इंग्रजीत बदलू शकतो का?"), a: L("Yes. Content language is independent of the website language and can be changed from your profile.", "होय. अभ्यास साहित्याची भाषा संकेतस्थळाच्या भाषेपेक्षा स्वतंत्र असून प्रोफाइलमधून बदलता येते.") },
     { id: "fq_3", q: L("Is Aadhaar mandatory for admission?", "प्रवेशासाठी आधार अनिवार्य आहे का?"), a: L("No. Only your name and mobile number are required.", "नाही. फक्त नाव आणि मोबाईल क्रमांक आवश्यक आहे.") },
-    { id: "fq_4", q: L("Can I take only the library membership?", "मला फक्त ग्रंथालय सदस्यत्व घेता येईल का?"), a: L("Yes. Library-only plans are available, as well as discounted course + library bundles.", "होय. फक्त ग्रंथालय योजना तसेच सवलतीच्या अभ्यासक्रम + ग्रंथालय संच उपलब्ध आहेत.") },
+    { id: "fq_4", q: L("Can I take only the Abhyasika Kendra membership?", "मला फक्त अभ्यासिका केंद्र सदस्यत्व घेता येईल का?"), a: L("Yes. Abhyasika Kendra only plans are available, as well as discounted course + Abhyasika Kendra bundles.", "होय. फक्त अभ्यासिका केंद्र योजना तसेच सवलतीच्या अभ्यासक्रम + अभ्यासिका केंद्र संच उपलब्ध आहेत.") },
   ];
   const facultyProfiles: T.FacultyProfile[] = [
     { id: "fp_1", staffId: "u_fac1", name: "[Faculty name]", subject: L("History & Polity", "इतिहास व राज्यव्यवस्था"), bio: L("Profile to be provided by the academy.", "प्रोफाइल अकॅडमीकडून उपलब्ध होईल."), published: true, demo: true },

@@ -86,12 +86,16 @@ export function recordPayment(db: DB, a: { studentId: string; enrolmentId?: stri
   return p;
 }
 
-export function createMembership(db: DB, a: { studentId: string; planId: string; start: string; discount: number }): T.LibraryMembership {
+export function membershipFee(plan: T.LibraryPlan, discount: number, renewal = false) {
+  return Math.max(0, plan.fee + (renewal ? 0 : plan.registrationFee) - discount);
+}
+
+export function createMembership(db: DB, a: { studentId: string; planId: string; start: string; discount: number; renewal?: boolean }): T.LibraryMembership {
   const plan = db.libraryPlans.find((p) => p.id === a.planId)!;
   const used = new Set(db.memberships.filter((m) => m.status === "active").map((m) => m.seat));
   let seat = "";
   for (let i = 1; i <= 80; i++) { const s = `S-${String(i).padStart(2, "0")}`; if (!used.has(s)) { seat = s; break; } }
-  const m: T.LibraryMembership = { id: uid("lm"), studentId: a.studentId, planId: plan.id, start: a.start, end: addMonths(a.start, plan.months), status: "active", seat, fee: plan.fee - a.discount, discount: a.discount, createdAt: today() };
+  const m: T.LibraryMembership = { id: uid("lm"), studentId: a.studentId, planId: plan.id, start: a.start, end: addMonths(a.start, plan.months), status: "active", seat, fee: membershipFee(plan, a.discount, a.renewal), discount: a.discount, createdAt: today() };
   db.memberships.push(m);
   return m;
 }

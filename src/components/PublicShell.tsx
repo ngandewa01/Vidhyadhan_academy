@@ -15,7 +15,7 @@ const MAIN: NavItem[] = [
   { href: "/courses", en: "Courses", mr: "अभ्यासक्रम" },
   { href: "/batches", en: "Batches", mr: "बॅचेस" },
   { href: "/fees", en: "Fees", mr: "शुल्क" },
-  { href: "/library", en: "Library", mr: "ग्रंथालय" },
+  { href: "/library", en: "Abhyasika Kendra", mr: "अभ्यासिका केंद्र" },
   { href: "/exam-updates", en: "Exam Updates", mr: "परीक्षा अपडेट्स" },
   { href: "/contact", en: "Contact", mr: "संपर्क" },
 ];

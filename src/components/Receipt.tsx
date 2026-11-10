@@ -59,7 +59,7 @@ export function ReceiptModal({ paymentId, onClose }: { paymentId: string | null;
         </div>
         <div className="grid gap-3 py-3 sm:grid-cols-2">
           <div><p className="text-xs text-slate-500">{t("Student", "विद्यार्थी")}</p><p className="font-semibold">{s.name}</p><p className="text-xs">{s.code} · +91 {s.mobile}</p></div>
-          <div><p className="text-xs text-slate-500">{e ? t("Course / Batch", "अभ्यासक्रम / बॅच") : t("Library plan", "ग्रंथालय योजना")}</p><p className="font-semibold">{course ? l(course.name) : plan ? l(plan.name) : "—"}</p><p className="text-xs">{batch?.name ?? (m ? `${t("Seat", "आसन")} ${m.seat} · ${m.start} → ${m.end}` : "")}</p></div>
+          <div><p className="text-xs text-slate-500">{e ? t("Course / Batch", "अभ्यासक्रम / बॅच") : t("Abhyasika Kendra plan", "अभ्यासिका केंद्र योजना")}</p><p className="font-semibold">{course ? l(course.name) : plan ? l(plan.name) : "—"}</p><p className="text-xs">{batch?.name ?? (m ? `${t("Seat", "आसन")} ${m.seat} · ${m.start} → ${m.end}` : "")}</p></div>
         </div>
         <table className="w-full border-t text-sm">
           <tbody>

@@ -7,7 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { Badge, Card, Field, Notice, Tabs, toast } from "@/components/ui";
 import { ReceiptModal } from "@/components/Receipt";
-import { createEnrolment, createMembership, createStudent, evaluatePromo, recordPayment } from "@/lib/actions";
+import { createEnrolment, createMembership, createStudent, evaluatePromo, membershipFee, recordPayment } from "@/lib/actions";
 import { cn, fmtINR, isValidMobile, normMobile, today } from "@/lib/utils";
 import type { Role } from "@/lib/types";
 import { portalHome } from "@/components/PublicShell";
@@ -98,7 +98,7 @@ export function LoginView() {
 
   const demo = [
     { role: "student" as Role, id: "st_001", icon: GraduationCap, en: "Student", mr: "विद्यार्थी", who: db.students[0]?.name },
-    { role: "student" as Role, id: "st_023", icon: Library, en: "Library-only member", mr: "फक्त ग्रंथालय सदस्य", who: db.students[22]?.name },
+    { role: "student" as Role, id: "st_023", icon: Library, en: "Abhyasika Kendra only member", mr: "फक्त अभ्यासिका केंद्र सदस्य", who: db.students[22]?.name },
     { role: "faculty" as Role, id: "u_fac1", icon: Users, en: "Faculty (restricted)", mr: "प्राध्यापक (मर्यादित)", who: "Faculty – History (Demo)" },
     { role: "staff" as Role, id: "u_office", icon: UserCog, en: "Admin staff", mr: "प्रशासकीय कर्मचारी", who: "Office Staff (Demo)" },
     { role: "owner" as Role, id: "u_owner", icon: Shield, en: "Owner / Super admin", mr: "मालक / सुपर अ‍ॅडमिन", who: "Owner (Demo)" },
@@ -191,7 +191,7 @@ export function AdmissionView() {
 
   const batch = pick?.kind === "course" ? db.batches.find((b) => b.id === pick.batchId) : undefined;
   const plan = pick?.kind === "library" ? db.libraryPlans.find((p) => p.id === pick.planId) : undefined;
-  const fee = batch?.fee ?? plan?.fee ?? 0;
+  const fee = batch?.fee ?? (plan ? membershipFee(plan, 0) : 0);
   const net = Math.max(0, fee - discount);
   const firstDue = inst > 1 ? Math.round(net / inst) : net;
 
@@ -282,7 +282,7 @@ export function AdmissionView() {
                 </button>
               ))}
               <button onClick={() => { setCourseId("library"); setPick(null); setDiscount(0); }} className={cn("rounded-lg border p-3 text-left text-sm", courseId === "library" ? "border-saffron-600 bg-saffron-50 ring-1 ring-saffron-600" : "border-slate-200 hover:bg-slate-50")}>
-                <span className="flex items-center gap-1 font-semibold"><Library className="size-4" />{t("Library membership only", "फक्त ग्रंथालय सदस्यत्व")}</span><span className="block text-xs text-slate-500">{t("No coaching enrolment needed", "कोचिंग प्रवेश आवश्यक नाही")}</span>
+                <span className="flex items-center gap-1 font-semibold"><Library className="size-4" />{t("Abhyasika Kendra membership only", "फक्त अभ्यासिका केंद्र सदस्यत्व")}</span><span className="block text-xs text-slate-500">{t("No coaching enrolment needed", "कोचिंग प्रवेश आवश्यक नाही")}</span>
               </button>
             </div>
           </Card>
@@ -301,12 +301,12 @@ export function AdmissionView() {
             </Card>
           )}
           {courseId === "library" && (
-            <Card title={t("2. Choose a library plan", "२. ग्रंथालय योजना निवडा")}>
+            <Card title={t("2. Choose a Abhyasika Kendra plan", "२. अभ्यासिका केंद्र योजना निवडा")}>
               <div className="grid gap-2 sm:grid-cols-2">
                 {db.libraryPlans.filter((p) => p.active).map((p) => (
                   <label key={p.id} className={cn("flex cursor-pointer items-center justify-between rounded-lg border p-3 text-sm", pick?.kind === "library" && pick.planId === p.id ? "border-saffron-600 bg-saffron-50" : "border-slate-200")}>
                     <span className="flex items-center gap-2"><input type="radio" name="plan" checked={pick?.kind === "library" && pick.planId === p.id} onChange={() => setPick({ kind: "library", planId: p.id })} />{l(p.name)}</span>
-                    <span className="font-semibold">{fmtINR(p.fee)}</span>
+                    <span className="text-right"><span className="block font-semibold">{fmtINR(p.fee + p.registrationFee)}</span><span className="block text-[11px] text-slate-500">{t("incl. registration", "नोंदणीसह")}</span></span>
                   </label>
                 ))}
               </div>
