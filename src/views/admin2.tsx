@@ -5,7 +5,7 @@ import { Armchair, Check, Download, ExternalLink, Eye, LogIn, LogOut, Pencil, Pl
 import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { attendanceStats, balanceFor, createMembership, membershipFee, createStudent, membershipPaid, paidFor, PAY_METHOD_LABEL, recordPayment } from "@/lib/actions";
-import { buildSeed } from "@/lib/seed";
+import { buildSeed, DEFAULT_HOME_PHOTOS, DEFAULT_HOME_SECTIONS } from "@/lib/seed";
 import { addMonths, cn, daysBetween, downloadFile, fmtINR, isValidMobile, nowISO, toCSV, today, uid } from "@/lib/utils";
 import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, SearchBox, Select, StatCard, StatusBadge, Table, Tabs, Toggle, toast, statusLabel } from "@/components/ui";
 import { ReceiptModal } from "@/components/Receipt";
@@ -13,7 +13,7 @@ import { GoogleReviews } from "@/components/GoogleReviews";
 import { IdCardFace, TICKET_CATS } from "./student";
 import { DATE_LABEL } from "./public-pages";
 import { academy } from "@/config/academy";
-import type { Achievement, Announcement, Testimonial, Channel, ExamUpdate, ImportantDateKind, L, LibraryPlan, PayMethod, PromoCode, Ticket, UpdateSource } from "@/lib/types";
+import type { Achievement, Announcement, Testimonial, Channel, ExamUpdate, HomePhoto, HomeSection, HomeSectionKey, ImportantDateKind, L, LibraryPlan, PayMethod, PromoCode, Settings, Ticket, UpdateSource } from "@/lib/types";
 
 function useA() {
   const db = useStore((s) => s.db);
@@ -673,6 +673,78 @@ function LInput({ label, value, onChange, area }: { label: string; value: L; onC
     </div>
   );
 }
+const SECTION_LABEL: Record<HomeSectionKey, L> = {
+  photos: { en: "Photo strip (below enquiry form)", mr: "फोटो पट्टी (चौकशी फॉर्मखाली)" },
+  courses: { en: "Courses we offer", mr: "आमचे अभ्यासक्रम" },
+  why: { en: "Why choose us", mr: "आम्हालाच का" },
+  batches: { en: "Batches & announcements", mr: "बॅचेस व सूचना" },
+  results: { en: "Results", mr: "निकाल" },
+  reviews: { en: "Google reviews", mr: "गुगल पुनरावलोकने" },
+  library: { en: "Faculty & Abhyasika Kendra", mr: "प्राध्यापक व अभ्यासिका केंद्र" },
+  cta: { en: "Call-to-action banner", mr: "संपर्क बॅनर" },
+};
+
+function moveItem<T>(arr: T[], i: number, dir: -1 | 1): T[] {
+  const j = i + dir;
+  if (j < 0 || j >= arr.length) return arr;
+  const next = [...arr];
+  [next[i], next[j]] = [next[j], next[i]];
+  return next;
+}
+
+function HomeLayout({ cms, setCms, canManage }: { cms: Settings["cms"]; setCms: (c: Settings["cms"]) => void; canManage: boolean }) {
+  const { t, l } = useI18n();
+  const sections = cms.homeSections ?? DEFAULT_HOME_SECTIONS;
+  const photos = cms.homePhotos ?? DEFAULT_HOME_PHOTOS;
+  const setSections = (next: HomeSection[]) => setCms({ ...cms, homeSections: next });
+  const setPhotos = (next: HomePhoto[]) => setCms({ ...cms, homePhotos: next });
+  const addPhoto = async (file: File) => {
+    const src = await resizeImage(file);
+    setPhotos([...photos, { id: uid("ph"), src, caption: { en: "", mr: "" }, enabled: true }]);
+  };
+  const updatePhoto = (i: number, patch: Partial<HomePhoto>) => setPhotos(photos.map((p, k) => (k === i ? { ...p, ...patch } : p)));
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card title={t("Section order", "विभागांचा क्रम")}>
+        <p className="mb-3 text-xs text-slate-500">{t("The hero and enquiry form stay at the top. Use the arrows to reorder and the switch to show or hide. Save to publish.", "वरचा भाग व चौकशी फॉर्म नेहमी वर राहतील. बाणांनी क्रम बदला, स्विचने दाखवा/लपवा. प्रसिद्ध करण्यासाठी जतन करा.")}</p>
+        <ul className="space-y-2">
+          {sections.map((s, i) => (
+            <li key={s.key} className="flex items-center justify-between gap-2 rounded-lg border border-slate-200 p-2 text-sm">
+              <span className={s.enabled ? "" : "text-slate-400 line-through"}>{i + 1}. {l(SECTION_LABEL[s.key])}</span>
+              <span className="flex items-center gap-1">
+                <Toggle disabled={!canManage} checked={s.enabled} onChange={(v) => setSections(sections.map((x, k) => (k === i ? { ...x, enabled: v } : x)))} />
+                <button className="btn-ghost btn-sm" disabled={!canManage || i === 0} onClick={() => setSections(moveItem(sections, i, -1))} aria-label={t("Move up", "वर हलवा")}>↑</button>
+                <button className="btn-ghost btn-sm" disabled={!canManage || i === sections.length - 1} onClick={() => setSections(moveItem(sections, i, 1))} aria-label={t("Move down", "खाली हलवा")}>↓</button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+      <Card title={t("Photos (below enquiry form)", "फोटो (चौकशी फॉर्मखाली)")}>
+        {canManage && <input type="file" accept="image/*" className="input mb-3" aria-label={t("Upload photo", "फोटो अपलोड")} onChange={(e) => { const f = e.target.files?.[0]; if (f) addPhoto(f); e.target.value = ""; }} />}
+        <ul className="space-y-3">
+          {photos.map((p, i) => (
+            <li key={p.id} className="flex gap-3 rounded-lg border border-slate-200 p-2">
+              <img src={p.src} alt="" className="h-20 w-28 shrink-0 rounded object-cover" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <input className="input" disabled={!canManage} placeholder="Caption (English)" value={p.caption.en} onChange={(e) => updatePhoto(i, { caption: { ...p.caption, en: e.target.value } })} />
+                <input className="input" disabled={!canManage} placeholder="कॅप्शन (मराठी)" value={p.caption.mr} onChange={(e) => updatePhoto(i, { caption: { ...p.caption, mr: e.target.value } })} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Toggle disabled={!canManage} checked={p.enabled} onChange={(v) => updatePhoto(i, { enabled: v })} label={t("Show", "दाखवा")} />
+                  <button className="btn-ghost btn-sm" disabled={!canManage || i === 0} onClick={() => setPhotos(moveItem(photos, i, -1))} aria-label={t("Move up", "वर हलवा")}>↑</button>
+                  <button className="btn-ghost btn-sm" disabled={!canManage || i === photos.length - 1} onClick={() => setPhotos(moveItem(photos, i, 1))} aria-label={t("Move down", "खाली हलवा")}>↓</button>
+                  <button className="btn-ghost btn-sm text-red-600" disabled={!canManage} onClick={() => setPhotos(photos.filter((_, k) => k !== i))} aria-label={t("Delete photo", "फोटो हटवा")}>{t("Delete", "हटवा")}</button>
+                </div>
+              </div>
+            </li>
+          ))}
+        </ul>
+        {!photos.length && <p className="text-sm text-slate-400">{t("No photos yet", "अद्याप फोटो नाहीत")}</p>}
+      </Card>
+    </div>
+  );
+}
+
 export function Cms({ canManage }: { canManage: boolean }) {
   const { t, l, d } = useI18n();
   const { db, update } = useA();
@@ -684,7 +756,7 @@ export function Cms({ canManage }: { canManage: boolean }) {
   return (
     <div>
       <PageHeader title={t("Website CMS", "वेबसाइट CMS")} subtitle={t("Edit public website content without a developer.", "डेव्हलपरशिवाय सार्वजनिक संकेतस्थळ बदला.")} actions={<><a href="/" target="_blank" className="btn-outline"><ExternalLink className="size-4" />{t("View site", "साइट पहा")}</a>{canManage && <button className="btn-primary" onClick={save}>{t("Save & publish", "जतन व प्रकाशित")}</button>}</>} />
-      <Tabs tabs={[{ id: "home", label: t("Home & about", "मुख्यपृष्ठ व माहिती") }, { id: "ann", label: t("Announcements", "सूचना") }, { id: "faq", label: "FAQ" }, { id: "faculty", label: t("Faculty profiles", "प्राध्यापक") }, { id: "seo", label: "SEO" }]} value={tab} onChange={setTab} />
+      <Tabs tabs={[{ id: "home", label: t("Home & about", "मुख्यपृष्ठ व माहिती") }, { id: "layout", label: t("Homepage layout", "मुख्यपृष्ठ मांडणी") }, { id: "ann", label: t("Announcements", "सूचना") }, { id: "faq", label: "FAQ" }, { id: "faculty", label: t("Faculty profiles", "प्राध्यापक") }, { id: "seo", label: "SEO" }]} value={tab} onChange={setTab} />
       {tab === "home" && (
         <div className="space-y-4">
           <Card title={t("Hero", "मुख्य भाग")}><div className="space-y-3"><LInput label="Headline" value={cms.heroTitle} onChange={(v) => setCms({ ...cms, heroTitle: v })} /><LInput label="Subtitle" value={cms.heroSubtitle} onChange={(v) => setCms({ ...cms, heroSubtitle: v })} area /></div></Card>
@@ -693,6 +765,7 @@ export function Cms({ canManage }: { canManage: boolean }) {
           <Card title={t("Gallery", "छायाचित्रे")}><input type="file" multiple accept="image/*" className="input" aria-label="Gallery upload" /><p className="mt-1 text-xs text-slate-500">{t("Images are compressed automatically for low-bandwidth users (production).", "कमी बँडविड्थसाठी प्रतिमा आपोआप संकुचित होतील (प्रत्यक्षात).")}</p></Card>
         </div>
       )}
+      {tab === "layout" && <HomeLayout cms={cms} setCms={setCms} canManage={canManage} />}
       {tab === "ann" && (
         <>
           {canManage && <button className="btn-outline mb-3" onClick={() => setAnn({ id: "", title: { en: "", mr: "" }, body: { en: "", mr: "" }, date: today(), pinned: false, published: true })}><Plus className="size-4" />{t("New announcement", "नवीन सूचना")}</button>}

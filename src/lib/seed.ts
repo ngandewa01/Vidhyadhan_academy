@@ -34,6 +34,9 @@ const classrooms: T.Classroom[] = [
 
 const L = (en: string, mr: string): T.L => ({ en, mr });
 
+export const DEFAULT_HOME_SECTIONS: T.HomeSection[] = (["photos", "courses", "why", "batches", "results", "reviews", "library", "cta"] as T.HomeSectionKey[]).map((key) => ({ key, enabled: true }));
+export const DEFAULT_HOME_PHOTOS: T.HomePhoto[] = [{ id: "ph_banner", src: "/brand/banner.jpg", caption: L("", ""), enabled: true }];
+
 const courses: T.Course[] = [
   {
     id: "c_rajyaseva", slug: "mpsc-rajyaseva", category: "state",
@@ -276,6 +279,8 @@ const settings: T.Settings = {
   materialApproval: true,
   receiptPrefix: "VA",
   cms: {
+    homeSections: DEFAULT_HOME_SECTIONS,
+    homePhotos: DEFAULT_HOME_PHOTOS,
     heroTitle: L("Your dream… our direction.", "स्वप्न तुमचे... दिशा आमची"),
     heroSubtitle: L(
       "Nikhil Rudrawar's Vidyadhan Academy – focused guidance for MPSC, PSI, STI, ASO and other Maharashtra competitive examinations. Not just a class — a family.",
