@@ -5,14 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRightLeft, Trash2, BookOpen, Check, ClipboardCheck, CreditCard, Download, FileUp, Inbox, Library, Pencil, Phone, Plus, UserPlus, Users, X, History as HistoryIcon } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
-import { attendanceStats, balanceFor, courseImpact, createEnrolment, createStudent, deleteCourse, paidFor } from "@/lib/actions";
+import { attendanceStats, balanceFor, chapterImpact, removeChapters, courseImpact, createEnrolment, createStudent, deleteCourse, paidFor } from "@/lib/actions";
 import { PERMISSION_PRESETS } from "@/lib/seed";
 import { cn, downloadFile, fmtINR, fmtMobile, isValidMobile, normMobile, nowISO, parseCSV, toCSV, today, uid, dayOffset } from "@/lib/utils";
 import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, SearchBox, Select, StatCard, StatusBadge, Table, Tabs, Toggle, toast, statusLabel } from "@/components/ui";
 import { NoAccess, useAccess } from "@/components/PortalShell";
 import { AssignmentsManager, AttendanceManager, LiveClassManager, MaterialsManager, QuestionBank, ResultsBoard, TestsManager, type Scope } from "./ops";
 import { Achievements, Certificates, Cms, ExamUpdatesAdmin, Fees, LibraryAdmin, NotificationsAdmin, Receipts, Referrals, Reports, SettingsAdmin, Tickets } from "./admin2";
-import { MODULES, type Access, type Batch, type Course, type EnquiryStatus, type Module, type StaffUser } from "@/lib/types";
+import { MODULES, type Access, type Batch, type Chapter, type Course, type EnquiryStatus, type L, type Module, type StaffUser, type Subject } from "@/lib/types";
 
 export function useAdmin() {
   const db = useStore((s) => s.db);
@@ -461,7 +461,22 @@ function Syllabus({ canManage }: { canManage: boolean }) {
   const [errors, setErrors] = useState<{ row: number; msg: string }[] | null>(null);
   const course = db.courses.find((c) => c.id === cid)!;
   const subjects = db.subjects.filter((s) => s.courseId === cid);
-  const ask = (label: string) => { const en = prompt(`${label} (English)`); if (!en) return null; const mr = prompt(`${label} (मराठी)`) || en; return { en, mr }; };
+  const ask = (label: string, current?: L) => { const en = prompt(`${label} (English)`, current?.en); if (!en) return null; const mr = prompt(`${label} (मराठी)`, current?.mr) || en; return { en, mr }; };
+  const renameSubject = (s: Subject) => { const n = ask("Subject name", s.name); if (n) update((db) => { db.subjects.find((x) => x.id === s.id)!.name = n; bump(db, `Renamed subject to ${n.en}`); }, { action: "syllabus.edit", entity: course.name.en }); };
+  const removeSubject = (s: Subject) => {
+    const ids = new Set(s.chapters.map((c) => c.id));
+    const i = chapterImpact(db, ids);
+    if (!confirm(t(`Delete subject "${l(s.name)}" with ${ids.size} chapters, ${i.questions} questions, ${i.materials} materials and ${i.recordings} recordings? This cannot be undone.`, `"${l(s.name)}" विषय हटवायचा? यात ${ids.size} प्रकरणे, ${i.questions} प्रश्न, ${i.materials} साहित्य व ${i.recordings} व्याख्याने हटतील. हे परत करता येणार नाही.`))) return;
+    update((db) => { removeChapters(db, s.id, ids); db.subjects = db.subjects.filter((x) => x.id !== s.id); bump(db, `Deleted subject ${s.name.en}`); }, { action: "syllabus.delete", entity: s.name.en });
+  };
+  const renameChapter = (sid: string, c: Chapter) => { const n = ask("Chapter name", c.name); if (n) update((db) => { db.subjects.find((s) => s.id === sid)!.chapters.find((x) => x.id === c.id)!.name = n; bump(db, `Renamed chapter to ${n.en}`); }); };
+  const removeChapter = (sid: string, c: Chapter) => {
+    const i = chapterImpact(db, new Set([c.id]));
+    if (!confirm(t(`Delete chapter "${l(c.name)}" with ${i.questions} questions, ${i.materials} materials and ${i.recordings} recordings? This cannot be undone.`, `"${l(c.name)}" प्रकरण हटवायचे? यात ${i.questions} प्रश्न, ${i.materials} साहित्य व ${i.recordings} व्याख्याने हटतील. हे परत करता येणार नाही.`))) return;
+    update((db) => { removeChapters(db, sid, new Set([c.id])); bump(db, `Deleted chapter ${c.name.en}`); });
+  };
+  const renameTopic = (sid: string, cid: string, ti: number, topic: L) => { const n = ask("Topic", topic); if (n) update((db) => { db.subjects.find((s) => s.id === sid)!.chapters.find((c) => c.id === cid)!.topics[ti] = n; bump(db, `Renamed topic to ${n.en}`); }); };
+  const removeTopic = (sid: string, cid: string, ti: number, topic: L) => { if (confirm(t(`Delete topic "${l(topic)}"?`, `"${l(topic)}" उपविषय हटवायचा?`))) update((db) => { db.subjects.find((s) => s.id === sid)!.chapters.find((c) => c.id === cid)!.topics.splice(ti, 1); bump(db, `Deleted topic ${topic.en}`); }); };
   const bump = (db: ReturnType<typeof useStore.getState>["db"], note: string) => { const c = db.courses.find((x) => x.id === cid)!; c.syllabusVersion++; db.syllabusHistory.unshift({ courseId: cid, version: c.syllabusVersion, at: nowISO(), by: me.name, note }); };
   const addSubject = () => { const n = ask("Subject name"); if (n) update((db) => { db.subjects.push({ id: uid("s"), courseId: cid, name: n, chapters: [] }); bump(db, `Added subject ${n.en}`); }, { action: "syllabus.edit", entity: course.name.en }); };
   const addChapter = (sid: string) => { const n = ask("Chapter name"); if (n) update((db) => { db.subjects.find((s) => s.id === sid)!.chapters.push({ id: uid("ch"), name: n, topics: [] }); bump(db, `Added chapter ${n.en}`); }); };
@@ -501,8 +516,8 @@ function Syllabus({ canManage }: { canManage: boolean }) {
       <div className="grid gap-5 lg:grid-cols-[1fr_300px]">
         <div className="space-y-3">
           {subjects.map((s) => (
-            <Card key={s.id} title={l(s.name)} actions={canManage && <button className="btn-ghost btn-sm" onClick={() => addChapter(s.id)}><Plus className="size-4" />{t("Chapter", "प्रकरण")}</button>}>
-              <ol className="space-y-2 text-sm">{s.chapters.map((c) => <li key={c.id}><div className="flex items-center justify-between"><span className="font-medium">{l(c.name)}</span>{canManage && <button className="btn-ghost btn-sm" onClick={() => addTopic(s.id, c.id)}>+ {t("topic", "उपविषय")}</button>}</div><p className="text-xs text-slate-500">{c.topics.map((x) => l(x)).join(" · ") || "—"}</p><p className="text-[11px] text-slate-400">{db.questions.filter((q) => q.chapterId === c.id).length} {t("questions", "प्रश्न")} · {db.materials.filter((m) => m.chapterId === c.id).length} {t("materials", "साहित्य")}</p></li>)}</ol>
+            <Card key={s.id} title={l(s.name)} actions={canManage && <div className="flex items-center gap-1"><button className="btn-ghost btn-sm" onClick={() => addChapter(s.id)}><Plus className="size-4" />{t("Chapter", "प्रकरण")}</button><button className="btn-ghost btn-sm" onClick={() => renameSubject(s)} aria-label={t("Edit subject", "विषय संपादित")}><Pencil className="size-4" /></button><button className="btn-ghost btn-sm text-red-600" onClick={() => removeSubject(s)} aria-label={t("Delete subject", "विषय हटवा")}><Trash2 className="size-4" /></button></div>}>
+              <ol className="space-y-2 text-sm">{s.chapters.map((c) => <li key={c.id}><div className="flex items-center justify-between gap-2"><span className="font-medium">{l(c.name)}</span>{canManage && <span className="flex items-center gap-1"><button className="btn-ghost btn-sm" onClick={() => addTopic(s.id, c.id)}>+ {t("topic", "उपविषय")}</button><button className="btn-ghost btn-sm" onClick={() => renameChapter(s.id, c)} aria-label={t("Edit chapter", "प्रकरण संपादित")}><Pencil className="size-3.5" /></button><button className="btn-ghost btn-sm text-red-600" onClick={() => removeChapter(s.id, c)} aria-label={t("Delete chapter", "प्रकरण हटवा")}><Trash2 className="size-3.5" /></button></span>}</div><ul className="mt-1 space-y-0.5 text-xs text-slate-500">{c.topics.map((x, ti) => <li key={ti} className="flex items-center justify-between gap-2"><span>{l(x)}</span>{canManage && <span className="flex items-center gap-0.5"><button className="btn-ghost btn-sm" onClick={() => renameTopic(s.id, c.id, ti, x)} aria-label={t("Edit topic", "उपविषय संपादित")}><Pencil className="size-3" /></button><button className="btn-ghost btn-sm text-red-600" onClick={() => removeTopic(s.id, c.id, ti, x)} aria-label={t("Delete topic", "उपविषय हटवा")}><Trash2 className="size-3" /></button></span>}</li>)}{!c.topics.length && <li>—</li>}</ul><p className="text-[11px] text-slate-400">{db.questions.filter((q) => q.chapterId === c.id).length} {t("questions", "प्रश्न")} · {db.materials.filter((m) => m.chapterId === c.id).length} {t("materials", "साहित्य")}</p></li>)}</ol>
               {!s.chapters.length && <p className="text-sm text-slate-400">{t("No chapters yet", "प्रकरणे नाहीत")}</p>}
             </Card>
           ))}

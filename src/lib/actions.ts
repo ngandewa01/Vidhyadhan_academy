@@ -174,3 +174,23 @@ export function deleteCourse(db: DB, courseId: string) {
   db.courses = db.courses.filter((c) => c.id !== courseId);
   for (const u of db.staff) u.batchIds = u.batchIds.filter((id) => !batchIds.has(id));
 }
+
+export function chapterImpact(db: DB, chapterIds: Set<string>) {
+  const inChapters = (x: { chapterId?: string }) => x.chapterId !== undefined && chapterIds.has(x.chapterId);
+  return {
+    questions: db.questions.filter(inChapters).length,
+    materials: db.materials.filter(inChapters).length,
+    recordings: db.recordings.filter(inChapters).length,
+  };
+}
+
+export function removeChapters(db: DB, subjectId: string, chapterIds: Set<string>) {
+  const inChapters = (x: { chapterId?: string }) => x.chapterId !== undefined && chapterIds.has(x.chapterId);
+  const qids = new Set(db.questions.filter(inChapters).map((q) => q.id));
+  db.questions = db.questions.filter((q) => !qids.has(q.id));
+  db.materials = db.materials.filter((m) => !inChapters(m));
+  db.recordings = db.recordings.filter((r) => !inChapters(r));
+  for (const test of db.tests) test.questionIds = test.questionIds.filter((id) => !qids.has(id));
+  const subject = db.subjects.find((s) => s.id === subjectId)!;
+  subject.chapters = subject.chapters.filter((c) => !chapterIds.has(c.id));
+}
