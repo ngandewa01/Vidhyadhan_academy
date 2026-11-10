@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRightLeft, Trash2, BookOpen, Check, ClipboardCheck, CreditCard, Download, FileUp, Inbox, Library, Pencil, Phone, Plus, UserPlus, Users, X, History as HistoryIcon } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
-import { attendanceStats, balanceFor, courseDeleteBlocker, createEnrolment, createStudent, deleteCourse, paidFor } from "@/lib/actions";
+import { attendanceStats, balanceFor, courseImpact, createEnrolment, createStudent, deleteCourse, paidFor } from "@/lib/actions";
 import { PERMISSION_PRESETS } from "@/lib/seed";
 import { cn, downloadFile, fmtINR, fmtMobile, isValidMobile, normMobile, nowISO, parseCSV, toCSV, today, uid, dayOffset } from "@/lib/utils";
 import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, SearchBox, Select, StatCard, StatusBadge, Table, Tabs, Toggle, toast, statusLabel } from "@/components/ui";
@@ -414,9 +414,10 @@ function Courses({ canManage }: { canManage: boolean }) {
     setEdit(null);
   };
   const removeCourse = (c: Course) => {
-    const why = courseDeleteBlocker(db, c.id);
-    if (why) return toast.error(t(`Can't delete: ${why.en}. Turn off "Website" to hide it instead.`, `हटवता येत नाही: ${why.mr}. ते लपवण्यासाठी "संकेतस्थळ" बंद करा.`));
-    if (!confirm(t(`Delete "${l(c.name)}" with its batches, syllabus and content? This cannot be undone.`, `"${l(c.name)}" त्याचे बॅचेस, अभ्यासक्रम व साहित्यासह हटवायचा? हे परत करता येणार नाही.`))) return;
+    const i = courseImpact(db, c.id);
+    const lines = [`${i.batches} batches`, `${i.enrolments} enrolments (${i.students} students)`, `${i.payments} payments`, `${i.enquiries} enquiries`, `${i.attempts} test attempts`, "syllabus and content"];
+    const bundleNote = i.bundlePlans ? ` ${i.bundlePlans} library bundle plan(s) will be deactivated.` : "";
+    if (!confirm(t(`Delete "${l(c.name)}" permanently? This removes: ${lines.join(", ")}.${bundleNote} Student accounts stay. This cannot be undone.`, `"${l(c.name)}" कायमचा हटवायचा? यामुळे हटेल: ${lines.join(", ")}.${bundleNote} विद्यार्थी खाती कायम राहतील. हे परत करता येणार नाही.`))) return;
     update((db) => deleteCourse(db, c.id), { action: "course.delete", entity: c.name.en });
     toast.success(t("Course deleted", "अभ्यासक्रम हटवला"));
   };
