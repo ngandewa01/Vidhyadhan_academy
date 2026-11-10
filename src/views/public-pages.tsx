@@ -118,7 +118,10 @@ export function CourseDetailView({ slug }: { slug: string }) {
         )}
         {tab === "syllabus" && <SyllabusTree courseId={c.id} />}
         {tab === "batches" && <BatchList courseId={c.id} />}
-        {tab === "fees" && (
+        {tab === "fees" && c.showFee === false && (
+          <Notice>{t("Fee details are not listed online. Call or WhatsApp us for the current fee.", "शुल्काची माहिती ऑनलाइन दिलेली नाही. सध्याच्या शुल्कासाठी फोन किंवा व्हॉट्सअॅप करा.")}</Notice>
+        )}
+        {tab === "fees" && c.showFee !== false && (
           <div className="max-w-xl space-y-3">
             <Card>
               <div className="flex items-baseline justify-between"><span className="text-slate-600">{t("Course fee", "अभ्यासक्रम शुल्क")}</span><span className="text-2xl font-bold">{fmtINR(c.fee)}</span></div>
@@ -210,7 +213,7 @@ function BatchList({ courseId }: { courseId?: string }) {
                 <div><dt className="text-slate-500">{t("Seats left", "उपलब्ध जागा")}</dt><dd className={seats < 10 ? "font-semibold text-saffron-700" : ""}>{seats} / {b.capacity}</dd></div>
               </dl>
               <div className="mt-4 flex items-center justify-between">
-                <span className="font-semibold">{fmtINR(b.fee)} <span className="text-[10px] font-normal text-saffron-700">{t("demo", "डेमो")}</span></span>
+                {c.showFee !== false ? <span className="font-semibold">{fmtINR(b.fee)} <span className="text-[10px] font-normal text-saffron-700">{t("demo", "डेमो")}</span></span> : <span className="text-sm text-slate-500">{t("Fee on request", "शुल्क विनंतीनुसार")}</span>}
                 {b.admissionOpen ? <Link href={`/admission?batch=${b.id}`} className="btn-primary btn-sm">{t("Enrol", "प्रवेश")} · {t("till", "पर्यंत")} {d(b.admissionCloses, { day: "numeric", month: "short" })}</Link> : <Badge>{t("Closed", "बंद")}</Badge>}
               </div>
             </div>
@@ -246,7 +249,7 @@ export function FeesView() {
             <tbody>
               {db.batches.map((b) => {
                 const c = db.courses.find((x) => x.id === b.courseId)!;
-                return <tr key={b.id}><td className="font-medium">{l(c.name)}</td><td>{b.name}</td><td><StatusBadge s={b.mode} /></td><td>{c.durationMonths} {t("months", "महिने")}</td><td className="text-right font-semibold">{fmtINR(b.fee)}</td></tr>;
+                return <tr key={b.id}><td className="font-medium">{l(c.name)}</td><td>{b.name}</td><td><StatusBadge s={b.mode} /></td><td>{c.durationMonths} {t("months", "महिने")}</td><td className="text-right font-semibold">{c.showFee !== false ? fmtINR(b.fee) : <span className="font-normal text-slate-500">{t("On request", "विनंतीनुसार")}</span>}</td></tr>;
               })}
             </tbody>
           </table>
