@@ -194,3 +194,25 @@ export function removeChapters(db: DB, subjectId: string, chapterIds: Set<string
   const subject = db.subjects.find((s) => s.id === subjectId)!;
   subject.chapters = subject.chapters.filter((c) => !chapterIds.has(c.id));
 }
+
+export function batchImpact(db: DB, batchId: string) {
+  const enrolments = db.enrolments.filter((e) => e.batchId === batchId);
+  const ids = new Set(enrolments.map((e) => e.id));
+  return {
+    enrolments: enrolments.length,
+    students: new Set(enrolments.map((e) => e.studentId)).size,
+    payments: db.payments.filter((p) => p.enrolmentId && ids.has(p.enrolmentId)).length,
+  };
+}
+
+export function deleteBatch(db: DB, batchId: string) {
+  const enrolmentIds = new Set(db.enrolments.filter((e) => e.batchId === batchId).map((e) => e.id));
+  db.payments = db.payments.filter((p) => !(p.enrolmentId && enrolmentIds.has(p.enrolmentId)));
+  const rec = db as unknown as Record<string, unknown>;
+  for (const key of Object.keys(rec)) {
+    const v = rec[key];
+    if (Array.isArray(v) && v.length && typeof v[0] === "object" && v[0] !== null && key !== "payments" && key !== "batches") rec[key] = v.filter((x) => (x as { batchId?: string }).batchId !== batchId);
+  }
+  db.batches = db.batches.filter((b) => b.id !== batchId);
+  for (const u of db.staff) u.batchIds = u.batchIds.filter((id) => id !== batchId);
+}
