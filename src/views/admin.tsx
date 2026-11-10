@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, ArrowRightLeft, Trash2, BookOpen, Check, ClipboardCheck, CreditCard, Download, FileUp, Inbox, Library, Pencil, Phone, Plus, UserPlus, Users, X, History as HistoryIcon } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
-import { attendanceStats, balanceFor, chapterImpact, removeChapters, courseImpact, createEnrolment, createStudent, deleteCourse, paidFor } from "@/lib/actions";
+import { attendanceStats, balanceFor, batchImpact, chapterImpact, deleteBatch, removeChapters, courseImpact, createEnrolment, createStudent, deleteCourse, paidFor } from "@/lib/actions";
 import { PERMISSION_PRESETS } from "@/lib/seed";
 import { cn, downloadFile, fmtINR, fmtMobile, isValidMobile, normMobile, nowISO, parseCSV, toCSV, today, uid, dayOffset } from "@/lib/utils";
 import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, SearchBox, Select, StatCard, StatusBadge, Table, Tabs, Toggle, toast, statusLabel } from "@/components/ui";
@@ -538,6 +538,12 @@ function Batches({ canManage }: { canManage: boolean }) {
   const { db } = useAdmin();
   const { update } = useStore();
   const [edit, setEdit] = useState<Batch | null>(null);
+  const removeBatch = (b: Batch) => {
+    const i = batchImpact(db, b.id);
+    if (!confirm(t(`Delete batch "${b.name}" permanently? This removes ${i.enrolments} enrolments (${i.students} students), ${i.payments} payments, and its attendance, classes and materials. Student accounts stay. This cannot be undone.`, `"${b.name}" बॅच कायमचा हटवायचा? यामुळे ${i.enrolments} प्रवेश (${i.students} विद्यार्थी), ${i.payments} पेमेंट, आणि त्याची उपस्थिती, वर्ग व साहित्य हटतील. विद्यार्थी खाती कायम राहतील. हे परत करता येणार नाही.`))) return;
+    update((db) => deleteBatch(db, b.id), { action: "batch.delete", entity: b.name });
+    toast.success(t("Batch deleted", "बॅच हटवला"));
+  };
   const blank = (): Batch => ({ id: "", courseId: db.courses[0].id, branchId: "br_main", name: "", mode: "offline", startDate: today(), endDate: dayOffset(180), days: "Mon–Sat", time: "08:00 – 10:00", capacity: 40, facultyIds: [], classroomId: db.classrooms[0]?.id, fee: db.courses[0].fee, admissionOpen: true, admissionCloses: dayOffset(15) });
   const save = () => {
     if (!edit?.name) return toast.error(t("Batch name required", "बॅच नाव आवश्यक"));
@@ -551,7 +557,7 @@ function Batches({ canManage }: { canManage: boolean }) {
     <div>
       <PageHeader title={t("Batches", "बॅचेस")} actions={canManage && <button className="btn-primary" onClick={() => setEdit(blank())}><Plus className="size-4" />{t("Add batch", "बॅच जोडा")}</button>} />
       <Table head={[t("Batch", "बॅच"), t("Mode", "पद्धत"), t("Schedule", "वेळापत्रक"), t("Faculty", "प्राध्यापक"), t("Occupancy", "भरणा"), t("Fee", "शुल्क"), t("Admission", "प्रवेश"), ""]}>
-        {db.batches.map((b) => { const n = db.enrolments.filter((e) => e.batchId === b.id && e.enrolmentStatus === "active").length; return <tr key={b.id}><td><p className="font-medium">{b.name}</p><p className="text-xs text-slate-500">{l(db.courses.find((c) => c.id === b.courseId)?.name)} · {db.classrooms.find((c) => c.id === b.classroomId)?.name ?? "Online"}</p></td><td><StatusBadge s={b.mode} /></td><td className="text-xs">{b.days}<br />{b.time}<br />{d(b.startDate)} – {d(b.endDate)}</td><td className="text-xs">{b.facultyIds.map((f) => db.staff.find((s) => s.id === f)?.name).join(", ")}</td><td><span className={n >= b.capacity ? "font-semibold text-red-600" : ""}>{n}/{b.capacity}</span></td><td>{fmtINR(b.fee)}</td><td className="text-xs">{b.admissionOpen ? <>{t("till", "पर्यंत")} {d(b.admissionCloses)}</> : <Badge>{t("Closed", "बंद")}</Badge>}</td><td>{canManage && <button className="btn-ghost btn-sm" onClick={() => setEdit(structuredClone(b))} aria-label="Edit"><Pencil className="size-4" /></button>}</td></tr>; })}
+        {db.batches.map((b) => { const n = db.enrolments.filter((e) => e.batchId === b.id && e.enrolmentStatus === "active").length; return <tr key={b.id}><td><p className="font-medium">{b.name}</p><p className="text-xs text-slate-500">{l(db.courses.find((c) => c.id === b.courseId)?.name)} · {db.classrooms.find((c) => c.id === b.classroomId)?.name ?? "Online"}</p></td><td><StatusBadge s={b.mode} /></td><td className="text-xs">{b.days}<br />{b.time}<br />{d(b.startDate)} – {d(b.endDate)}</td><td className="text-xs">{b.facultyIds.map((f) => db.staff.find((s) => s.id === f)?.name).join(", ")}</td><td><span className={n >= b.capacity ? "font-semibold text-red-600" : ""}>{n}/{b.capacity}</span></td><td>{fmtINR(b.fee)}</td><td className="text-xs">{b.admissionOpen ? <>{t("till", "पर्यंत")} {d(b.admissionCloses)}</> : <Badge>{t("Closed", "बंद")}</Badge>}</td><td>{canManage && <div className="flex gap-1"><button className="btn-ghost btn-sm" onClick={() => setEdit(structuredClone(b))} aria-label="Edit"><Pencil className="size-4" /></button><button className="btn-ghost btn-sm text-red-600" onClick={() => removeBatch(b)} aria-label={t("Delete", "हटवा")}><Trash2 className="size-4" /></button></div>}</td></tr>; })}
       </Table>
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? t("Edit batch", "बॅच संपादित") : t("Add batch", "बॅच जोडा")} size="xl" footer={<button className="btn-primary" onClick={save}>{t("Save", "जतन")}</button>}>
         {edit && (
