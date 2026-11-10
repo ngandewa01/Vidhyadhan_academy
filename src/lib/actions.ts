@@ -142,3 +142,24 @@ export function rankFor(db: DB, testId: string, studentId: string, batchId?: str
 export const PAY_METHOD_LABEL: Record<T.PayMethod, [string, string]> = {
   cash: ["Cash", "रोख"], upi: ["UPI / QR", "UPI / QR"], gateway: ["Online gateway", "ऑनलाइन गेटवे"], bank: ["Bank transfer", "बँक ट्रान्सफर"],
 };
+
+export function courseDeleteBlocker(db: DB, courseId: string): T.L | null {
+  if (db.enrolments.some((e) => e.courseId === courseId)) return { en: "students are enrolled in it", mr: "त्यात विद्यार्थी प्रवेशित आहेत" };
+  if (db.enquiries.some((e) => e.courseId === courseId)) return { en: "it has enquiries", mr: "त्यासाठी चौकशी नोंदी आहेत" };
+  if (db.libraryPlans.some((p) => p.bundleCourseId === courseId)) return { en: "a library bundle uses it", mr: "अभ्यासिका केंद्र संच त्याचा वापर करतो" };
+  const testIds = new Set(db.tests.filter((t) => t.courseId === courseId).map((t) => t.id));
+  if (db.attempts.some((a) => testIds.has(a.testId))) return { en: "students have attempted its tests", mr: "विद्यार्थ्यांनी त्याच्या चाचण्या दिल्या आहेत" };
+  return null;
+}
+
+export function deleteCourse(db: DB, courseId: string) {
+  const batchIds = new Set(db.batches.filter((b) => b.courseId === courseId).map((b) => b.id));
+  const drop = (x: { courseId?: string; batchId?: string }) => x.courseId === courseId || (x.batchId !== undefined && batchIds.has(x.batchId));
+  const rec = db as unknown as Record<string, unknown>;
+  for (const key of Object.keys(rec)) {
+    const v = rec[key];
+    if (Array.isArray(v) && v.length && typeof v[0] === "object" && v[0] !== null && key !== "courses") rec[key] = v.filter((x) => !drop(x));
+  }
+  db.courses = db.courses.filter((c) => c.id !== courseId);
+  for (const u of db.staff) u.batchIds = u.batchIds.filter((id) => !batchIds.has(id));
+}

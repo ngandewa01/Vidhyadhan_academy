@@ -2,10 +2,10 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ArrowRightLeft, BookOpen, Check, ClipboardCheck, CreditCard, Download, FileUp, Inbox, Library, Pencil, Phone, Plus, UserPlus, Users, X, History as HistoryIcon } from "lucide-react";
+import { AlertTriangle, ArrowRightLeft, Trash2, BookOpen, Check, ClipboardCheck, CreditCard, Download, FileUp, Inbox, Library, Pencil, Phone, Plus, UserPlus, Users, X, History as HistoryIcon } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
-import { attendanceStats, balanceFor, createEnrolment, createStudent, paidFor } from "@/lib/actions";
+import { attendanceStats, balanceFor, courseDeleteBlocker, createEnrolment, createStudent, deleteCourse, paidFor } from "@/lib/actions";
 import { PERMISSION_PRESETS } from "@/lib/seed";
 import { cn, downloadFile, fmtINR, fmtMobile, isValidMobile, normMobile, nowISO, parseCSV, toCSV, today, uid, dayOffset } from "@/lib/utils";
 import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, SearchBox, Select, StatCard, StatusBadge, Table, Tabs, Toggle, toast, statusLabel } from "@/components/ui";
@@ -413,11 +413,18 @@ function Courses({ canManage }: { canManage: boolean }) {
     update((db) => { if (edit.id) Object.assign(db.courses.find((c) => c.id === edit.id)!, { ...edit, slug }); else db.courses.push({ ...edit, slug, id: uid("c") }); }, { action: edit.id ? "course.update" : "course.create", entity: edit.name.en });
     setEdit(null);
   };
+  const removeCourse = (c: Course) => {
+    const why = courseDeleteBlocker(db, c.id);
+    if (why) return toast.error(t(`Can't delete: ${why.en}. Turn off "Website" to hide it instead.`, `हटवता येत नाही: ${why.mr}. ते लपवण्यासाठी "संकेतस्थळ" बंद करा.`));
+    if (!confirm(t(`Delete "${l(c.name)}" with its batches, syllabus and content? This cannot be undone.`, `"${l(c.name)}" त्याचे बॅचेस, अभ्यासक्रम व साहित्यासह हटवायचा? हे परत करता येणार नाही.`))) return;
+    update((db) => deleteCourse(db, c.id), { action: "course.delete", entity: c.name.en });
+    toast.success(t("Course deleted", "अभ्यासक्रम हटवला"));
+  };
   return (
     <div>
       <PageHeader title={t("Courses", "अभ्यासक्रम")} actions={canManage && <button className="btn-primary" onClick={() => setEdit(blank())}><Plus className="size-4" />{t("Add course", "अभ्यासक्रम जोडा")}</button>} />
       <Table head={[t("Course", "अभ्यासक्रम"), t("Category", "प्रकार"), t("Duration", "कालावधी"), t("Fee", "शुल्क"), t("Batches", "बॅचेस"), t("Admissions", "प्रवेश"), t("Website", "संकेतस्थळ"), ""]}>
-        {db.courses.map((c) => <tr key={c.id}><td><p className="font-medium">{l(c.name)}</p><p className="text-xs text-slate-500">/{c.slug} · v{c.syllabusVersion}</p></td><td className="text-xs">{c.category}</td><td>{c.durationMonths} m</td><td>{fmtINR(c.fee)}</td><td>{db.batches.filter((b) => b.courseId === c.id).length}</td><td><Toggle disabled={!canManage} checked={c.admissionOpen} onChange={(v) => update((db) => { db.courses.find((x) => x.id === c.id)!.admissionOpen = v; }, { action: "course.admission", entity: c.name.en, detail: v ? "opened" : "closed" })} /></td><td><Toggle disabled={!canManage} checked={c.published} onChange={(v) => update((db) => { db.courses.find((x) => x.id === c.id)!.published = v; }, { action: "course.publish", entity: c.name.en, detail: String(v) })} /></td><td>{canManage && <button className="btn-ghost btn-sm" onClick={() => setEdit(structuredClone(c))} aria-label="Edit"><Pencil className="size-4" /></button>}</td></tr>)}
+        {db.courses.map((c) => <tr key={c.id}><td><p className="font-medium">{l(c.name)}</p><p className="text-xs text-slate-500">/{c.slug} · v{c.syllabusVersion}</p></td><td className="text-xs">{c.category}</td><td>{c.durationMonths} m</td><td>{fmtINR(c.fee)}</td><td>{db.batches.filter((b) => b.courseId === c.id).length}</td><td><Toggle disabled={!canManage} checked={c.admissionOpen} onChange={(v) => update((db) => { db.courses.find((x) => x.id === c.id)!.admissionOpen = v; }, { action: "course.admission", entity: c.name.en, detail: v ? "opened" : "closed" })} /></td><td><Toggle disabled={!canManage} checked={c.published} onChange={(v) => update((db) => { db.courses.find((x) => x.id === c.id)!.published = v; }, { action: "course.publish", entity: c.name.en, detail: String(v) })} /></td><td>{canManage && <div className="flex gap-1"><button className="btn-ghost btn-sm" onClick={() => setEdit(structuredClone(c))} aria-label="Edit"><Pencil className="size-4" /></button><button className="btn-ghost btn-sm text-red-600" onClick={() => removeCourse(c)} aria-label={t("Delete", "हटवा")}><Trash2 className="size-4" /></button></div>}</td></tr>)}
       </Table>
       <Modal open={!!edit} onClose={() => setEdit(null)} title={edit?.id ? t("Edit course", "अभ्यासक्रम संपादित") : t("Add course", "अभ्यासक्रम जोडा")} size="xl" footer={<button className="btn-primary" onClick={save}>{t("Save", "जतन")}</button>}>
         {edit && (
