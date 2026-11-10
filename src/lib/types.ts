@@ -182,6 +182,9 @@ export interface LibraryPlan {
   name: L;
   months: number;
   fee: number;
+  registrationFee: number;
+  locker: boolean;
+  spaciousSeat: boolean;
   kind: "library" | "bundle";
   bundleCourseId?: string;
   active: boolean;

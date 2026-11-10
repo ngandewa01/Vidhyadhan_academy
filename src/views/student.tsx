@@ -574,7 +574,7 @@ function LibraryMembership() {
     let pid = "";
     update((db) => {
       const start = cur && cur.end >= today() ? dayOffset(1, new Date(cur.end)) : today();
-      const m = createMembership(db, { studentId: me.id, planId, start, discount: 0 });
+      const m = createMembership(db, { studentId: me.id, planId, start, discount: 0, renewal: true });
       if (cur?.seat) m.seat = cur.seat;
       pid = recordPayment(db, { studentId: me.id, membershipId: m.id, amount: m.fee, method: "upi", reference: `DEMO${Date.now().toString().slice(-6)}`, by: "online" }).id;
     }, { action: "library.renew", entity: me.code, detail: planId });

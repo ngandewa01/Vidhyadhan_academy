@@ -7,7 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { Badge, Card, Field, Notice, Tabs, toast } from "@/components/ui";
 import { ReceiptModal } from "@/components/Receipt";
-import { createEnrolment, createMembership, createStudent, evaluatePromo, recordPayment } from "@/lib/actions";
+import { createEnrolment, createMembership, createStudent, evaluatePromo, membershipFee, recordPayment } from "@/lib/actions";
 import { cn, fmtINR, isValidMobile, normMobile, today } from "@/lib/utils";
 import type { Role } from "@/lib/types";
 import { portalHome } from "@/components/PublicShell";
@@ -191,7 +191,7 @@ export function AdmissionView() {
 
   const batch = pick?.kind === "course" ? db.batches.find((b) => b.id === pick.batchId) : undefined;
   const plan = pick?.kind === "library" ? db.libraryPlans.find((p) => p.id === pick.planId) : undefined;
-  const fee = batch?.fee ?? plan?.fee ?? 0;
+  const fee = batch?.fee ?? (plan ? membershipFee(plan, 0) : 0);
   const net = Math.max(0, fee - discount);
   const firstDue = inst > 1 ? Math.round(net / inst) : net;
 
@@ -306,7 +306,7 @@ export function AdmissionView() {
                 {db.libraryPlans.filter((p) => p.active).map((p) => (
                   <label key={p.id} className={cn("flex cursor-pointer items-center justify-between rounded-lg border p-3 text-sm", pick?.kind === "library" && pick.planId === p.id ? "border-saffron-600 bg-saffron-50" : "border-slate-200")}>
                     <span className="flex items-center gap-2"><input type="radio" name="plan" checked={pick?.kind === "library" && pick.planId === p.id} onChange={() => setPick({ kind: "library", planId: p.id })} />{l(p.name)}</span>
-                    <span className="font-semibold">{fmtINR(p.fee)}</span>
+                    <span className="text-right"><span className="block font-semibold">{fmtINR(p.fee + p.registrationFee)}</span><span className="block text-[11px] text-slate-500">{t("incl. registration", "नोंदणीसह")}</span></span>
                   </label>
                 ))}
               </div>

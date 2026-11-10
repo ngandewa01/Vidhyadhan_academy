@@ -250,11 +250,10 @@ const tests: T.Test[] = [
 ];
 
 const libraryPlans: T.LibraryPlan[] = [
-  { id: "lp_m", name: L("Monthly (Abhyasika Kendra only)", "मासिक (फक्त अभ्यासिका केंद्र)"), months: 1, fee: 800, kind: "library", active: true },
-  { id: "lp_q", name: L("Quarterly (Abhyasika Kendra only)", "त्रैमासिक (फक्त अभ्यासिका केंद्र)"), months: 3, fee: 2200, kind: "library", active: true },
-  { id: "lp_h", name: L("Half-yearly (Abhyasika Kendra only)", "सहामाही (फक्त अभ्यासिका केंद्र)"), months: 6, fee: 4000, kind: "library", active: true },
-  { id: "lp_y", name: L("Annual (Abhyasika Kendra only)", "वार्षिक (फक्त अभ्यासिका केंद्र)"), months: 12, fee: 7500, kind: "library", active: true },
-  { id: "lp_b_rs", name: L("Rajyaseva + Abhyasika Kendra bundle (12 months)", "राज्यसेवा + अभ्यासिका केंद्र संच (१२ महिने)"), months: 12, fee: 50000, kind: "bundle", bundleCourseId: "c_rajyaseva", active: true },
+  { id: "lp_seat", name: L("Library seat only", "फक्त अभ्यासिका आसन"), months: 1, fee: 800, registrationFee: 200, kind: "library", locker: false, spaciousSeat: false, active: true },
+  { id: "lp_locker", name: L("Library seat + locker", "अभ्यासिका आसन + लॉकर"), months: 1, fee: 1000, registrationFee: 200, kind: "library", locker: true, spaciousSeat: false, active: true },
+  { id: "lp_spacious", name: L("Spacious seat", "प्रशस्त आसन"), months: 1, fee: 1200, registrationFee: 200, kind: "library", locker: false, spaciousSeat: true, active: true },
+  { id: "lp_bundle", name: L("Course + library", "अभ्यासक्रम + अभ्यासिका केंद्र"), months: 12, fee: 50000, registrationFee: 500, kind: "bundle", bundleCourseId: "c_rajyaseva", locker: false, spaciousSeat: false, active: true },
 ];
 
 const settings: T.Settings = {

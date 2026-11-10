@@ -282,6 +282,8 @@ function LibraryPlans() {
           <h3 className="font-semibold">{l(p.name)}</h3>
           <p className="mt-2 text-2xl font-bold">{fmtINR(p.fee)}</p>
           <p className="text-xs text-slate-500">{p.months} {t("month(s)", "महिने")} · <span className="text-saffron-700">{t("demo price", "डेमो किंमत")}</span></p>
+          {p.registrationFee > 0 && <p className="mt-1 text-xs text-slate-600">{t("+ one-time registration", "+ एकदाच नोंदणी शुल्क")} {fmtINR(p.registrationFee)}</p>}
+          {(p.locker || p.spaciousSeat) && <p className="mt-2 text-xs text-slate-600">{[p.locker && t("Locker included", "लॉकर समाविष्ट"), p.spaciousSeat && t("Spacious seat", "प्रशस्त आसन")].filter(Boolean).join(" · ")}</p>}
           <Link href={`/admission?library=${p.id}`} className="btn-outline btn-sm mt-4">{t("Choose plan", "योजना निवडा")}</Link>
         </div>
       ))}
@@ -298,7 +300,7 @@ export function LibraryView() {
     <>
       <PageHero title={t("Abhyasika Kendra", "अभ्यासिका केंद्र / अभ्यासिका")} subtitle={l(db.settings.cms.libraryBlurb)}>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Link href="/admission?library=lp_m" className="btn-accent">{t("Get membership", "सदस्यत्व घ्या")}</Link>
+          <Link href="/admission?library=lp_seat" className="btn-accent">{t("Get membership", "सदस्यत्व घ्या")}</Link>
           <Link href="/contact" className="btn-outline">{t("Visit the Abhyasika Kendra", "अभ्यासिका केंद्राला भेट द्या")}</Link>
         </div>
       </PageHero>
