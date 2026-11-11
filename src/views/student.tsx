@@ -15,6 +15,7 @@ import { ReceiptModal } from "@/components/Receipt";
 import { DATE_LABEL } from "./public-pages";
 import { TestsView, TestEngine, ResultsView } from "./exam";
 import { academy } from "@/config/academy";
+import { telegramLinks } from "@/lib/telegram-links";
 import type { Lang, Ticket } from "@/lib/types";
 
 export function useMe() {
@@ -868,7 +869,7 @@ function Profile() {
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm">
               <span>Telegram {f.telegramLinked ? <Badge tone="green">{t("Joined", "सहभागी")}</Badge> : <Badge>{t("Not joined", "सहभागी नाही")}</Badge>}</span>
               <span className="flex flex-wrap gap-2">
-                {academy.social.telegram && <a href={academy.social.telegram} target="_blank" rel="noopener noreferrer" className="btn-outline btn-sm"><Send className="size-4" aria-hidden />{t("Join channel", "चॅनेल जॉईन करा")}</a>}
+                {telegramLinks(t).map((x) => <a key={x.href} href={x.href} target="_blank" rel="noopener noreferrer" className="btn-outline btn-sm"><Send className="size-4" aria-hidden />{x.join}</a>)}
                 <button className="btn-outline btn-sm" onClick={() => set("telegramLinked", !f.telegramLinked)}>{f.telegramLinked ? t("Mark as not joined", "सहभागी नाही म्हणून नोंदवा") : t("I have joined", "मी सहभागी झालो")}</button>
               </span>
             </div>

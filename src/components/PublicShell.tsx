@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { telegramLinks } from "@/lib/telegram-links";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronDown, Menu, X, Phone, Mail, MapPin, Clock, LayoutDashboard } from "lucide-react";
@@ -140,7 +141,11 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <Link href="/privacy" className="hover:text-white hover:underline">{t("Privacy Policy", "गोपनीयता धोरण")}</Link>
               <Link href="/terms" className="hover:text-white hover:underline">{t("Terms", "अटी व शर्ती")}</Link>
-              {academy.social.telegram && <a href={academy.social.telegram} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:underline">{t("Join us on Telegram", "टेलिग्रामवर जोडा")}</a>}
+              {telegramLinks(t).length > 0 && (
+                <span className="flex items-center gap-1.5">{t("Telegram community", "टेलिग्राम कम्युनिटी")}:
+                  {telegramLinks(t).map((x, i) => <span key={x.href}>{i > 0 && "· "}<a href={x.href} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:underline">{x.label}</a></span>)}
+                </span>
+              )}
               <span>{t("Prototype build – sample data is marked as demo.", "प्रोटोटाइप – नमुना माहिती 'डेमो' म्हणून चिन्हांकित.")}</span>
             </span>
           </div>

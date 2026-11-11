@@ -9,6 +9,7 @@ import { Badge, StatusBadge } from "@/components/ui";
 import { WhatsAppIcon } from "@/components/brand";
 import { GoogleReviews, ResultCard } from "@/components/GoogleReviews";
 import { academy } from "@/config/academy";
+import { telegramLinks } from "@/lib/telegram-links";
 import { fmtINR } from "@/lib/utils";
 import { DEFAULT_ABOUT_CARDS, DEFAULT_DIRECTOR, DEFAULT_STATS, resolveHomeSections } from "@/lib/seed";
 import type { DirectorProfile, HomeCard, HomeSectionKey, HomeStat } from "@/lib/types";
@@ -161,7 +162,7 @@ export default function HomeView() {
             <a href={`tel:${academy.phone.replace(/\s/g, "")}`} className="btn bg-white text-brand-900 hover:bg-brand-50"><Phone className="size-4" />{t("Call", "कॉल करा")}</a>
             <a href={`https://wa.me/${academy.whatsapp}`} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] text-white hover:bg-[#1ebe5a]"><WhatsAppIcon className="size-4" />WhatsApp</a>
             <Link href="/brochure" className="btn bg-white/10 text-white hover:bg-white/20"><FileDown className="size-4" aria-hidden />{t("Download brochure", "ब्रोशर डाउनलोड")}</Link>
-            {academy.social.telegram && <a href={academy.social.telegram} target="_blank" rel="noopener noreferrer" className="btn bg-[#229ED9] text-white hover:bg-[#1b8bc0]">{t("Join on Telegram", "टेलिग्रामवर जोडा")}</a>}
+            {telegramLinks(t).map((x) => <a key={x.href} href={x.href} target="_blank" rel="noopener noreferrer" className="btn bg-[#229ED9] text-white hover:bg-[#1b8bc0]">{x.join}</a>)}
           </div>
         </div>
       </section>
