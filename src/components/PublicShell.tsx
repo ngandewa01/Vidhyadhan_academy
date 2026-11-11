@@ -136,7 +136,11 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
         <div className="border-t border-white/10">
           <div className="container-page flex flex-col gap-2 py-4 text-xs text-brand-300 sm:flex-row sm:justify-between">
             <span>© {new Date().getFullYear()} {l(academy.name)}. {t("All rights reserved.", "सर्व हक्क राखीव.")}</span>
-            <span>{t("Prototype build – sample data is marked as demo.", "प्रोटोटाइप – नमुना माहिती 'डेमो' म्हणून चिन्हांकित.")}</span>
+            <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <Link href="/privacy" className="hover:text-white hover:underline">{t("Privacy Policy", "गोपनीयता धोरण")}</Link>
+              <Link href="/terms" className="hover:text-white hover:underline">{t("Terms", "अटी व शर्ती")}</Link>
+              <span>{t("Prototype build – sample data is marked as demo.", "प्रोटोटाइप – नमुना माहिती 'डेमो' म्हणून चिन्हांकित.")}</span>
+            </span>
           </div>
         </div>
       </footer>
