@@ -5,6 +5,7 @@ import { Armchair, Check, Download, ExternalLink, Eye, LogIn, LogOut, Pencil, Pl
 import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { attendanceStats, balanceFor, createMembership, membershipFee, createStudent, membershipPaid, paidFor, PAY_METHOD_LABEL, recordPayment } from "@/lib/actions";
+import { getTelegramKey, setTelegramKey, telegramConnect, telegramPost, type TelegramResult } from "@/lib/telegram-client";
 import { buildSeed, DEFAULT_ADMISSION_FORM, DEFAULT_ABOUT_CARDS, DEFAULT_DIRECTOR, DEFAULT_STATS, resolveHomeSections } from "@/lib/seed";
 import { addMonths, cn, daysBetween, downloadFile, fmtINR, isValidMobile, nowISO, toCSV, today, uid } from "@/lib/utils";
 import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, SearchBox, Select, StatCard, StatusBadge, Table, Tabs, Toggle, toast, statusLabel } from "@/components/ui";
@@ -339,12 +340,20 @@ export function NotificationsAdmin({ canManage }: { canManage: boolean }) {
     if (!f.title || !f.body) return toast.error(t("Title and message required", "शीर्षक व संदेश आवश्यक"));
     if (!f.channels.length) return toast.error(t("Choose at least one channel", "किमान एक माध्यम निवडा"));
     const live = f.channels.filter((c) => db.settings.channels[c]);
+    const channelText = `${f.title}\n\n${f.body}`;
     const consented = recipients.filter((s) => f.channels.some((c) => c === "inapp" || (c === "whatsapp" && s.consent.whatsapp) || (c === "sms" && s.consent.sms) || (c === "email" && s.consent.email && s.email) || (c === "telegram" && s.telegramLinked)));
     update((db) => {
       db.broadcasts.unshift({ id: uid("bc"), title: f.title, body: f.body, channels: f.channels, audience: { type: f.type, ids: f.ids }, scheduledAt: f.schedule || undefined, createdAt: nowISO(), createdBy: me.id, status: f.schedule ? "scheduled" : "sent", delivered: f.schedule ? 0 : consented.length, failed: f.schedule ? 0 : recipients.length - consented.length });
       if (!f.schedule && f.channels.includes("inapp")) recipients.forEach((s) => db.inbox.unshift({ id: uid("in"), studentId: s.id, title: { en: f.title, mr: f.title }, body: { en: f.body, mr: f.body }, at: nowISO(), read: false, kind: "general" }));
     }, { action: f.schedule ? "notify.schedule" : "notify.send", entity: f.title, detail: `${recipients.length} recipients via ${f.channels.join(",")}` });
     toast.success(f.schedule ? t("Scheduled", "नियोजित") : t(`Sent to ${recipients.length} students${live.length < f.channels.length ? " (disabled channels skipped – simulated)" : ""}`, `${recipients.length} विद्यार्थ्यांना पाठवले`));
+    if (!f.schedule && f.channels.includes("telegram")) {
+      telegramPost(channelText).then((r) => {
+        if (r.ok) toast.success(t("Also posted to the Telegram channel", "टेलिग्राम चॅनेलवरही पोस्ट केले"));
+        else if (r.reason === "no_key" || r.reason === "not_configured") toast.info(t("Telegram channel is not connected, so this was only simulated", "टेलिग्राम चॅनेल जोडलेले नाही, म्हणून हे फक्त सिम्युलेट झाले"));
+        else toast.error(tgMessage(r, t));
+      });
+    }
     setF({ ...f, title: "", body: "", schedule: "" });
     setTab("history");
   };
@@ -856,6 +865,74 @@ export function Cms({ canManage }: { canManage: boolean }) {
 }
 
 /* ---------------- Settings ---------------- */
+const tgMessage = (r: TelegramResult, t: (en: string, mr: string) => string) =>
+  r.reason === "no_key" ? t("Enter the Telegram send key first", "आधी टेलिग्राम सेंड की भरा")
+  : r.reason === "unauthorized" ? t("The send key is wrong", "सेंड की चुकीची आहे")
+  : r.reason === "not_configured" ? t("Telegram is not set up on the server yet", "सर्व्हरवर टेलिग्राम अद्याप सेट केलेले नाही")
+  : r.reason === "rate_limited" ? t("Too many requests. Try again in a few minutes.", "खूप विनंत्या. काही मिनिटांनी पुन्हा प्रयत्न करा.")
+  : `${t("Telegram refused the request", "टेलिग्रामने विनंती नाकारली")}${r.description ? `: ${r.description}` : ""}`;
+
+type TgStatus = { tokenSet: boolean; channelSet: boolean; keySet: boolean; webhookSecretSet: boolean; bot: { username: string; name: string } | null; botError?: string; webhookConnected: boolean; webhookError?: string };
+
+function TelegramCard({ canManage }: { canManage: boolean }) {
+  const { t } = useI18n();
+  const [st, setSt] = useState<TgStatus | null>(null);
+  const [key, setKey] = useState("");
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = () => fetch("/api/telegram/status").then((r) => r.json()).then(setSt).catch(() => setSt(null));
+  useEffect(() => { setKey(getTelegramKey()); load(); }, []);
+  const run = async (fn: () => Promise<TelegramResult>, okMsg: string) => {
+    setBusy(true);
+    const r = await fn();
+    setBusy(false);
+    if (r.ok) { toast.success(okMsg); load(); } else toast.error(tgMessage(r, t));
+    return r;
+  };
+  const ready = !!st && st.tokenSet && st.channelSet && st.keySet;
+  const badge = (on: boolean, label: string) => <Badge tone={on ? "green" : "amber"}>{on ? "✓ " : ""}{label}</Badge>;
+  return (
+    <Card title="Telegram" actions={st ? (st.bot ? <Badge tone="green">@{st.bot.username}</Badge> : <Badge tone="amber">{t("Not set up yet", "अद्याप सेट केलेले नाही")}</Badge>) : null}>
+      <p className="text-sm text-slate-600">{t("The academy bot answers students on Telegram, and you can post announcements to the academy channel from here and from Notifications. Messaging each student personally needs the backend database and comes later.", "अकॅडमी बॉट टेलिग्रामवर विद्यार्थ्यांना उत्तर देतो, आणि आपण येथून व 'सूचना' विभागातून अकॅडमी चॅनेलवर घोषणा पोस्ट करू शकता. प्रत्येक विद्यार्थ्याला वैयक्तिक संदेशासाठी बॅकएंड डेटाबेस आवश्यक आहे व तो नंतर येईल.")}</p>
+      {st && (
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          {badge(st.tokenSet && !!st.bot, t("Bot token", "बॉट टोकन"))}
+          {badge(st.channelSet, t("Channel set", "चॅनेल निश्चित"))}
+          {badge(st.keySet, t("Send key set", "सेंड की निश्चित"))}
+          {badge(st.webhookConnected, t("Bot connected to website", "बॉट वेबसाइटशी जोडला"))}
+        </div>
+      )}
+      {st?.botError && <p className="mt-2 text-xs text-red-600">{t("Telegram says", "टेलिग्राम म्हणते")}: {st.botError}</p>}
+      {st?.webhookError && <p className="mt-1 text-xs text-amber-700">{t("Last bot error", "बॉटची शेवटची त्रुटी")}: {st.webhookError}</p>}
+
+      {(!st || !ready) && (
+        <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-slate-700">
+          <li>{t("In Telegram open @BotFather, send /newbot, choose a name (Vidyadhan Academy) and a username ending in bot. Copy the token it gives you.", "टेलिग्राममध्ये @BotFather उघडा, /newbot पाठवा, नाव (Vidyadhan Academy) व 'bot' ने संपणारे युजरनेम निवडा. मिळालेला टोकन कॉपी करा.")}</li>
+          <li>{t("Create a Telegram channel for the academy, then add your bot as an Administrator who can post messages.", "अकॅडमीसाठी टेलिग्राम चॅनेल तयार करा, नंतर आपल्या बॉटला संदेश पोस्ट करू शकणारा अ‍ॅडमिनिस्ट्रेटर म्हणून जोडा.")}</li>
+          <li>{t("In Vercel → Settings → Environment Variables add TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID (for example @your_channel), TELEGRAM_SEND_KEY and TELEGRAM_WEBHOOK_SECRET (each a random text of at least 16 letters and numbers) and NEXT_PUBLIC_TELEGRAM_CHANNEL_URL (the channel link). Enter them only in Vercel, never in chat or the code.", "Vercel → Settings → Environment Variables मध्ये TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID (उदा. @your_channel), TELEGRAM_SEND_KEY व TELEGRAM_WEBHOOK_SECRET (प्रत्येकी किमान १६ अक्षरे/अंकांचा यादृच्छिक मजकूर) आणि NEXT_PUBLIC_TELEGRAM_CHANNEL_URL (चॅनेलची लिंक) जोडा. त्या फक्त Vercel मध्येच भरा; चॅटमध्ये किंवा कोडमध्ये कधीही नाही.")}</li>
+          <li>{t("Redeploy, then enter the send key below and press “Connect bot to website”.", "पुन्हा डिप्लॉय करा, नंतर खाली सेंड की भरा व 'बॉट वेबसाइटशी जोडा' दाबा.")}</li>
+        </ol>
+      )}
+
+      {canManage && (
+        <div className="mt-4 space-y-3 border-t pt-4">
+          <Field label={t("Send key (the TELEGRAM_SEND_KEY you set in Vercel)", "सेंड की (Vercel मध्ये ठरवलेली TELEGRAM_SEND_KEY)")} hint={t("Kept only in this browser tab until you close it.", "हा टॅब बंद करेपर्यंतच या ब्राउझरमध्ये राहते.")}>
+            {(id) => <input id={id} type="password" autoComplete="off" className="input max-w-sm" value={key} onChange={(e) => { setKey(e.target.value); setTelegramKey(e.target.value); }} />}
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-outline" disabled={busy} onClick={() => run(telegramConnect, t("Bot connected to the website", "बॉट वेबसाइटशी जोडला गेला"))}>{t("Connect bot to website", "बॉट वेबसाइटशी जोडा")}</button>
+            <button className="btn-outline" disabled={busy} onClick={() => run(() => telegramPost("Test message from the Vidyadhan Academy admin portal."), t("Test message posted to the channel", "चाचणी संदेश चॅनेलवर पोस्ट झाला"))}>{t("Send test message", "चाचणी संदेश पाठवा")}</button>
+          </div>
+          <Field label={t("Post to the channel", "चॅनेलवर पोस्ट करा")} hint={`${text.length}/3500`}>
+            {(id) => <textarea id={id} rows={3} maxLength={3500} className="input" value={text} onChange={(e) => setText(e.target.value)} />}
+          </Field>
+          <button className="btn-primary" disabled={busy || !text.trim()} onClick={async () => { const r = await run(() => telegramPost(text.trim()), t("Posted to the Telegram channel", "टेलिग्राम चॅनेलवर पोस्ट झाले")); if (r.ok) setText(""); }}><Send className="size-4" />{t("Post", "पोस्ट करा")}</button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function BrochureCard() {
   const { t } = useI18n();
   const [configured, setConfigured] = useState<boolean | null>(null);
@@ -900,6 +977,7 @@ export function SettingsAdmin({ canManage }: { canManage: boolean }) {
           <Field label={t("Pricing", "किंमत")}>{(id) => <select id={id} disabled={!canManage} className="input" value={s.gst.inclusive ? "in" : "ex"} onChange={(e) => set((st) => { st.gst.inclusive = e.target.value === "in"; }, "gst.inclusive")}><option value="in">{t("Tax inclusive", "कर समाविष्ट")}</option><option value="ex">{t("Tax exclusive", "कर अतिरिक्त")}</option></select>}</Field>
         </div>
       </Card>
+      <TelegramCard canManage={canManage} />
       <BrochureCard />
       <Card title={t("Admission form", "प्रवेश अर्ज")}>
         <div className="flex flex-wrap gap-6">

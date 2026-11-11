@@ -40,7 +40,7 @@ export const academy = {
   social: {
     youtube: "",
     instagram: "",
-    telegram: "",
+    telegram: process.env.NEXT_PUBLIC_TELEGRAM_CHANNEL_URL ?? "", // channel invite link, e.g. https://t.me/your_channel
     facebook: "",
   },
   gstin: "", // optional; GST is disabled by default

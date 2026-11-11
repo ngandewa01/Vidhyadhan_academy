@@ -140,6 +140,7 @@ export function PublicShell({ children }: { children: React.ReactNode }) {
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <Link href="/privacy" className="hover:text-white hover:underline">{t("Privacy Policy", "गोपनीयता धोरण")}</Link>
               <Link href="/terms" className="hover:text-white hover:underline">{t("Terms", "अटी व शर्ती")}</Link>
+              {academy.social.telegram && <a href={academy.social.telegram} target="_blank" rel="noopener noreferrer" className="hover:text-white hover:underline">{t("Join us on Telegram", "टेलिग्रामवर जोडा")}</a>}
               <span>{t("Prototype build – sample data is marked as demo.", "प्रोटोटाइप – नमुना माहिती 'डेमो' म्हणून चिन्हांकित.")}</span>
             </span>
           </div>

@@ -865,9 +865,12 @@ function Profile() {
               {(["whatsapp", "sms", "email"] as const).map((k) => <div key={k}><Toggle checked={f.consent[k]} onChange={(v) => set("consent", { ...f.consent, [k]: v })} label={k === "whatsapp" ? "WhatsApp" : k.toUpperCase()} /></div>)}
               <div><Toggle checked={f.consent.publishResults} onChange={(v) => set("consent", { ...f.consent, publishResults: v })} label={t("Allow academy to publish my result/photo", "माझा निकाल/फोटो प्रकाशित करण्यास परवानगी")} /></div>
             </div>
-            <div className="mt-4 flex items-center justify-between rounded-lg bg-slate-50 p-3 text-sm">
-              <span>Telegram {f.telegramLinked ? <Badge tone="green">{t("Linked", "जोडले")}</Badge> : <Badge>{t("Not linked", "जोडले नाही")}</Badge>}</span>
-              <button className="btn-outline btn-sm" onClick={() => { set("telegramLinked", !f.telegramLinked); toast.info(f.telegramLinked ? t("Unlinked", "जोडणी काढली") : t("Simulated: in production you start the academy bot first", "सिम्युलेटेड: प्रत्यक्षात आधी अकॅडमी बॉट सुरू करावा लागतो")); }}>{f.telegramLinked ? t("Unlink", "काढा") : t("Link bot", "बॉट जोडा")}</button>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-slate-50 p-3 text-sm">
+              <span>Telegram {f.telegramLinked ? <Badge tone="green">{t("Joined", "सहभागी")}</Badge> : <Badge>{t("Not joined", "सहभागी नाही")}</Badge>}</span>
+              <span className="flex flex-wrap gap-2">
+                {academy.social.telegram && <a href={academy.social.telegram} target="_blank" rel="noopener noreferrer" className="btn-outline btn-sm"><Send className="size-4" aria-hidden />{t("Join channel", "चॅनेल जॉईन करा")}</a>}
+                <button className="btn-outline btn-sm" onClick={() => set("telegramLinked", !f.telegramLinked)}>{f.telegramLinked ? t("Mark as not joined", "सहभागी नाही म्हणून नोंदवा") : t("I have joined", "मी सहभागी झालो")}</button>
+              </span>
             </div>
           </Card>
           {db.settings.referral.enabled && (

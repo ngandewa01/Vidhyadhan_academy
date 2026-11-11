@@ -54,6 +54,17 @@ The **Download brochure** buttons (home hero, call-to-action banner, course page
 
 Until it is set up, the page still saves the enquiry and tells the visitor the team will send the brochure. For local testing you can instead put the file at `private/brochure.pdf` (git-ignored) and set only `BROCHURE_LINK_SECRET`. The 10-minute links are signed (HMAC) and requests are rate-limited per server instance on a best-effort basis; this is a lead gate, not DRM, since anyone who has downloaded the PDF can share it.
 
+## Telegram bot and channel
+
+The bot answers students on Telegram (`/start`, `/help`, `/id`), and admins can post announcements to the academy channel from **Admin → Settings → Telegram** and from **Notifications** (tick the Telegram channel). Join links appear in the site footer, the call-to-action banner and the student profile once the channel link is set.
+
+1. In Telegram open **@BotFather**, send `/newbot`, pick a name and a username ending in `bot`, and copy the token.
+2. Create a Telegram channel and add the bot as an **Administrator** who can post messages.
+3. In Vercel add the variables listed in `.env.example` (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_ID`, `TELEGRAM_SEND_KEY`, `TELEGRAM_WEBHOOK_SECRET`, `NEXT_PUBLIC_TELEGRAM_CHANNEL_URL`). Enter them only in Vercel, never in chat or the code, and redeploy.
+4. In **Admin → Settings → Telegram** enter the send key and press **Connect bot to website**. The badges turn green.
+
+Posting is protected by `TELEGRAM_SEND_KEY` (anyone without it gets 401) and the webhook only accepts calls carrying `TELEGRAM_WEBHOOK_SECRET`. Messaging each student personally (fee reminders, class alerts) needs the backend database to store each student's chat and to run scheduled sends, so it is planned for the backend phase.
+
 ## Successful-student photos
 
 Real results live in `src/lib/seed.ts` (`achievements`) with images in `public/results/`. To add one permanently: put the image in `public/results/`, add an entry, commit, and Vercel redeploys. Admin → Results & Achievements also lets you upload photos and posters, but in this prototype they're saved only in that browser until the backend and cloud storage exist.
@@ -91,6 +102,7 @@ The data model in [`src/lib/types.ts`](src/lib/types.ts) already carries `branch
 
 ## Open decisions / assumptions
 - Real fees, address, contact numbers, logo, faculty names and genuine results: **to be supplied by the academy**.
+- **To do (owner): create the brochure PDF**, upload it to private storage and set `BROCHURE_FILE_URL` and `BROCHURE_LINK_SECRET` in Vercel (see "Locked brochure download"). Until then `/brochure` only saves the enquiry.
 - Payment gateway(s), SMS/WhatsApp BSP, email and video providers: to be chosen.
 - GST applicability and rates need professional validation (GST is off by default).
 - Library seat count is assumed to be 80 (`SEATS` in `src/views/admin2.tsx`).
