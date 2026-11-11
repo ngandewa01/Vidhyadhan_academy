@@ -169,7 +169,7 @@ export default function HomeView() {
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-brand-700 text-white">
         <div className="absolute -right-24 -top-24 size-96 rounded-full bg-saffron-500/20 blur-3xl" aria-hidden />
-        <div className="container-page relative grid gap-6 py-8 lg:grid-cols-[1.2fr_1fr] lg:gap-10 lg:py-20">
+        <div className="container-page relative grid gap-6 py-8 md:grid-cols-[1.2fr_1fr] md:gap-8 md:py-16 lg:gap-10 lg:py-20">
           <div>
             <div className="mb-5 flex items-center gap-3">
               <img src={academy.logoUrl} alt="" width={64} height={64} className="size-16 rounded-full bg-white shadow-lg ring-2 ring-saffron-400/60" />
@@ -191,7 +191,7 @@ export default function HomeView() {
               ))}
             </dl>
           </div>
-          <div className="rounded-2xl bg-white p-4 text-slate-800 shadow-2xl sm:p-6">
+          <div className="w-full justify-self-end rounded-2xl bg-white p-4 text-slate-800 shadow-2xl sm:p-6 md:max-w-md">
             <h2 className="text-lg font-semibold">{t("Quick enquiry", "त्वरित चौकशी")}</h2>
             <p className="mb-3 hidden text-sm text-slate-500 sm:block">{t("Leave your number — we'll call you back.", "आपला क्रमांक द्या — आम्ही परत कॉल करू.")}</p>
             <EnquiryForm variant="quick" />
