@@ -3,7 +3,7 @@ import { sendMessage, webhookSecretOk, webhookSecretSet } from "@/lib/telegram-s
 
 export const dynamic = "force-dynamic";
 
-const channel = academy.social.telegram ? `\n${academy.social.telegram}` : "";
+const links = [academy.social.telegram && `चॅनेल / Channel: ${academy.social.telegram}`, academy.social.telegramGroup && `ग्रुप / Group: ${academy.social.telegramGroup}`].filter(Boolean).join("\n");
 
 function reply(command: string, chatId: number) {
   if (command === "/id") return `आपला टेलिग्राम चॅट आयडी / Your Telegram chat ID: ${chatId}`;
@@ -16,7 +16,7 @@ function reply(command: string, chatId: number) {
       "",
       `फोन / Phone: ${academy.phone}`,
       `पत्ता / Address: ${academy.address.mr}`,
-      channel ? `चॅनेल / Channel:${channel}` : "",
+      links,
       "",
       "/id – आपला चॅट आयडी / your chat ID",
       "/help – मदत / help",
@@ -29,12 +29,16 @@ function reply(command: string, chatId: number) {
 export async function POST(req: Request) {
   if (!webhookSecretSet()) return new Response("not configured", { status: 503 });
   if (!webhookSecretOk(req.headers.get("x-telegram-bot-api-secret-token"))) return new Response("forbidden", { status: 401 });
-  let update: { message?: { text?: unknown; chat?: { id?: number; type?: string } } };
+  type Msg = { text?: unknown; chat?: { id?: number; type?: string } };
+  let update: { message?: Msg; channel_post?: Msg };
   try { update = await req.json(); } catch { return Response.json({ ok: true }); }
-  const chat = update.message?.chat;
-  if (!chat?.id || chat.type !== "private") return Response.json({ ok: true });
-  const text = typeof update.message?.text === "string" ? update.message.text.trim() : "";
+  const msg = update.message ?? update.channel_post;
+  const chat = msg?.chat;
+  if (!chat?.id) return Response.json({ ok: true });
+  const text = typeof msg?.text === "string" ? msg.text.trim() : "";
   const command = text.split(/[\s@]/)[0].toLowerCase();
+  // In groups and channels the bot stays quiet except for /id, which tells the admin the id to put in TELEGRAM_GROUP_ID or TELEGRAM_CHANNEL_ID.
+  if (chat.type !== "private" && command !== "/id") return Response.json({ ok: true });
   await sendMessage(chat.id, reply(command, chat.id));
   return Response.json({ ok: true });
 }

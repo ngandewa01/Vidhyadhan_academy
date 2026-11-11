@@ -54,16 +54,17 @@ The **Download brochure** buttons (home hero, call-to-action banner, course page
 
 Until it is set up, the page still saves the enquiry and tells the visitor the team will send the brochure. For local testing you can instead put the file at `private/brochure.pdf` (git-ignored) and set only `BROCHURE_LINK_SECRET`. The 10-minute links are signed (HMAC) and requests are rate-limited per server instance on a best-effort basis; this is a lead gate, not DRM, since anyone who has downloaded the PDF can share it.
 
-## Telegram bot and channel
+## Telegram community (channel + group) and bot
 
-The bot answers students on Telegram (`/start`, `/help`, `/id`), and admins can post announcements to the academy channel from **Admin → Settings → Telegram** and from **Notifications** (tick the Telegram channel). Join links appear in the site footer, the call-to-action banner and the student profile once the channel link is set.
+The academy's Telegram community has an **announcements channel** and a **student group**. The bot answers students (`/start`, `/help`, `/id`), and admins can post to the channel, the group or both from **Admin → Settings → Telegram** and from **Notifications** (tick Telegram on a broadcast; it goes to the channel, or to the group if there is no channel). Join links for both appear in the site footer, the call-to-action banner and the student profile once the links are set.
 
 1. In Telegram open **@BotFather**, send `/newbot`, pick a name and a username ending in `bot`, and copy the token.
-2. Create a Telegram channel and add the bot as an **Administrator** who can post messages.
-3. In Vercel add the variables listed in `.env.example` (`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_ID`, `TELEGRAM_SEND_KEY`, `TELEGRAM_WEBHOOK_SECRET`, `NEXT_PUBLIC_TELEGRAM_CHANNEL_URL`). Enter them only in Vercel, never in chat or the code, and redeploy.
-4. In **Admin → Settings → Telegram** enter the send key and press **Connect bot to website**. The badges turn green.
+2. Add the bot to the channel as an **administrator who can post messages**, and to the group (Group → Add member). Make it a group administrator if members are not allowed to post.
+3. In Vercel add `TELEGRAM_BOT_TOKEN`, `TELEGRAM_SEND_KEY`, `TELEGRAM_WEBHOOK_SECRET` (the last two: random letters and numbers, 16 or more), `NEXT_PUBLIC_TELEGRAM_CHANNEL_URL` and `NEXT_PUBLIC_TELEGRAM_GROUP_URL` (the two join links). Enter them only in Vercel, never in chat or the code, and redeploy.
+4. In **Admin → Settings → Telegram** enter the send key and press **Connect bot to website**.
+5. Get the chat numbers: type `/id` in the group, and post `/id` in the channel (then delete that post). The bot replies with a number like `-1001234567890`. Add them in Vercel as `TELEGRAM_GROUP_ID` and `TELEGRAM_CHANNEL_ID` (a public channel or group may use its `@username` instead) and redeploy. If a group is later upgraded to a supergroup its number changes; send `/id` again.
 
-Posting is protected by `TELEGRAM_SEND_KEY` (anyone without it gets 401) and the webhook only accepts calls carrying `TELEGRAM_WEBHOOK_SECRET`. Messaging each student personally (fee reminders, class alerts) needs the backend database to store each student's chat and to run scheduled sends, so it is planned for the backend phase.
+Posting is protected by `TELEGRAM_SEND_KEY` (anyone without it gets 401), only the configured chats can be reached, and the webhook only accepts calls carrying `TELEGRAM_WEBHOOK_SECRET`. In groups and channels the bot stays silent except for `/id`. Everyone in the group can see its messages and each other's names, so treat the group as public to its members; for announcement-only behaviour, set the group so that only admins can send messages. Messaging each student personally (fee reminders, class alerts) needs the backend database to store each student's chat and to run scheduled sends, so it is planned for the backend phase.
 
 ## Successful-student photos
 
