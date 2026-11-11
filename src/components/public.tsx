@@ -137,7 +137,7 @@ export function EnquiryForm({ variant = "quick", defaultCourse, onDone }: { vari
       )}
       <label className="flex items-start gap-2 text-xs text-slate-600 sm:col-span-2">
         <input type="checkbox" className="mt-0.5" checked={f.consent} onChange={(e) => set("consent", e.target.checked)} />
-        {t("I agree to be contacted by phone/WhatsApp about this enquiry.", "या चौकशीसंदर्भात फोन/व्हॉट्सअ‍ॅपवर संपर्क करण्यास माझी संमती आहे.")}
+        <span>{t("I agree to be contacted by phone/WhatsApp about this enquiry, as described in the ", "या चौकशीसंदर्भात फोन/व्हॉट्सअ‍ॅपवर संपर्क करण्यास माझी संमती आहे (पहा: ")}<Link href="/privacy" target="_blank" className="font-medium text-brand-700 underline">{t("Privacy Policy", "गोपनीयता धोरण")}</Link>{t(".", ").")}</span>
       </label>
       <button type="submit" className="btn-accent sm:col-span-2">{t("Submit enquiry", "चौकशी पाठवा")}</button>
     </form>

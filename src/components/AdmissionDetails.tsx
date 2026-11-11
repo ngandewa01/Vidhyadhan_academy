@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { Camera, FileText, ShieldCheck, Trash2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -236,7 +237,13 @@ export function AdmissionDetailsForm({ student, onDone }: { student: Student; on
       <Card>
         <label className="flex cursor-pointer items-start gap-3 text-sm">
           <input type="checkbox" className="mt-1" checked={f.consent} onChange={(e) => set("consent", e.target.checked)} />
-          <span>{t("I confirm that the information is correct. I agree that the academy may store and use my details, including my Aadhaar number if I have given it, for admission, fees, attendance and communication, and keep them confidential.", "मी दिलेली माहिती बरोबर असल्याची खात्री देतो/देते. आधार क्रमांकासह (दिला असल्यास) माझी माहिती अकॅडमीने प्रवेश, शुल्क, उपस्थिती व संपर्कासाठी साठवण्यास व वापरण्यास तसेच गोपनीय ठेवण्यास माझी संमती आहे.")}</span>
+          <span>
+            {t("I confirm that the information is correct. I agree that the academy may store and use my details, including my Aadhaar number if I have given it, for admission, fees, attendance and communication, and keep them confidential, as described in the ", "मी दिलेली माहिती बरोबर असल्याची खात्री देतो/देते. आधार क्रमांकासह (दिला असल्यास) माझी माहिती अकॅडमीने प्रवेश, शुल्क, उपस्थिती व संपर्कासाठी साठवण्यास व वापरण्यास तसेच गोपनीय ठेवण्यास माझी संमती आहे (पहा: ")}
+            <Link href="/privacy" target="_blank" className="font-medium text-brand-700 underline">{t("Privacy Policy", "गोपनीयता धोरण")}</Link>
+            {t(" and agree to the ", ") आणि मी ")}
+            <Link href="/terms" target="_blank" className="font-medium text-brand-700 underline">{t("Terms and Conditions", "अटी व शर्ती")}</Link>
+            {t(". If I am under 18, my parent or guardian has agreed.", " मान्य करतो/करते. मी १८ वर्षांखालील असल्यास माझ्या पालकांनी मान्यता दिली आहे.")}
+          </span>
         </label>
         {errors.consent && <p className="mt-2 text-xs text-red-600" role="alert">{errors.consent}</p>}
         <p className="mt-2 flex items-center gap-1 text-xs text-slate-500"><ShieldCheck className="size-4" aria-hidden />{t("Your details are visible only to authorised staff.", "आपली माहिती फक्त अधिकृत कर्मचाऱ्यांनाच दिसते.")}</p>
