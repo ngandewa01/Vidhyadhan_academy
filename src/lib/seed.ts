@@ -519,7 +519,7 @@ export function buildSeed() {
   const achievements: T.Achievement[] = [
     {
       id: "ac_arun_gawade", name: L("Major Arun Gawade Sir", "मेजर अरुण गावडे सर"), exam: L("Mumbai Police", "मुंबई पोलीस"),
-      result: L("Selected – Mumbai Police", "मुंबई पोलीस पदी निवड"), photo: "/results/arun-gawade-mumbai-police.jpg",
+      result: L("Selected – Mumbai Police", "मुंबई पोलीस पदी निवड"), photo: "/results/arun-gawade-mumbai-police.webp",
       consent: true, consentNote: "Published by the academy on its own poster", published: true, demo: false, featured: true,
     },
     ...structuredClone(SAMPLE_ACHIEVEMENTS),

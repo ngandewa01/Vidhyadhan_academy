@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "@fontsource/mukta/400.css";
-import "@fontsource/mukta/500.css";
 import "@fontsource/mukta/600.css";
-import "@fontsource/mukta/700.css";
 import "./globals.css";
 import { Hydrator } from "@/components/Hydrator";
 import { Toaster } from "@/components/ui";

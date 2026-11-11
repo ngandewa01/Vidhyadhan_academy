@@ -3,6 +3,7 @@
 /* Design tokens – Vidyadhan Academy
    Primary: deep academic indigo. Accent: saffron (used sparingly for key CTAs/highlights). */
 @theme {
+  --color-slate-500: #526077;
   --font-sans: "Mukta", ui-sans-serif, system-ui, "Noto Sans Devanagari", sans-serif;
 
   --color-brand-50: #eef7fc;
@@ -24,6 +25,7 @@
   --color-saffron-500: #f97316;
   --color-saffron-600: #ea580c;
   --color-saffron-700: #c2410c;
+  --color-saffron-800: #9a3412;
 }
 
 @layer base {
@@ -48,7 +50,7 @@
   @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-50;
 }
 @utility btn-primary { @apply btn bg-brand-700 text-white hover:bg-brand-800; }
-@utility btn-accent { @apply btn bg-saffron-600 text-white hover:bg-saffron-700; }
+@utility btn-accent { @apply btn bg-saffron-700 text-white hover:bg-saffron-800; }
 @utility btn-outline { @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50; }
 @utility btn-ghost { @apply btn text-slate-600 hover:bg-slate-100; }
 @utility btn-danger { @apply btn bg-red-600 text-white hover:bg-red-700; }
