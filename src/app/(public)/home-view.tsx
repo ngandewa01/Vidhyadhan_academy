@@ -160,7 +160,7 @@ export default function HomeView() {
           </div>
           <div className="flex flex-wrap gap-3">
             <a href={`tel:${academy.phone.replace(/\s/g, "")}`} className="btn bg-white text-brand-900 hover:bg-brand-50"><Phone className="size-4" />{t("Call", "कॉल करा")}</a>
-            <a href={`https://wa.me/${academy.whatsapp}`} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] text-white hover:bg-[#1ebe5a]"><WhatsAppIcon className="size-4" />WhatsApp</a>
+            <a href={`https://wa.me/${academy.whatsapp}`} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] text-slate-900 hover:bg-[#1ebe5a]"><WhatsAppIcon className="size-4" />WhatsApp</a>
             <Link href="/brochure" className="btn bg-white/10 text-white hover:bg-white/20"><FileDown className="size-4" aria-hidden />{t("Download brochure", "ब्रोशर डाउनलोड")}</Link>
             {telegramLinks(t).map((x) => <a key={x.href} href={x.href} target="_blank" rel="noopener noreferrer" className="btn bg-[#229ED9] text-white hover:bg-[#1b8bc0]">{x.join}</a>)}
           </div>

@@ -45,7 +45,7 @@ export const academy = {
     facebook: "",
   },
   gstin: "", // optional; GST is disabled by default
-  logoUrl: "/brand/logo.png",
+  logoUrl: "/brand/logo.webp",
   bannerUrl: "/brand/banner.jpg",
   branchCode: "MAIN",
 } as const;

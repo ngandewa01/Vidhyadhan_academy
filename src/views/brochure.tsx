@@ -55,7 +55,7 @@ export function BrochureView() {
             <p className="font-semibold">{phase === "pending" ? t("Thank you! We have saved your details.", "धन्यवाद! आपली माहिती नोंदवली आहे.") : t("We could not prepare the download right now.", "आत्ता डाउनलोड तयार करता आले नाही.")}</p>
             <p className="mt-1 text-sm">{phase === "pending" ? t("The brochure is not ready for download yet. Our team will share it with you by call or WhatsApp.", "ब्रोशर अद्याप डाउनलोडसाठी तयार नाही. आमची टीम ते आपल्याला कॉल किंवा व्हॉट्सअ‍ॅपवर पाठवेल.") : t("Your enquiry is saved and our team will contact you. You can also try again in a few minutes.", "आपली चौकशी नोंदवली आहे व आमची टीम संपर्क करेल. काही मिनिटांनी पुन्हा प्रयत्नही करू शकता.")}</p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <a href={`https://wa.me/${academy.whatsapp}`} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] text-white hover:bg-[#1ebe5a]"><MessageCircle className="size-4" aria-hidden />WhatsApp</a>
+              <a href={`https://wa.me/${academy.whatsapp}`} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] text-slate-900 hover:bg-[#1ebe5a]"><MessageCircle className="size-4" aria-hidden />WhatsApp</a>
               {phase === "error" && <button className="btn-outline" onClick={() => setPhase("form")}>{t("Try again", "पुन्हा प्रयत्न करा")}</button>}
             </div>
           </div>
