@@ -34,8 +34,16 @@ const classrooms: T.Classroom[] = [
 
 const L = (en: string, mr: string): T.L => ({ en, mr });
 
-export const DEFAULT_HOME_SECTIONS: T.HomeSection[] = (["results", "courses", "why", "batches", "reviews", "library", "cta", "photos"] as T.HomeSectionKey[]).map((key) => ({ key, enabled: key !== "photos" }));
-export const DEFAULT_HOME_PHOTOS: T.HomePhoto[] = [];
+export const DEFAULT_HOME_SECTIONS: T.HomeSection[] = (["results", "courses", "why", "batches", "reviews", "library", "cta"] as T.HomeSectionKey[]).map((key) => ({ key, enabled: true }));
+
+/** Layouts saved by the version with the photo strip used the old default order, so they fall back to the new default. */
+export function resolveHomeSections(saved?: T.HomeSection[]): T.HomeSection[] {
+  const known = new Set(DEFAULT_HOME_SECTIONS.map((s) => s.key));
+  if (!saved || saved.some((s) => !known.has(s.key))) return DEFAULT_HOME_SECTIONS;
+  const kept = saved;
+  const missing = DEFAULT_HOME_SECTIONS.filter((d) => !kept.some((s) => s.key === d.key));
+  return [...kept, ...missing];
+}
 
 const courses: T.Course[] = [
   {
@@ -280,7 +288,6 @@ const settings: T.Settings = {
   receiptPrefix: "VA",
   cms: {
     homeSections: DEFAULT_HOME_SECTIONS,
-    homePhotos: DEFAULT_HOME_PHOTOS,
     heroTitle: L("Your dream… our direction.", "स्वप्न तुमचे... दिशा आमची"),
     heroSubtitle: L(
       "Nikhil Rudrawar's Vidyadhan Academy – focused guidance for MPSC, PSI, STI, ASO and other Maharashtra competitive examinations. Not just a class — a family.",
