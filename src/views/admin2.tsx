@@ -674,7 +674,7 @@ function LInput({ label, value, onChange, area }: { label: string; value: L; onC
   );
 }
 const SECTION_LABEL: Record<HomeSectionKey, L> = {
-  photos: { en: "Photo strip (below enquiry form)", mr: "फोटो पट्टी (चौकशी फॉर्मखाली)" },
+  photos: { en: "Extra photo strip (optional, off by default)", mr: "अतिरिक्त फोटो पट्टी (ऐच्छिक, डीफॉल्ट बंद)" },
   courses: { en: "Courses we offer", mr: "आमचे अभ्यासक्रम" },
   why: { en: "Why choose us", mr: "आम्हालाच का" },
   batches: { en: "Batches & announcements", mr: "बॅचेस व सूचना" },
