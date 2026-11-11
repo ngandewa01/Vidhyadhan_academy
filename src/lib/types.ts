@@ -514,7 +514,7 @@ export interface Settings {
   eventChannels: Record<string, Channel[]>;
   referral: { enabled: boolean; rewardType: "flat" | "percent"; referrerReward: number; refereeDiscount: number; trigger: "admission" | "fullPayment"; validTo: string; limitPerStudent: number };
   transferNeedsApproval: boolean;
-  admissionForm?: { requireAadhaar: boolean; requirePhoto: boolean };
+  admissionForm?: { requireAadhaar: boolean; requirePhoto: boolean; requireAadhaarCopy?: boolean };
   materialApproval: boolean;
   receiptPrefix: string;
   cms: {

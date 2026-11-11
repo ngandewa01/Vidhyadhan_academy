@@ -71,6 +71,7 @@ export function AdmissionDetailsForm({ student, onDone }: { student: Student; on
   const { t, lang } = useI18n();
   const update = useStore((s) => s.update);
   const rules = useStore((s) => s.db.settings.admissionForm) ?? DEFAULT_ADMISSION_FORM;
+  const needCopy = rules.requireAadhaarCopy ?? true;
   const p = student.profile;
   const [f, setF] = useState<Form>({
     name: student.name, dob: student.dob ?? "", gender: student.gender ?? "", fatherName: p?.fatherName ?? "", motherName: p?.motherName ?? "",
@@ -113,6 +114,7 @@ export function AdmissionDetailsForm({ student, onDone }: { student: Student; on
     if (f.passingYear && !(/^\d{4}$/.test(f.passingYear) && Number(f.passingYear) >= 1980 && Number(f.passingYear) <= new Date().getFullYear() + 1)) e.passingYear = t("Enter a 4-digit year", "४ अंकी वर्ष लिहा");
     const aadhaar = f.aadhaar.replace(/\s/g, "");
     if (aadhaar ? !isValidAadhaar(aadhaar) : rules.requireAadhaar) e.aadhaar = aadhaar ? t("This Aadhaar number is not valid. Please re-check.", "हा आधार क्रमांक वैध नाही. कृपया पुन्हा तपासा.") : req;
+    if (!f.aadhaarDoc && needCopy) e.aadhaarDoc = t("Please upload a copy of your Aadhaar card", "कृपया आधार कार्डची प्रत जोडा");
     if (!f.photo && rules.requirePhoto) e.photo = t("Please upload a passport-size photo", "कृपया पासपोर्ट आकाराचा फोटो जोडा");
     const addr = (a: Address, prefix: string) => {
       if (!a.line1.trim()) e[`${prefix}.line1`] = req;
@@ -199,7 +201,7 @@ export function AdmissionDetailsForm({ student, onDone }: { student: Student; on
               hint={rules.requireAadhaar ? t("12 digits. Kept confidential and shown to staff only in masked form.", "१२ अंक. गोपनीय ठेवला जातो व कर्मचाऱ्यांना फक्त झाकलेल्या स्वरूपात दिसतो.") : t("Optional. Kept confidential and shown to staff only in masked form (XXXX XXXX 1234).", "ऐच्छिक. गोपनीय ठेवला जातो व कर्मचाऱ्यांना फक्त झाकलेल्या स्वरूपात (XXXX XXXX 1234) दिसतो.")}>
               {(id) => <input id={id} className="input" inputMode="numeric" autoComplete="off" placeholder="XXXX XXXX XXXX" maxLength={14} value={f.aadhaar} onChange={(e) => set("aadhaar", fmtAadhaar(e.target.value))} />}
             </Field>
-            <Field label={t("Aadhaar card copy (optional)", "आधार कार्ड प्रत (ऐच्छिक)")} hint={t("PDF, JPG or PNG up to 5 MB. In this prototype only the file name is recorded.", "PDF, JPG किंवा PNG ५ MB पर्यंत. या प्रोटोटाइपमध्ये फक्त फाइलचे नाव नोंदवले जाते.")}>
+            <Field label={t("Aadhaar card copy", "आधार कार्ड प्रत")} required={needCopy} error={errors.aadhaarDoc} hint={t("Front and back, clearly readable. PDF, JPG or PNG up to 5 MB. In this prototype only the file name is recorded.", "पुढची व मागची बाजू, स्पष्ट वाचता येईल अशी. PDF, JPG किंवा PNG ५ MB पर्यंत. या प्रोटोटाइपमध्ये फक्त फाइलचे नाव नोंदवले जाते.")}>
               {(id) => <input id={id} type="file" accept="application/pdf,image/jpeg,image/png" className="input" onChange={(e) => { onDoc(e.target.files?.[0]); e.target.value = ""; }} />}
             </Field>
             {f.aadhaarDoc && (
