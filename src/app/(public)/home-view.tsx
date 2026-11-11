@@ -169,7 +169,7 @@ export default function HomeView() {
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-br from-brand-950 via-brand-900 to-brand-700 text-white">
         <div className="absolute -right-24 -top-24 size-96 rounded-full bg-saffron-500/20 blur-3xl" aria-hidden />
-        <div className="container-page relative grid gap-10 py-14 lg:grid-cols-[1.2fr_1fr] lg:py-20">
+        <div className="container-page relative grid gap-6 py-8 lg:grid-cols-[1.2fr_1fr] lg:gap-10 lg:py-20">
           <div>
             <div className="mb-5 flex items-center gap-3">
               <img src={academy.logoUrl} alt="" width={64} height={64} className="size-16 rounded-full bg-white shadow-lg ring-2 ring-saffron-400/60" />
@@ -180,20 +180,20 @@ export default function HomeView() {
             </div>
             <Badge tone="orange" className="mb-4">{academy.focus}</Badge>
             <h1 className="text-3xl font-bold leading-tight !text-white sm:text-5xl">{l(cms.heroTitle)}</h1>
-            <p className="mt-4 max-w-xl text-base text-brand-100 sm:text-lg">{l(cms.heroSubtitle)}</p>
+            <p className="mt-3 sm:mt-4 max-w-xl text-base text-brand-100 sm:text-lg">{l(cms.heroSubtitle)}</p>
             <div className="mt-7 flex flex-wrap gap-3">
               <Link href="/admission" className="btn-accent px-5 py-3 text-base">{t("Apply for admission", "प्रवेशासाठी अर्ज करा")}<ArrowRight className="size-4" /></Link>
               <Link href="/courses" className="btn px-5 py-3 text-base bg-white/10 text-white hover:bg-white/20">{t("Explore courses", "अभ्यासक्रम पहा")}</Link>
             </div>
-            <dl className="mt-10 grid max-w-lg grid-cols-3 gap-4 text-center">
+            <dl className="mt-10 hidden max-w-lg grid-cols-3 gap-4 text-center sm:grid">
               {[[String(courses.length), t("Courses", "अभ्यासक्रम")], [String(db.batches.length), t("Active batches", "सक्रिय बॅचेस")], ["2", t("Mediums", "माध्यमे")]].map(([v, k]) => (
                 <div key={k} className="rounded-xl bg-white/5 p-3 ring-1 ring-white/10"><dt className="text-xs text-brand-200">{k}</dt><dd className="text-2xl font-bold">{v}</dd></div>
               ))}
             </dl>
           </div>
-          <div className="rounded-2xl bg-white p-5 text-slate-800 shadow-2xl sm:p-6">
+          <div className="rounded-2xl bg-white p-4 text-slate-800 shadow-2xl sm:p-6">
             <h2 className="text-lg font-semibold">{t("Quick enquiry", "त्वरित चौकशी")}</h2>
-            <p className="mb-4 text-sm text-slate-500">{t("Leave your number — we'll call you back.", "आपला क्रमांक द्या — आम्ही परत कॉल करू.")}</p>
+            <p className="mb-3 hidden text-sm text-slate-500 sm:block">{t("Leave your number — we'll call you back.", "आपला क्रमांक द्या — आम्ही परत कॉल करू.")}</p>
             <EnquiryForm variant="quick" />
           </div>
         </div>
@@ -210,7 +210,7 @@ function PhotoStrip({ photos }: { photos: HomePhoto[] }) {
   if (!shown.length) return null;
   return (
     <section className="container-page py-10">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
         {shown.map((p) => (
           <figure key={p.id} className="overflow-hidden rounded-xl bg-slate-100">
             <img src={p.src} alt={l(p.caption)} loading="lazy" className="aspect-[4/3] w-full object-cover" />
