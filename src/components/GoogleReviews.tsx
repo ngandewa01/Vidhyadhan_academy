@@ -100,7 +100,8 @@ export function ResultCard({ a, courseName }: { a: Achievement; courseName?: str
   const { t, l } = useI18n();
   const [open, setOpen] = useState(false);
   return (
-    <figure className="card group overflow-hidden">
+    <figure className="card group relative overflow-hidden">
+      {a.demo && <span className="absolute right-2 top-2 z-10 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">{t("Sample", "नमुना")}</span>}
       <button type="button" onClick={() => a.photo && setOpen(true)} className="block w-full" aria-label={l(a.name)}>
         {a.photo ? (
           <img src={a.photo} alt={`${l(a.name)} – ${l(a.result)}`} loading="lazy" className="aspect-square w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />

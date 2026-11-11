@@ -5,7 +5,7 @@
  */
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { buildSeed, type DB } from "./seed";
+import { buildSeed, SAMPLE_ACHIEVEMENTS, type DB } from "./seed";
 import type { Lang, Role, Session } from "./types";
 import { uid, nowISO } from "./utils";
 
@@ -54,6 +54,16 @@ export const useStore = create<State>()(
         }
       }),
       partialize: (s) => ({ db: s.db, session: s.session, lang: s.lang }),
+      version: 1,
+      // v1: add the sample result cards to browsers that saved data before they existed
+      migrate: (persisted, version) => {
+        const s = persisted as Pick<State, "db" | "session" | "lang">;
+        if (version < 1 && s?.db?.achievements) {
+          const have = new Set(s.db.achievements.map((a) => a.id));
+          s.db.achievements.push(...structuredClone(SAMPLE_ACHIEVEMENTS).filter((a) => !have.has(a.id)));
+        }
+        return s as State;
+      },
       skipHydration: true,
     }
   )

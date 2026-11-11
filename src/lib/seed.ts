@@ -36,6 +36,26 @@ const L = (en: string, mr: string): T.L => ({ en, mr });
 
 export const DEFAULT_HOME_SECTIONS: T.HomeSection[] = (["results", "courses", "why", "batches", "reviews", "library", "cta"] as T.HomeSectionKey[]).map((key) => ({ key, enabled: true }));
 
+const SAMPLE_EXAMS: [string, string][] = [
+  ["MPSC Rajyaseva", "एमपीएससी राज्यसेवा"], ["PSI", "पीएसआय"], ["STI", "एसटीआय"], ["ASO", "एएसओ"], ["Police Bharti", "पोलीस भरती"],
+  ["Talathi Bharti", "तलाठी भरती"], ["Combined Group B", "संयुक्त गट ब"], ["Combined Group C", "संयुक्त गट क"], ["MPSC Rajyaseva", "एमपीएससी राज्यसेवा"], ["PSI", "पीएसआय"],
+];
+const MR_DIGITS = "०१२३४५६७८९";
+const mrNum = (n: number) => String(n).replace(/\d/g, (d) => MR_DIGITS[Number(d)]);
+
+/** Placeholder result cards, clearly marked as samples, until the academy adds real results. */
+export const SAMPLE_ACHIEVEMENTS: T.Achievement[] = SAMPLE_EXAMS.map(([en, mr], i) => ({
+  id: `ac_sample_${String(i + 1).padStart(2, "0")}`,
+  name: L(`Sample student ${i + 1}`, `नमुना विद्यार्थी ${mrNum(i + 1)}`),
+  exam: L(en, mr),
+  result: L("Sample – replace with real result", "नमुना – खऱ्या निकालाने बदला"),
+  photo: `/results/sample-${String(i + 1).padStart(2, "0")}.svg`,
+  consent: true,
+  consentNote: "Sample placeholder, not a real student",
+  published: true,
+  demo: true,
+}));
+
 /** Layouts saved by the version with the photo strip used the old default order, so they fall back to the new default. */
 export function resolveHomeSections(saved?: T.HomeSection[]): T.HomeSection[] {
   const known = new Set(DEFAULT_HOME_SECTIONS.map((s) => s.key));
@@ -464,6 +484,7 @@ export function buildSeed() {
       result: L("Selected – Mumbai Police", "मुंबई पोलीस पदी निवड"), photo: "/results/arun-gawade-mumbai-police.jpg",
       consent: true, consentNote: "Published by the academy on its own poster", published: true, demo: false, featured: true,
     },
+    ...structuredClone(SAMPLE_ACHIEVEMENTS),
   ];
   const testimonials: T.Testimonial[] = [];
   const announcements: T.Announcement[] = [
