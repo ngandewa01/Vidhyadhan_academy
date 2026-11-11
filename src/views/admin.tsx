@@ -12,7 +12,7 @@ import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, Se
 import { NoAccess, useAccess } from "@/components/PortalShell";
 import { AssignmentsManager, AttendanceManager, LiveClassManager, MaterialsManager, QuestionBank, ResultsBoard, TestsManager, type Scope } from "./ops";
 import { Achievements, Certificates, Cms, ExamUpdatesAdmin, Fees, LibraryAdmin, NotificationsAdmin, Receipts, Referrals, Reports, SettingsAdmin, Tickets } from "./admin2";
-import { MODULES, type Access, type Batch, type Chapter, type Course, type EnquiryStatus, type L, type Module, type StaffUser, type Subject } from "@/lib/types";
+import { MODULES, type Access, type Address, type Batch, type Chapter, type Course, type EnquiryStatus, type L, type Module, type StaffUser, type Student, type Subject } from "@/lib/types";
 
 export function useAdmin() {
   const db = useStore((s) => s.db);
@@ -278,6 +278,7 @@ function Students({ canManage }: { canManage: boolean }) {
               {db.memberships.filter((m) => m.studentId === s.id).map((m) => <div key={m.id} className="mb-2 rounded-lg border border-saffron-200 bg-saffron-50 p-3 text-sm"><p className="font-semibold">{l(db.libraryPlans.find((p) => p.id === m.planId)?.name)}</p><p className="text-xs">{d(m.start)} – {d(m.end)} · {t("Seat", "आसन")} {m.seat} <StatusBadge s={m.status} /></p></div>)}
               {finance && <><p className="label mt-3">{t("Payments", "पेमेंट")}</p><ul className="text-xs">{db.payments.filter((p) => p.studentId === s.id).map((p) => <li key={p.id} className="flex justify-between border-t py-1"><span className="font-mono">{p.receiptNo}</span><span>{dt(p.date)}</span><span className="font-semibold">{fmtINR(p.amount)}</span></li>)}</ul></>}
             </Card>
+            <AdmissionDetailsCard s={s} canManage={canManage} />
           </div>
         </Modal>
       )}
@@ -401,6 +402,48 @@ function applyTransfer(db: ReturnType<typeof useStore.getState>["db"], id: strin
 }
 
 /* ---------------- Courses ---------------- */
+function AdmissionDetailsCard({ s, canManage }: { s: Student; canManage: boolean }) {
+  const { t, d, lang } = useI18n();
+  const { update } = useStore();
+  const [show, setShow] = useState(false);
+  const p = s.profile;
+  const row = (label: string, value?: string) => <div><dt className="text-xs text-slate-500">{label}</dt><dd className="break-words">{value || "—"}</dd></div>;
+  const addr = (a: Address) => [a.line1, a.area, a.taluka && `${t("Tal.", "ता.")} ${a.taluka}`, a.city, a.district, a.state, a.pin].filter(Boolean).join(", ");
+  const reveal = () => { update(() => {}, { action: "student.aadhaar.view", entity: s.code, detail: "Full Aadhaar number viewed" }); setShow(true); };
+  return (
+    <Card title={t("Admission details", "प्रवेश माहिती")} className="md:col-span-3">
+      {!p ? <p className="text-sm text-slate-500">{t("Not submitted yet.", "अद्याप भरलेली नाही.")}</p> : (
+        <div className="grid gap-4 md:grid-cols-[120px_1fr]">
+          <div>{p.photo ? <img src={p.photo} alt={s.name} className="aspect-[4/5] w-28 rounded-lg object-cover ring-1 ring-slate-200" /> : <div className="flex aspect-[4/5] w-28 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-400">{t("No photo", "फोटो नाही")}</div>}</div>
+          <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+            {row(t("Date of birth", "जन्मतारीख"), s.dob ? d(s.dob) : undefined)}
+            {row(t("Gender", "लिंग"), s.gender ? ({ male: t("Male", "पुरुष"), female: t("Female", "स्त्री"), other: t("Other", "इतर") } as Record<string, string>)[s.gender] : undefined)}
+            {row(t("Category", "प्रवर्ग"), p.category ? p.category.toUpperCase() : undefined)}
+            {row(t("Father / guardian", "वडील / पालक"), p.fatherName)}
+            {row(t("Mother", "आई"), p.motherName)}
+            {row(t("Alternate mobile", "पर्यायी मोबाईल"), p.alternateMobile ? fmtMobile(p.alternateMobile) : undefined)}
+            {row(t("Qualification", "पात्रता"), [p.qualification, p.institution, p.passingYear].filter(Boolean).join(" · "))}
+            {row(t("Heard about us", "माहिती कशी मिळाली"), p.heardAbout)}
+            <div>
+              <dt className="text-xs text-slate-500">{t("Aadhaar number", "आधार क्रमांक")}</dt>
+              <dd className="font-mono">
+                {p.aadhaar ? (show ? p.aadhaar.replace(/(\d{4})(?=\d)/g, "$1 ") : `XXXX XXXX ${p.aadhaar.slice(-4)}`) : "—"}
+                {p.aadhaar && canManage && !show && <button className="btn-ghost btn-sm ml-2" onClick={reveal}>{t("Show", "दाखवा")}</button>}
+                {p.aadhaar && show && <button className="btn-ghost btn-sm ml-2" onClick={() => setShow(false)}>{t("Hide", "लपवा")}</button>}
+              </dd>
+            </div>
+            {row(t("Aadhaar copy", "आधार प्रत"), p.aadhaarDoc?.name)}
+            {row(t("Details submitted", "माहिती भरली"), d(p.updatedAt))}
+            <div className="sm:col-span-2 lg:col-span-3"><dt className="text-xs text-slate-500">{t("Permanent address", "कायमचा पत्ता")}</dt><dd>{addr(p.permanentAddress)}</dd></div>
+            <div className="sm:col-span-2 lg:col-span-3"><dt className="text-xs text-slate-500">{t("Current address", "सध्याचा पत्ता")}</dt><dd>{p.sameAddress ? t("Same as permanent address", "कायम पत्त्यासारखाच") : addr(p.currentAddress)}</dd></div>
+          </dl>
+        </div>
+      )}
+      {p?.aadhaar && <p className="mt-3 text-xs text-slate-500">{lang === "mr" ? "पूर्ण आधार क्रमांक पाहिल्यास त्याची नोंद ऑडिट लॉगमध्ये होते." : "Viewing the full Aadhaar number is recorded in the audit log."}</p>}
+    </Card>
+  );
+}
+
 function Courses({ canManage }: { canManage: boolean }) {
   const { t, l } = useI18n();
   const { db } = useAdmin();

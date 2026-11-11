@@ -119,3 +119,40 @@ export function seeded(seed: number) {
     return s / 4294967296;
   };
 }
+
+const VERHOEFF_D = [[0,1,2,3,4,5,6,7,8,9],[1,2,3,4,0,6,7,8,9,5],[2,3,4,0,1,7,8,9,5,6],[3,4,0,1,2,8,9,5,6,7],[4,0,1,2,3,9,5,6,7,8],[5,9,8,7,6,0,4,3,2,1],[6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3],[8,7,6,5,9,3,2,1,0,4],[9,8,7,6,5,4,3,2,1,0]];
+const VERHOEFF_P = [[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,6,1,4,2],[8,9,1,6,0,4,3,5,2,7],[9,4,5,3,1,2,6,8,7,0],[4,2,8,6,5,7,3,9,0,1],[2,7,9,3,8,0,6,4,1,5],[7,0,4,6,9,1,3,2,5,8]];
+/** 12 digits, not starting with 0 or 1, and a valid Verhoeff check digit. */
+export function isValidAadhaar(value: string) {
+  const n = value.replace(/\s/g, "");
+  if (!/^[2-9]\d{11}$/.test(n)) return false;
+  let c = 0;
+  [...n].reverse().forEach((ch, i) => { c = VERHOEFF_D[c][VERHOEFF_P[i % 8][Number(ch)]]; });
+  return c === 0;
+}
+export const fmtAadhaar = (v: string) => v.replace(/\D/g, "").slice(0, 12).replace(/(\d{4})(?=\d)/g, "$1 ");
+export const maskAadhaar = (v: string) => `XXXX XXXX ${v.replace(/\D/g, "").slice(-4)}`;
+export const isValidPin = (p: string) => /^[1-9]\d{5}$/.test(p);
+
+/** Centre-crops an image to a 35x45 mm passport photo (4:5) and returns a compressed JPEG data URL. */
+export function passportPhoto(file: File, width = 413, height = 531): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const target = width / height;
+      let sw = img.width, sh = img.height, sx = 0, sy = 0;
+      if (sw / sh > target) { sw = sh * target; sx = (img.width - sw) / 2; } else { sh = sw / target; sy = (img.height - sh) / 4; }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("canvas"));
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", 0.85));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("image")); };
+    img.src = url;
+  });
+}

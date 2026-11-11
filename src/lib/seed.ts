@@ -36,6 +36,8 @@ const L = (en: string, mr: string): T.L => ({ en, mr });
 
 export const DEFAULT_HOME_SECTIONS: T.HomeSection[] = (["results", "director", "vision", "courses", "explore", "why", "stats", "batches", "reviews", "library", "cta"] as T.HomeSectionKey[]).map((key) => ({ key, enabled: true }));
 
+export const DEFAULT_ADMISSION_FORM = { requireAadhaar: false, requirePhoto: true };
+
 export const DEFAULT_DIRECTOR: T.DirectorProfile = {
   name: L("Nikhil Rudrawar", "निखिल रुद्रवार"),
   title: L("Founder & Director", "संस्थापक व संचालक"),
@@ -336,6 +338,7 @@ const settings: T.Settings = {
   },
   referral: { enabled: false, rewardType: "flat", referrerReward: 500, refereeDiscount: 500, trigger: "fullPayment", validTo: dayOffset(90), limitPerStudent: 5 },
   transferNeedsApproval: true,
+  admissionForm: DEFAULT_ADMISSION_FORM,
   materialApproval: true,
   receiptPrefix: "VA",
   cms: {

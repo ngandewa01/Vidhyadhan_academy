@@ -5,7 +5,7 @@ import { Armchair, Check, Download, ExternalLink, Eye, LogIn, LogOut, Pencil, Pl
 import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { attendanceStats, balanceFor, createMembership, membershipFee, createStudent, membershipPaid, paidFor, PAY_METHOD_LABEL, recordPayment } from "@/lib/actions";
-import { buildSeed, DEFAULT_ABOUT_CARDS, DEFAULT_DIRECTOR, DEFAULT_STATS, resolveHomeSections } from "@/lib/seed";
+import { buildSeed, DEFAULT_ADMISSION_FORM, DEFAULT_ABOUT_CARDS, DEFAULT_DIRECTOR, DEFAULT_STATS, resolveHomeSections } from "@/lib/seed";
 import { addMonths, cn, daysBetween, downloadFile, fmtINR, isValidMobile, nowISO, toCSV, today, uid } from "@/lib/utils";
 import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, SearchBox, Select, StatCard, StatusBadge, Table, Tabs, Toggle, toast, statusLabel } from "@/components/ui";
 import { ReceiptModal } from "@/components/Receipt";
@@ -878,6 +878,13 @@ export function SettingsAdmin({ canManage }: { canManage: boolean }) {
           <Field label={t("Rate %", "दर %")}>{(id) => <input id={id} disabled={!canManage} type="number" className="input" value={s.gst.rate} onChange={(e) => set((st) => { st.gst.rate = Number(e.target.value); }, "gst.rate")} />}</Field>
           <Field label={t("Pricing", "किंमत")}>{(id) => <select id={id} disabled={!canManage} className="input" value={s.gst.inclusive ? "in" : "ex"} onChange={(e) => set((st) => { st.gst.inclusive = e.target.value === "in"; }, "gst.inclusive")}><option value="in">{t("Tax inclusive", "कर समाविष्ट")}</option><option value="ex">{t("Tax exclusive", "कर अतिरिक्त")}</option></select>}</Field>
         </div>
+      </Card>
+      <Card title={t("Admission form", "प्रवेश अर्ज")}>
+        <div className="flex flex-wrap gap-6">
+          <Toggle disabled={!canManage} checked={(s.admissionForm ?? DEFAULT_ADMISSION_FORM).requireAadhaar} onChange={(v) => set((st) => { st.admissionForm = { ...(st.admissionForm ?? DEFAULT_ADMISSION_FORM), requireAadhaar: v }; }, "admission.requireAadhaar")} label={t("Aadhaar number is compulsory", "आधार क्रमांक सक्तीचा")} />
+          <Toggle disabled={!canManage} checked={(s.admissionForm ?? DEFAULT_ADMISSION_FORM).requirePhoto} onChange={(v) => set((st) => { st.admissionForm = { ...(st.admissionForm ?? DEFAULT_ADMISSION_FORM), requirePhoto: v }; }, "admission.requirePhoto")} label={t("Passport photo is compulsory", "पासपोर्ट फोटो सक्तीचा")} />
+        </div>
+        <p className="mt-3 text-xs text-slate-500">{t("Aadhaar is optional by default: Indian law limits when a private organisation may insist on it, so check with a legal adviser before making it compulsory. Full Aadhaar numbers are shown to staff only when they choose Show, and every view is logged.", "आधार डीफॉल्टने ऐच्छिक आहे: खाजगी संस्था त्याची सक्ती कधी करू शकतात यावर कायद्याची मर्यादा आहे, म्हणून सक्तीचे करण्यापूर्वी कायदेशीर सल्ला घ्या. पूर्ण आधार क्रमांक कर्मचारी 'दाखवा' निवडल्यावरच दिसतो व प्रत्येक वेळची नोंद होते.")}</p>
       </Card>
       <Card title={t("Academic rules", "शैक्षणिक नियम")}>
         <div className="grid gap-3 sm:grid-cols-3">
