@@ -5,7 +5,7 @@ import { Armchair, Check, Download, ExternalLink, Eye, LogIn, LogOut, Pencil, Pl
 import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { attendanceStats, balanceFor, createMembership, membershipFee, createStudent, membershipPaid, paidFor, PAY_METHOD_LABEL, recordPayment } from "@/lib/actions";
-import { buildSeed, DEFAULT_DIRECTOR, DEFAULT_STATS, resolveHomeSections } from "@/lib/seed";
+import { buildSeed, DEFAULT_ABOUT_CARDS, DEFAULT_DIRECTOR, DEFAULT_STATS, resolveHomeSections } from "@/lib/seed";
 import { addMonths, cn, daysBetween, downloadFile, fmtINR, isValidMobile, nowISO, toCSV, today, uid } from "@/lib/utils";
 import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, SearchBox, Select, StatCard, StatusBadge, Table, Tabs, Toggle, toast, statusLabel } from "@/components/ui";
 import { ReceiptModal } from "@/components/Receipt";
@@ -13,7 +13,7 @@ import { GoogleReviews } from "@/components/GoogleReviews";
 import { IdCardFace, TICKET_CATS } from "./student";
 import { DATE_LABEL } from "./public-pages";
 import { academy } from "@/config/academy";
-import type { Achievement, Announcement, Testimonial, Channel, ExamUpdate, HomeSection, HomeSectionKey, HomeStat, ImportantDateKind, L, LibraryPlan, PayMethod, PromoCode, Settings, Ticket, UpdateSource } from "@/lib/types";
+import type { Achievement, Announcement, Testimonial, Channel, ExamUpdate, HomeCard, HomeSection, HomeSectionKey, HomeStat, ImportantDateKind, L, LibraryPlan, PayMethod, PromoCode, Settings, Ticket, UpdateSource } from "@/lib/types";
 
 function useA() {
   const db = useStore((s) => s.db);
@@ -675,7 +675,7 @@ function LInput({ label, value, onChange, area }: { label: string; value: L; onC
 }
 const SECTION_LABEL: Record<HomeSectionKey, L> = {
   director: { en: "Meet our director", mr: "आमचे संचालक" },
-  vision: { en: "Vision & mission (shows once written)", mr: "दृष्टी व ध्येय (लिहिल्यावर दिसेल)" },
+  vision: { en: "Vision, mission & more cards", mr: "दृष्टी, ध्येय व इतर कार्ड्स" },
   explore: { en: "Explore quick links", mr: "शोधा – जलद दुवे" },
   stats: { en: "Numbers (shows once entered)", mr: "आकडेवारी (भरल्यावर दिसेल)" },
   courses: { en: "Courses we offer", mr: "आमचे अभ्यासक्रम" },
@@ -699,6 +699,9 @@ function HomeContent({ cms, setCms, canManage }: { cms: Settings["cms"]; setCms:
   const { t } = useI18n();
   const director = cms.director ?? DEFAULT_DIRECTOR;
   const stats = cms.stats ?? DEFAULT_STATS;
+  const cards = cms.aboutCards ?? DEFAULT_ABOUT_CARDS;
+  const setCards = (next: HomeCard[]) => setCms({ ...cms, aboutCards: next });
+  const updateCard = (i: number, patch: Partial<HomeCard>) => setCards(cards.map((c, k) => (k === i ? { ...c, ...patch } : c)));
   const setDirector = (patch: Partial<typeof director>) => setCms({ ...cms, director: { ...director, ...patch } });
   const setStats = (next: HomeStat[]) => setCms({ ...cms, stats: next });
   const updateStat = (i: number, patch: Partial<HomeStat>) => setStats(stats.map((s, k) => (k === i ? { ...s, ...patch } : s)));
@@ -734,12 +737,27 @@ function HomeContent({ cms, setCms, canManage }: { cms: Settings["cms"]; setCms:
         </div>
       </Card>
       <div className="space-y-4">
-        <Card title={t("Vision & mission", "दृष्टी व ध्येय")}>
-          <p className="mb-3 text-xs text-slate-500">{t("Each card appears on the homepage only after you write it.", "प्रत्येक कार्ड लिहिल्यानंतरच मुख्यपृष्ठावर दिसेल.")}</p>
+        <Card title={t("Vision, mission & more cards", "दृष्टी, ध्येय व इतर कार्ड्स")}>
+          <p className="mb-3 text-xs text-slate-500">{t("These are draft texts written from your tagline and motto. Edit them, add more cards (for example values or a promise), reorder, hide or delete. Use a new line for each bullet (start with •).", "हा मजकूर तुमच्या घोषवाक्य व ब्रीदवाक्यावरून लिहिलेला मसुदा आहे. तो बदला, आणखी कार्ड्स जोडा (उदा. मूल्ये किंवा आमचे वचन), क्रम बदला, लपवा किंवा हटवा. प्रत्येक मुद्द्यासाठी नवी ओळ वापरा (• ने सुरू करा).")}</p>
           <div className="space-y-3">
-            <LInput label="Vision" value={cms.vision ?? { en: "", mr: "" }} onChange={(v) => setCms({ ...cms, vision: v })} area />
-            <LInput label="Mission" value={cms.mission ?? { en: "", mr: "" }} onChange={(v) => setCms({ ...cms, mission: v })} area />
+            {cards.map((c, i) => (
+              <div key={c.id} className="rounded-lg border border-slate-200 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <Toggle disabled={!canManage} checked={c.enabled} onChange={(v) => updateCard(i, { enabled: v })} label={t("Show", "दाखवा")} />
+                  <span className="flex items-center gap-1">
+                    <button className="btn-ghost btn-sm" disabled={!canManage || i === 0} onClick={() => setCards(moveItem(cards, i, -1))} aria-label={t("Move up", "वर हलवा")}>↑</button>
+                    <button className="btn-ghost btn-sm" disabled={!canManage || i === cards.length - 1} onClick={() => setCards(moveItem(cards, i, 1))} aria-label={t("Move down", "खाली हलवा")}>↓</button>
+                    {canManage && <button className="btn-ghost btn-sm text-red-600" onClick={() => { if (confirm(t("Delete this card?", "हे कार्ड हटवायचे?"))) setCards(cards.filter((_, k) => k !== i)); }}>{t("Delete", "हटवा")}</button>}
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  <LInput label="Title" value={c.title} onChange={(v) => updateCard(i, { title: v })} />
+                  <LInput label="Text" value={c.text} onChange={(v) => updateCard(i, { text: v })} area />
+                </div>
+              </div>
+            ))}
           </div>
+          {canManage && <button className="btn-outline btn-sm mt-3" onClick={() => setCards([...cards, { id: uid("ac"), title: { en: "", mr: "" }, text: { en: "", mr: "" }, enabled: true }])}><Plus className="size-4" />{t("Add card", "कार्ड जोडा")}</button>}
         </Card>
         <Card title={t("Numbers", "आकडेवारी")}>
           <p className="mb-3 text-xs text-slate-500">{t("Enter only real figures, for example 500+. A number shows on the homepage only when it has a value and is switched on.", "फक्त खरे आकडे भरा, उदा. ५००+. मूल्य भरले व स्विच चालू असेल तरच आकडा दिसेल.")}</p>

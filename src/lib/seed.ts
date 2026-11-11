@@ -42,6 +42,24 @@ export const DEFAULT_DIRECTOR: T.DirectorProfile = {
   bio: L("", ""),
   highlights: [],
 };
+export const DEFAULT_ABOUT_CARDS: T.HomeCard[] = [
+  {
+    id: "ac_vision", enabled: true,
+    title: L("Our vision", "आमची दृष्टी"),
+    text: L(
+      "To be the place every MPSC, PSI, STI and ASO aspirant in Maharashtra trusts to turn a dream into a government career – through honest guidance, discipline and the warmth of a family.",
+      "महाराष्ट्रातील प्रत्येक एमपीएससी, पीएसआय, एसटीआय व एएसओ परीक्षार्थीसाठी विश्वासाचे ठिकाण बनणे – प्रामाणिक मार्गदर्शन, शिस्त आणि कुटुंबासारख्या आपुलकीतून स्वप्नाला शासकीय सेवेतील यशात बदलणे.",
+    ),
+  },
+  {
+    id: "ac_mission", enabled: true,
+    title: L("Our mission", "आमचे ध्येय"),
+    text: L(
+      "• Give clear, exam-focused guidance in both Marathi and English medium.\n• Build steady study habits through regular classes, tests and revision.\n• Support every student personally – because we are not just a class, we are a family.\n• Offer a calm space for focused self-study at our Abhyasika Kendra.",
+      "• मराठी व इंग्रजी माध्यमात स्पष्ट, परीक्षाभिमुख मार्गदर्शन देणे.\n• नियमित वर्ग, चाचण्या व उजळणीतून सातत्यपूर्ण अभ्यासाची सवय लावणे.\n• प्रत्येक विद्यार्थ्याकडे वैयक्तिक लक्ष देणे – कारण क्लास नव्हे, एक कुटुंबच!\n• आमच्या अभ्यासिका केंद्रात शांत, एकाग्र स्वयं-अभ्यासाची सोय देणे.",
+    ),
+  },
+];
 /** Numbers stay empty and hidden until the academy enters its real figures. */
 export const DEFAULT_STATS: T.HomeStat[] = [
   { id: "st_guided", value: "", label: L("Students guided", "मार्गदर्शन केलेले विद्यार्थी"), enabled: true },
@@ -323,8 +341,7 @@ const settings: T.Settings = {
   cms: {
     homeSections: DEFAULT_HOME_SECTIONS,
     director: DEFAULT_DIRECTOR,
-    vision: L("", ""),
-    mission: L("", ""),
+    aboutCards: DEFAULT_ABOUT_CARDS,
     stats: DEFAULT_STATS,
     heroTitle: L("Your dream… our direction.", "स्वप्न तुमचे... दिशा आमची"),
     heroSubtitle: L(

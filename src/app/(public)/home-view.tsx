@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, type ReactNode, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowRight, BookOpenCheck, CalendarDays, CheckCircle2, Eye, GraduationCap, Library, Megaphone, Phone, Target, Trophy, UserRound, Users, BellRing } from "lucide-react";
+import { ArrowRight, BookOpenCheck, CalendarDays, CheckCircle2, Eye, GraduationCap, Heart, Library, Megaphone, Phone, Sparkles, Target, Trophy, UserRound, Users, BellRing } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { CourseCard, DemoNote, EnquiryForm, SectionHead } from "@/components/public";
@@ -10,8 +10,8 @@ import { WhatsAppIcon } from "@/components/brand";
 import { GoogleReviews, ResultCard } from "@/components/GoogleReviews";
 import { academy } from "@/config/academy";
 import { fmtINR } from "@/lib/utils";
-import { DEFAULT_DIRECTOR, DEFAULT_STATS, resolveHomeSections } from "@/lib/seed";
-import type { DirectorProfile, HomeSectionKey, HomeStat, L } from "@/lib/types";
+import { DEFAULT_ABOUT_CARDS, DEFAULT_DIRECTOR, DEFAULT_STATS, resolveHomeSections } from "@/lib/seed";
+import type { DirectorProfile, HomeCard, HomeSectionKey, HomeStat } from "@/lib/types";
 
 export default function HomeView() {
   const { t, l, d } = useI18n();
@@ -27,7 +27,7 @@ export default function HomeView() {
   const sections = resolveHomeSections(cms.homeSections);
   const blocks: Record<HomeSectionKey, ReactNode> = {
     director: <DirectorSection director={cms.director ?? DEFAULT_DIRECTOR} />,
-    vision: <VisionMission vision={cms.vision} mission={cms.mission} />,
+    vision: <AboutCards cards={cms.aboutCards ?? DEFAULT_ABOUT_CARDS} />,
     explore: <ExploreStrip />,
     stats: <StatsStrip stats={cms.stats ?? DEFAULT_STATS} />,
     courses: (
@@ -273,22 +273,23 @@ function DirectorSection({ director }: { director: DirectorProfile }) {
   );
 }
 
-function VisionMission({ vision, mission }: { vision?: L; mission?: L }) {
-  const { t, l } = useI18n();
-  const items = [
-    { Icon: Eye, title: t("Our vision", "आमची दृष्टी"), text: vision },
-    { Icon: Target, title: t("Our mission", "आमचे ध्येय"), text: mission },
-  ].filter((i) => i.text && l(i.text));
-  if (!items.length) return null;
+function AboutCards({ cards }: { cards: HomeCard[] }) {
+  const { l } = useI18n();
+  const icons = [Eye, Target, Sparkles, Heart];
+  const shown = cards.filter((c) => c.enabled && l(c.text));
+  if (!shown.length) return null;
   return (
     <section className="container-page py-14">
       <div className="grid gap-5 md:grid-cols-2">
-        {items.map(({ Icon, title, text }) => (
-          <div key={title} className="card p-6">
-            <h2 className="flex items-center gap-2 text-xl font-bold"><span className="rounded-lg bg-brand-50 p-2 text-brand-700"><Icon className="size-5" aria-hidden /></span>{title}</h2>
-            <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-700">{l(text!)}</p>
-          </div>
-        ))}
+        {shown.map((c, i) => {
+          const Icon = icons[i % icons.length];
+          return (
+            <div key={c.id} className="card p-6">
+              <h2 className="flex items-center gap-2 text-xl font-bold"><span className="rounded-lg bg-brand-50 p-2 text-brand-700"><Icon className="size-5" aria-hidden /></span>{l(c.title)}</h2>
+              <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-700">{l(c.text)}</p>
+            </div>
+          );
+        })}
       </div>
     </section>
   );

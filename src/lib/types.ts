@@ -480,6 +480,7 @@ export interface AuditEntry { id: string; at: string; actor: string; action: str
 export type HomeSectionKey = "director" | "vision" | "courses" | "explore" | "why" | "stats" | "batches" | "results" | "reviews" | "library" | "cta";
 export interface HomeSection { key: HomeSectionKey; enabled: boolean }
 export interface DirectorProfile { name: L; title: L; photo?: string; bio: L; highlights: L[] }
+export interface HomeCard { id: string; title: L; text: L; enabled: boolean }
 export interface HomeStat { id: string; value: string; label: L; enabled: boolean }
 
 export interface Settings {
@@ -501,8 +502,7 @@ export interface Settings {
     libraryBlurb: L;
     homeSections?: HomeSection[];
     director?: DirectorProfile;
-    vision?: L;
-    mission?: L;
+    aboutCards?: HomeCard[];
     stats?: HomeStat[];
   };
   seo: Record<string, { title: string; description: string }>;
