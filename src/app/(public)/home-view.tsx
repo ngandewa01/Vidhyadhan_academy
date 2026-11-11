@@ -173,7 +173,7 @@ export default function HomeView() {
             <div className="mb-5 flex items-center gap-3">
               <img src={academy.logoUrl} alt="" width={64} height={64} className="size-16 rounded-full bg-white shadow-lg ring-2 ring-saffron-400/60" />
               <div>
-                <p className="text-sm text-brand-200">{t("Nikhil Rudrawar's", "निखिल रुद्रवार यांची")}</p>
+                <p className="text-sm text-brand-200">{t("Nikhil Rudrawar's Vidyadhan Academy", "निखिल रुद्रवार यांची विद्याधन अकॅडमी")}</p>
                 <p className="font-semibold text-saffron-200">“{l(academy.tagline)}”</p>
               </div>
             </div>
