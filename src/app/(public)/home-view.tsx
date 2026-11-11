@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, type ReactNode, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowRight, BookOpenCheck, CalendarDays, CheckCircle2, GraduationCap, Library, Megaphone, Phone, Trophy, Users, BellRing } from "lucide-react";
+import { ArrowRight, BookOpenCheck, CalendarDays, CheckCircle2, Eye, GraduationCap, Library, Megaphone, Phone, Target, Trophy, UserRound, Users, BellRing } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { CourseCard, DemoNote, EnquiryForm, SectionHead } from "@/components/public";
@@ -10,8 +10,8 @@ import { WhatsAppIcon } from "@/components/brand";
 import { GoogleReviews, ResultCard } from "@/components/GoogleReviews";
 import { academy } from "@/config/academy";
 import { fmtINR } from "@/lib/utils";
-import { resolveHomeSections } from "@/lib/seed";
-import type { HomeSectionKey } from "@/lib/types";
+import { DEFAULT_DIRECTOR, DEFAULT_STATS, resolveHomeSections } from "@/lib/seed";
+import type { DirectorProfile, HomeSectionKey, HomeStat, L } from "@/lib/types";
 
 export default function HomeView() {
   const { t, l, d } = useI18n();
@@ -26,6 +26,10 @@ export default function HomeView() {
 
   const sections = resolveHomeSections(cms.homeSections);
   const blocks: Record<HomeSectionKey, ReactNode> = {
+    director: <DirectorSection director={cms.director ?? DEFAULT_DIRECTOR} />,
+    vision: <VisionMission vision={cms.vision} mission={cms.mission} />,
+    explore: <ExploreStrip />,
+    stats: <StatsStrip stats={cms.stats ?? DEFAULT_STATS} />,
     courses: (
       <>
       <section className="container-page py-14">
@@ -235,5 +239,93 @@ function ResultsCarousel({ items }: { items: ReactNode[] }) {
         <div key={i} className="w-[85%] shrink-0 snap-start sm:w-[320px]">{item}</div>
       ))}
     </div>
+  );
+}
+
+function DirectorSection({ director }: { director: DirectorProfile }) {
+  const { t, l } = useI18n();
+  const highlights = director.highlights.filter((h) => l(h));
+  const hasText = !!l(director.bio) || highlights.length > 0;
+  return (
+    <section className="bg-brand-50/70 py-14">
+      <div className="container-page grid items-center gap-8 md:grid-cols-[300px_1fr] md:gap-12">
+        <div className="mx-auto w-full max-w-[280px] md:max-w-none">
+          {director.photo ? (
+            <img src={director.photo} alt={l(director.name)} loading="lazy" className="aspect-[4/5] w-full rounded-2xl object-cover shadow-lg ring-1 ring-slate-200" />
+          ) : (
+            <div className="flex aspect-[4/5] w-full items-center justify-center rounded-2xl bg-white text-brand-200 shadow-lg ring-1 ring-slate-200"><UserRound className="size-24" aria-hidden /></div>
+          )}
+        </div>
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-wide text-saffron-700">{t("Meet our director", "आमचे संचालक")}</p>
+          <h2 className="mt-1 text-3xl font-bold text-slate-900">{l(director.name)}</h2>
+          <p className="mt-1 text-slate-600">{l(director.title)}</p>
+          {l(director.bio) && <p className="mt-4 whitespace-pre-line leading-relaxed text-slate-700">{l(director.bio)}</p>}
+          {highlights.length > 0 && (
+            <ul className="mt-4 space-y-2">
+              {highlights.map((h, i) => <li key={i} className="flex items-start gap-2 text-slate-700"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" aria-hidden />{l(h)}</li>)}
+            </ul>
+          )}
+          {!hasText && <DemoNote>{t("The director's message and highlights will be added by the academy.", "संचालकांचा संदेश व वैशिष्ट्ये अकॅडमी जोडेल.")}</DemoNote>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function VisionMission({ vision, mission }: { vision?: L; mission?: L }) {
+  const { t, l } = useI18n();
+  const items = [
+    { Icon: Eye, title: t("Our vision", "आमची दृष्टी"), text: vision },
+    { Icon: Target, title: t("Our mission", "आमचे ध्येय"), text: mission },
+  ].filter((i) => i.text && l(i.text));
+  if (!items.length) return null;
+  return (
+    <section className="container-page py-14">
+      <div className="grid gap-5 md:grid-cols-2">
+        {items.map(({ Icon, title, text }) => (
+          <div key={title} className="card p-6">
+            <h2 className="flex items-center gap-2 text-xl font-bold"><span className="rounded-lg bg-brand-50 p-2 text-brand-700"><Icon className="size-5" aria-hidden /></span>{title}</h2>
+            <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-700">{l(text!)}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ExploreStrip() {
+  const { t } = useI18n();
+  const links = [
+    { href: "/syllabus", label: t("Syllabus", "अभ्यासक्रम आराखडा") },
+    { href: "/exam-updates", label: t("Exam updates", "परीक्षा अपडेट्स") },
+    { href: "/resources", label: t("Study resources", "अभ्यास साहित्य") },
+    { href: "/batches", label: t("Batches", "बॅचेस") },
+  ];
+  return (
+    <section className="container-page py-10">
+      <SectionHead title={t("Explore", "शोधा")} />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {links.map((x) => <Link key={x.href} href={x.href} className="btn-outline justify-center py-3 text-base">{x.label}<ArrowRight className="size-4" /></Link>)}
+      </div>
+    </section>
+  );
+}
+
+function StatsStrip({ stats }: { stats: HomeStat[] }) {
+  const { l } = useI18n();
+  const shown = stats.filter((s) => s.enabled && s.value.trim());
+  if (!shown.length) return null;
+  return (
+    <section className="bg-white py-12">
+      <div className="container-page grid grid-cols-2 gap-6 text-center md:grid-cols-4">
+        {shown.map((s) => (
+          <div key={s.id}>
+            <p className="text-4xl font-extrabold text-brand-700 sm:text-5xl">{s.value}</p>
+            <p className="mt-1 text-sm text-slate-600">{l(s.label)}</p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

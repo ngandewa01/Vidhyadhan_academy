@@ -477,8 +477,10 @@ export interface TransferRequest {
 
 export interface AuditEntry { id: string; at: string; actor: string; action: string; entity: string; detail: string }
 
-export type HomeSectionKey = "courses" | "why" | "batches" | "results" | "reviews" | "library" | "cta";
+export type HomeSectionKey = "director" | "vision" | "courses" | "explore" | "why" | "stats" | "batches" | "results" | "reviews" | "library" | "cta";
 export interface HomeSection { key: HomeSectionKey; enabled: boolean }
+export interface DirectorProfile { name: L; title: L; photo?: string; bio: L; highlights: L[] }
+export interface HomeStat { id: string; value: string; label: L; enabled: boolean }
 
 export interface Settings {
   gateways: { id: string; name: string; enabled: boolean; isDefault: boolean; configured: boolean }[];
@@ -498,6 +500,10 @@ export interface Settings {
     aboutBody: L;
     libraryBlurb: L;
     homeSections?: HomeSection[];
+    director?: DirectorProfile;
+    vision?: L;
+    mission?: L;
+    stats?: HomeStat[];
   };
   seo: Record<string, { title: string; description: string }>;
 }

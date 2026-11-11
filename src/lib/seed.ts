@@ -34,7 +34,21 @@ const classrooms: T.Classroom[] = [
 
 const L = (en: string, mr: string): T.L => ({ en, mr });
 
-export const DEFAULT_HOME_SECTIONS: T.HomeSection[] = (["results", "courses", "why", "batches", "reviews", "library", "cta"] as T.HomeSectionKey[]).map((key) => ({ key, enabled: true }));
+export const DEFAULT_HOME_SECTIONS: T.HomeSection[] = (["results", "director", "vision", "courses", "explore", "why", "stats", "batches", "reviews", "library", "cta"] as T.HomeSectionKey[]).map((key) => ({ key, enabled: true }));
+
+export const DEFAULT_DIRECTOR: T.DirectorProfile = {
+  name: L("Nikhil Rudrawar", "निखिल रुद्रवार"),
+  title: L("Founder & Director", "संस्थापक व संचालक"),
+  bio: L("", ""),
+  highlights: [],
+};
+/** Numbers stay empty and hidden until the academy enters its real figures. */
+export const DEFAULT_STATS: T.HomeStat[] = [
+  { id: "st_guided", value: "", label: L("Students guided", "मार्गदर्शन केलेले विद्यार्थी"), enabled: true },
+  { id: "st_selected", value: "", label: L("Successful students", "यशस्वी विद्यार्थी"), enabled: true },
+  { id: "st_years", value: "", label: L("Years of experience", "अनुभवाची वर्षे"), enabled: true },
+  { id: "st_batch", value: "", label: L("Students per batch", "प्रति बॅच विद्यार्थी"), enabled: true },
+];
 
 const SAMPLE_EXAMS: [string, string][] = [
   ["MPSC Rajyaseva", "एमपीएससी राज्यसेवा"], ["PSI", "पीएसआय"], ["STI", "एसटीआय"], ["ASO", "एएसओ"], ["Police Bharti", "पोलीस भरती"],
@@ -308,6 +322,10 @@ const settings: T.Settings = {
   receiptPrefix: "VA",
   cms: {
     homeSections: DEFAULT_HOME_SECTIONS,
+    director: DEFAULT_DIRECTOR,
+    vision: L("", ""),
+    mission: L("", ""),
+    stats: DEFAULT_STATS,
     heroTitle: L("Your dream… our direction.", "स्वप्न तुमचे... दिशा आमची"),
     heroSubtitle: L(
       "Nikhil Rudrawar's Vidyadhan Academy – focused guidance for MPSC, PSI, STI, ASO and other Maharashtra competitive examinations. Not just a class — a family.",
