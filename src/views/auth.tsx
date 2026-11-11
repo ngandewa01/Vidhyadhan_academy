@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { Badge, Card, Field, Notice, Tabs, toast } from "@/components/ui";
 import { ReceiptModal } from "@/components/Receipt";
+import { AdmissionDetailsForm } from "@/components/AdmissionDetails";
 import { createEnrolment, createMembership, createStudent, evaluatePromo, membershipFee, recordPayment } from "@/lib/actions";
 import { cn, fmtINR, isValidMobile, normMobile, today } from "@/lib/utils";
 import type { Role } from "@/lib/types";
@@ -165,7 +166,7 @@ export function AdmissionView() {
   const { db, session, update, login } = useStore();
   const hydrated = useStore((s) => s.hydrated);
   const student = session.role === "student" ? db.students.find((s) => s.id === session.userId) : undefined;
-  const [step, setStep] = useState(student ? 1 : 0);
+  const [step, setStep] = useState(student ? (student.profile ? 2 : 1) : 0);
   const [pick, setPick] = useState<Pick | null>(null);
   const [courseId, setCourseId] = useState("");
   const [promo, setPromo] = useState("");
@@ -186,7 +187,7 @@ export function AdmissionView() {
     if (b && db.batches.some((x) => x.id === b)) { setPick({ kind: "course", batchId: b }); setCourseId(db.batches.find((x) => x.id === b)!.courseId); }
     else if (c) setCourseId(c);
     else if (lib && db.libraryPlans.some((x) => x.id === lib)) setPick({ kind: "library", planId: lib });
-    if (student) setStep(1);
+    if (student) setStep(student.profile ? 2 : 1);
   }, [hydrated, sp, db, student]);
 
   const batch = pick?.kind === "course" ? db.batches.find((b) => b.id === pick.batchId) : undefined;
@@ -239,11 +240,11 @@ export function AdmissionView() {
       setProcessing(false);
       if (simulateFailure) { toast.error(t("Payment failed (simulated). Your admission is saved as pending; you can retry from Fees.", "पेमेंट अयशस्वी (सिम्युलेटेड). प्रवेश प्रलंबित म्हणून जतन; 'शुल्क' विभागातून पुन्हा प्रयत्न करा.")); }
       setResult({ paymentId: simulateFailure ? undefined : pid, offline: method === "offline" || simulateFailure });
-      setStep(4);
+      setStep(5);
     }, 900);
   };
 
-  const steps = [t("Account", "खाते"), t("Course & batch", "अभ्यासक्रम व बॅच"), t("Fee review", "शुल्क तपासणी"), t("Payment", "पेमेंट"), t("Confirmation", "पुष्टी")];
+  const steps = [t("Account", "खाते"), t("Your details", "आपली माहिती"), t("Course & batch", "अभ्यासक्रम व बॅच"), t("Fee review", "शुल्क तपासणी"), t("Payment", "पेमेंट"), t("Confirmation", "पुष्टी")];
   const courses = db.courses.filter((c) => c.published && c.admissionOpen);
 
   return (
@@ -264,7 +265,7 @@ export function AdmissionView() {
             <Field label={t("Mobile number", "मोबाईल क्रमांक")} required>{(id) => <input id={id} className="input" inputMode="numeric" maxLength={10} value={reg.mobile} disabled={reg.sent} onChange={(e) => setReg({ ...reg, mobile: e.target.value.replace(/\D/g, "") })} />}</Field>
             {reg.sent && <Field label="OTP" hint={`Demo: ${DEMO_OTP}`}>{() => <OtpInput value={reg.otp} onChange={(v) => setReg({ ...reg, otp: v })} />}</Field>}
           </div>
-          <p className="mt-3 text-xs text-slate-500">{t("Only name and mobile are required. Email, address and documents are optional; Aadhaar is not required.", "फक्त नाव व मोबाईल आवश्यक. ईमेल, पत्ता व कागदपत्रे ऐच्छिक; आधार आवश्यक नाही.")}</p>
+          <p className="mt-3 text-xs text-slate-500">{t("Only name and mobile are needed to start. On the next step you will add your details, photo and address.", "सुरुवातीला फक्त नाव व मोबाईल पुरेसे आहे. पुढील टप्प्यात आपली माहिती, फोटो व पत्ता भरा.")}</p>
           <div className="mt-4 flex flex-wrap gap-2">
             <button className="btn-primary" onClick={register}>{reg.sent ? t("Verify & continue", "पडताळा व पुढे जा") : t("Send OTP", "OTP पाठवा")}</button>
             <Link href="/login?next=/admission" className="btn-outline">{t("I already have an account", "माझे आधीच खाते आहे")}</Link>
@@ -272,7 +273,9 @@ export function AdmissionView() {
         </Card>
       )}
 
-      {step === 1 && (
+      {step === 1 && student && <AdmissionDetailsForm student={student} onDone={() => setStep(2)} />}
+
+      {step === 2 && (
         <div className="space-y-5">
           <Card title={t("1. Choose a course", "१. अभ्यासक्रम निवडा")}>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -312,11 +315,11 @@ export function AdmissionView() {
               </div>
             </Card>
           )}
-          <div className="flex justify-end"><button className="btn-primary" disabled={!pick} onClick={() => setStep(2)}>{t("Continue", "पुढे")}</button></div>
+          <div className="flex justify-between gap-2"><button className="btn-outline" onClick={() => setStep(1)}>{t("Edit my details", "माझी माहिती बदला")}</button><button className="btn-primary" disabled={!pick} onClick={() => setStep(3)}>{t("Continue", "पुढे")}</button></div>
         </div>
       )}
 
-      {step === 2 && pick && (
+      {step === 3 && pick && (
         <div className="grid gap-5 md:grid-cols-[1fr_320px]">
           <Card title={t("Fee review", "शुल्क तपासणी")}>
             <p className="font-semibold">{batch ? `${l(db.courses.find((c) => c.id === batch.courseId)?.name)} – ${batch.name}` : l(plan?.name)}</p>
@@ -342,12 +345,12 @@ export function AdmissionView() {
               <div className="flex justify-between rounded-md bg-brand-50 p-2 font-semibold text-brand-900"><dt>{t("Pay now", "आता भरा")}</dt><dd>{fmtINR(firstDue)}</dd></div>
             </dl>
             <p className="mt-2 text-[11px] text-saffron-700">{t("Demo amounts", "डेमो रकमा")}</p>
-            <div className="mt-4 flex gap-2"><button className="btn-outline flex-1" onClick={() => setStep(1)}>{t("Back", "मागे")}</button><button className="btn-primary flex-1" onClick={() => setStep(3)}>{t("Proceed", "पुढे")}</button></div>
+            <div className="mt-4 flex gap-2"><button className="btn-outline flex-1" onClick={() => setStep(2)}>{t("Back", "मागे")}</button><button className="btn-primary flex-1" onClick={() => setStep(4)}>{t("Proceed", "पुढे")}</button></div>
           </Card>
         </div>
       )}
 
-      {step === 3 && (
+      {step === 4 && (
         <Card title={t("Choose payment method", "पेमेंट पद्धत निवडा")}>
           <Notice tone="warn">{t("Prototype: no real payment is processed. Gateways are simulated until provider credentials are configured.", "प्रोटोटाइप: कोणतेही खरे पेमेंट होत नाही. प्रदात्याचे क्रेडेन्शियल्स कॉन्फिगर होईपर्यंत गेटवे सिम्युलेटेड आहेत.")}</Notice>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">
@@ -363,7 +366,7 @@ export function AdmissionView() {
           </div>
           {method === "upi" && <div className="mt-4 flex items-center gap-4 rounded-lg bg-slate-50 p-4"><div className="flex size-28 items-center justify-center rounded-lg border-2 border-dashed border-slate-300 text-xs text-slate-400">QR<br />placeholder</div><p className="text-sm text-slate-600">{t("Scan with any UPI app. Payment is auto-verified when the gateway is integrated.", "कोणत्याही UPI अ‍ॅपने स्कॅन करा. गेटवे जोडल्यानंतर पेमेंट आपोआप पडताळले जाईल.")}</p></div>}
           <div className="mt-5 flex flex-wrap justify-between gap-2">
-            <button className="btn-outline" onClick={() => setStep(2)}>{t("Back", "मागे")}</button>
+            <button className="btn-outline" onClick={() => setStep(3)}>{t("Back", "मागे")}</button>
             <div className="flex flex-wrap gap-2">
               {method !== "offline" && <button className="btn-ghost text-red-600" onClick={() => pay(true)} disabled={processing}>{t("Simulate failure", "अयशस्वी सिम्युलेट")}</button>}
               <button className="btn-accent" onClick={() => pay(false)} disabled={processing}><Wallet className="size-4" />{processing ? t("Processing…", "प्रक्रिया सुरू…") : method === "offline" ? t("Submit admission", "प्रवेश सादर करा") : `${t("Pay", "भरा")} ${fmtINR(pick?.kind === "course" ? firstDue : net)}`}</button>
@@ -372,7 +375,7 @@ export function AdmissionView() {
         </Card>
       )}
 
-      {step === 4 && result && (
+      {step === 5 && result && (
         <Card>
           <div className="py-6 text-center">
             <CheckCircle2 className={cn("mx-auto size-14", result.offline ? "text-amber-500" : "text-emerald-600")} />

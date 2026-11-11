@@ -93,6 +93,27 @@ export interface StaffUser {
   active: boolean;
 }
 
+export interface Address { line1: string; area: string; taluka: string; city: string; district: string; state: string; pin: string }
+export type CasteCategory = "open" | "obc" | "sc" | "st" | "vjnt" | "nt" | "sbc" | "ews" | "";
+export interface StudentProfile {
+  fatherName: string;
+  motherName?: string;
+  alternateMobile?: string;
+  category?: CasteCategory;
+  qualification: string;
+  institution?: string;
+  passingYear?: string;
+  heardAbout?: string;
+  aadhaar?: string;
+  aadhaarDoc?: { name: string; size: number };
+  photo?: string;
+  permanentAddress: Address;
+  currentAddress: Address;
+  sameAddress: boolean;
+  consentAt: string;
+  updatedAt: string;
+}
+
 export interface Student {
   id: string;
   code: string;
@@ -114,6 +135,7 @@ export interface Student {
   referralCode: string;
   telegramLinked: boolean;
   dataSaver: boolean;
+  profile?: StudentProfile;
 }
 
 export type PaymentStatus = "pending" | "partial" | "paid" | "failed" | "refunded";
@@ -492,6 +514,7 @@ export interface Settings {
   eventChannels: Record<string, Channel[]>;
   referral: { enabled: boolean; rewardType: "flat" | "percent"; referrerReward: number; refereeDiscount: number; trigger: "admission" | "fullPayment"; validTo: string; limitPerStudent: number };
   transferNeedsApproval: boolean;
+  admissionForm?: { requireAadhaar: boolean; requirePhoto: boolean };
   materialApproval: boolean;
   receiptPrefix: string;
   cms: {
