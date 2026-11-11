@@ -28,6 +28,7 @@ const MORE: NavItem[] = [
   { href: "/gallery", en: "Gallery", mr: "छायाचित्रे" },
   { href: "/announcements", en: "Announcements", mr: "सूचना" },
   { href: "/resources", en: "Important Links", mr: "महत्त्वाच्या लिंक्स" },
+  { href: "/brochure", en: "Download brochure", mr: "ब्रोशर डाउनलोड" },
   { href: "/enquiry", en: "Enquiry", mr: "चौकशी" },
   { href: "/verify", en: "Verify Certificate / ID", mr: "प्रमाणपत्र / ओळखपत्र पडताळणी" },
 ];

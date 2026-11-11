@@ -195,7 +195,7 @@ export interface Enquiry {
   followUpDate?: string;
   notes: { at: string; by: string; text: string }[];
   createdAt: string;
-  source: "website" | "walk-in" | "phone" | "whatsapp" | "referral";
+  source: "website" | "walk-in" | "phone" | "whatsapp" | "referral" | "brochure";
   referralCode?: string;
 }
 

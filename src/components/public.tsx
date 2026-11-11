@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, Clock, Languages, CheckCircle2 } from "lucide-react";
-import type { Course } from "@/lib/types";
+import type { Course, Enquiry } from "@/lib/types";
 import { useI18n } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { cn, fmtINR, isValidEmail, isValidMobile, normMobile, nowISO, uid } from "@/lib/utils";
@@ -58,7 +58,7 @@ export function CourseCard({ c }: { c: Course }) {
   );
 }
 
-export function EnquiryForm({ variant = "quick", defaultCourse, onDone }: { variant?: "quick" | "detailed"; defaultCourse?: string; onDone?: () => void }) {
+export function EnquiryForm({ variant = "quick", defaultCourse, onDone, source = "website", note, hideSuccess }: { variant?: "quick" | "detailed"; defaultCourse?: string; onDone?: (lead: { name: string; mobile: string; courseId: string }) => void; source?: Enquiry["source"]; note?: string; hideSuccess?: boolean }) {
   const { t, l } = useI18n();
   const { db, update } = useStore();
   const [f, setF] = useState({ name: "", mobile: "", email: "", courseId: defaultCourse ?? "", batchId: "", qualification: "", message: "", consent: true });
@@ -73,19 +73,20 @@ export function EnquiryForm({ variant = "quick", defaultCourse, onDone }: { vari
     if (!isValidMobile(f.mobile)) er.mobile = t("Enter a valid 10-digit mobile number", "वैध १० अंकी मोबाईल क्रमांक लिहा");
     if (!f.courseId) er.courseId = t("Select a course", "अभ्यासक्रम निवडा");
     if (variant === "detailed" && !isValidEmail(f.email)) er.email = t("Enter a valid email", "वैध ईमेल लिहा");
+    if (!f.consent) er.consent = t("Please tick to agree", "कृपया संमतीसाठी टिक करा");
     setErr(er);
     if (Object.keys(er).length) return;
     const mobile = normMobile(f.mobile);
     const dup = db.enquiries.some((x) => normMobile(x.mobile) === mobile) || db.students.some((s) => normMobile(s.mobile) === mobile);
     update((d) => {
-      d.enquiries.unshift({ id: uid("eq"), type: variant, name: f.name.trim(), mobile, email: f.email || undefined, courseId: f.courseId, batchId: f.batchId || undefined, qualification: f.qualification || undefined, message: f.message || undefined, status: "new", notes: [], createdAt: nowISO(), source: "website" });
+      d.enquiries.unshift({ id: uid("eq"), type: variant, name: f.name.trim(), mobile, email: f.email || undefined, courseId: f.courseId, batchId: f.batchId || undefined, qualification: f.qualification || undefined, message: f.message || note || undefined, status: "new", notes: [], createdAt: nowISO(), source });
     });
     setDone({ dup });
-    toast.success(t("Enquiry submitted. Our team will contact you.", "चौकशी नोंदवली. आमची टीम आपल्याशी संपर्क साधेल."));
-    onDone?.();
+    if (!hideSuccess) toast.success(t("Enquiry submitted. Our team will contact you.", "चौकशी नोंदवली. आमची टीम आपल्याशी संपर्क साधेल."));
+    onDone?.({ name: f.name.trim(), mobile, courseId: f.courseId });
   };
 
-  if (done)
+  if (done && !hideSuccess)
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-900">
         <p className="flex items-center gap-2 font-semibold"><CheckCircle2 className="size-5" />{t("Thank you! Your enquiry has been received.", "धन्यवाद! आपली चौकशी प्राप्त झाली.")}</p>
@@ -139,7 +140,8 @@ export function EnquiryForm({ variant = "quick", defaultCourse, onDone }: { vari
         <input type="checkbox" className="mt-0.5" checked={f.consent} onChange={(e) => set("consent", e.target.checked)} />
         <span>{t("I agree to be contacted by phone/WhatsApp about this enquiry, as described in the ", "या चौकशीसंदर्भात फोन/व्हॉट्सअ‍ॅपवर संपर्क करण्यास माझी संमती आहे (पहा: ")}<Link href="/privacy" target="_blank" className="font-medium text-brand-700 underline">{t("Privacy Policy", "गोपनीयता धोरण")}</Link>{t(".", ").")}</span>
       </label>
-      <button type="submit" className="btn-accent sm:col-span-2">{t("Submit enquiry", "चौकशी पाठवा")}</button>
+      {err.consent && <p className="text-xs text-red-600 sm:col-span-2" role="alert">{err.consent}</p>}
+      <button type="submit" className="btn-accent sm:col-span-2">{hideSuccess ? t("Get the brochure", "ब्रोशर मिळवा") : t("Submit enquiry", "चौकशी पाठवा")}</button>
     </form>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 import { Fragment, type ReactNode, useEffect, useRef } from "react";
 import Link from "next/link";
-import { ArrowRight, BookOpenCheck, CalendarDays, CheckCircle2, Eye, GraduationCap, Heart, Library, Megaphone, Phone, Sparkles, Target, Trophy, UserRound, Users, BellRing } from "lucide-react";
+import { ArrowRight, BookOpenCheck, CalendarDays, CheckCircle2, Eye, FileDown, GraduationCap, Heart, Library, Megaphone, Phone, Sparkles, Target, Trophy, UserRound, Users, BellRing } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { CourseCard, DemoNote, EnquiryForm, SectionHead } from "@/components/public";
@@ -160,6 +160,7 @@ export default function HomeView() {
           <div className="flex flex-wrap gap-3">
             <a href={`tel:${academy.phone.replace(/\s/g, "")}`} className="btn bg-white text-brand-900 hover:bg-brand-50"><Phone className="size-4" />{t("Call", "कॉल करा")}</a>
             <a href={`https://wa.me/${academy.whatsapp}`} target="_blank" rel="noopener noreferrer" className="btn bg-[#25D366] text-white hover:bg-[#1ebe5a]"><WhatsAppIcon className="size-4" />WhatsApp</a>
+            <Link href="/brochure" className="btn bg-white/10 text-white hover:bg-white/20"><FileDown className="size-4" aria-hidden />{t("Download brochure", "ब्रोशर डाउनलोड")}</Link>
           </div>
         </div>
       </section>
@@ -187,6 +188,7 @@ export default function HomeView() {
             <div className="mt-7 flex flex-wrap gap-3">
               <Link href="/admission" className="btn-accent px-5 py-3 text-base">{t("Apply for admission", "प्रवेशासाठी अर्ज करा")}<ArrowRight className="size-4" /></Link>
               <Link href="/courses" className="btn px-5 py-3 text-base bg-white/10 text-white hover:bg-white/20">{t("Explore courses", "अभ्यासक्रम पहा")}</Link>
+              <Link href="/brochure" className="btn px-5 py-3 text-base border border-white/30 text-white hover:bg-white/10"><FileDown className="size-4" aria-hidden />{t("Download brochure", "ब्रोशर डाउनलोड")}</Link>
             </div>
             <dl className="mt-10 hidden max-w-lg grid-cols-3 gap-4 text-center sm:grid">
               {[[String(courses.length), t("Courses", "अभ्यासक्रम")], [String(db.batches.length), t("Active batches", "सक्रिय बॅचेस")], ["2", t("Mediums", "माध्यमे")]].map(([v, k]) => (

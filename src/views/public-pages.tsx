@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ArrowRight, BookOpen, CalendarDays, ExternalLink, GraduationCap, ImageIcon, Library, Mail, MapPin, Megaphone, Phone, Clock, Quote, Users, Armchair, Check, Bell } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, ExternalLink, GraduationCap, FileDown, ImageIcon, Library, Mail, MapPin, Megaphone, Phone, Clock, Quote, Users, Armchair, Check, Bell } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useStore } from "@/lib/store";
 import { CourseCard, DemoNote, EnquiryForm, PageHero, SectionHead } from "@/components/public";
@@ -94,6 +94,7 @@ export function CourseDetailView({ slug }: { slug: string }) {
           </div>
           <div className="mt-6 flex flex-wrap gap-3">
             {c.admissionOpen ? <Link href={`/admission?course=${c.id}`} className="btn bg-white text-slate-900 hover:bg-slate-100">{t("Apply now", "प्रवेश घ्या")}<ArrowRight className="size-4" /></Link> : <span className="btn bg-white/20 text-white">{t("Admissions closed", "प्रवेश बंद")}</span>}
+            <Link href="/brochure" className="btn border border-white/40 text-white hover:bg-white/10"><FileDown className="size-4" aria-hidden />{t("Download brochure", "ब्रोशर डाउनलोड")}</Link>
             <Link href={`/enquiry?course=${c.id}`} className="btn bg-white/15 text-white hover:bg-white/25">{t("Ask a question", "प्रश्न विचारा")}</Link>
           </div>
         </div>
