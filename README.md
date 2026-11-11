@@ -44,6 +44,16 @@ The site shows **genuine Google reviews** through the official Google Places API
 
 Google returns **up to 5 reviews** (selected by Google), refreshed every 6 hours, with the required author attribution. Showing *all* reviews would need the Google Business Profile API (owner sign-in), which needs the real backend.
 
+## Locked brochure download
+
+The **Download brochure** buttons (home hero, call-to-action banner, course pages, footer) open `/brochure`, where the visitor fills the enquiry form first. Each submission is saved in **Admin → Enquiries** with the source "Brochure download", then the visitor gets a download link that works for 10 minutes. The real file address is never sent to the browser, and the file is not in `public/`.
+
+1. Upload the brochure PDF to private storage (for example Vercel Blob) and copy its direct link.
+2. Vercel → Project → Settings → Environment Variables → add `BROCHURE_FILE_URL` (that link) and `BROCHURE_LINK_SECRET` (a random text of at least 32 characters). Enter them only in Vercel.
+3. Redeploy. **Admin → Settings → Locked brochure download** shows a green "Ready" badge.
+
+Until it is set up, the page still saves the enquiry and tells the visitor the team will send the brochure. For local testing you can instead put the file at `private/brochure.pdf` (git-ignored) and set only `BROCHURE_LINK_SECRET`. The 10-minute links are signed (HMAC) and requests are rate-limited per server instance on a best-effort basis; this is a lead gate, not DRM, since anyone who has downloaded the PDF can share it.
+
 ## Successful-student photos
 
 Real results live in `src/lib/seed.ts` (`achievements`) with images in `public/results/`. To add one permanently: put the image in `public/results/`, add an entry, commit, and Vercel redeploys. Admin → Results & Achievements also lets you upload photos and posters, but in this prototype they're saved only in that browser until the backend and cloud storage exist.

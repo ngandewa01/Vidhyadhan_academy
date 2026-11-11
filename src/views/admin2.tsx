@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { Armchair, Check, Download, ExternalLink, Eye, LogIn, LogOut, Pencil, Plus, Printer, RefreshCw, RotateCcw, Send, Undo2, X, Archive } from "lucide-react";
 import { useStore } from "@/lib/store";
@@ -856,6 +856,27 @@ export function Cms({ canManage }: { canManage: boolean }) {
 }
 
 /* ---------------- Settings ---------------- */
+function BrochureCard() {
+  const { t } = useI18n();
+  const [configured, setConfigured] = useState<boolean | null>(null);
+  useEffect(() => {
+    fetch("/api/brochure/status").then((r) => r.json()).then((d) => setConfigured(!!d.configured)).catch(() => setConfigured(false));
+  }, []);
+  return (
+    <Card title={t("Locked brochure download", "लॉक केलेले ब्रोशर डाउनलोड")} actions={configured === null ? null : configured ? <Badge tone="green">{t("Ready", "तयार")}</Badge> : <Badge tone="amber">{t("Not set up yet", "अद्याप सेट केलेले नाही")}</Badge>}>
+      <p className="text-sm text-slate-600">{t("Visitors must fill the enquiry form on the Download brochure page before they get a short-lived download link. Each one is saved in Enquiries with the source \"Brochure download\". The real file link is never shown to visitors.", "ब्रोशर डाउनलोड पानावर चौकशी फॉर्म भरल्यानंतरच अभ्यागतांना थोड्या वेळासाठी चालणारी डाउनलोड लिंक मिळते. प्रत्येक चौकशी 'ब्रोशर डाउनलोड' या स्रोतासह 'चौकशी' मध्ये जतन होते. फाइलची खरी लिंक अभ्यागतांना कधीच दिसत नाही.")}</p>
+      {!configured && (
+        <ol className="mt-3 list-decimal space-y-1.5 pl-5 text-sm text-slate-700">
+          <li>{t("Upload the brochure PDF to private storage (for example Vercel Blob) and copy its direct link.", "ब्रोशर PDF खाजगी स्टोरेजमध्ये (उदा. Vercel Blob) अपलोड करा व तिची थेट लिंक कॉपी करा.")}</li>
+          <li>{t("In Vercel → Project → Settings → Environment Variables, add BROCHURE_FILE_URL (that link) and BROCHURE_LINK_SECRET (a long random text, at least 32 characters). Enter them only in Vercel, never in chat or the code.", "Vercel → Project → Settings → Environment Variables मध्ये BROCHURE_FILE_URL (ती लिंक) व BROCHURE_LINK_SECRET (किमान ३२ अक्षरांचा मोठा यादृच्छिक मजकूर) जोडा. त्या फक्त Vercel मध्येच भरा; चॅटमध्ये किंवा कोडमध्ये कधीही नाही.")}</li>
+          <li>{t("Redeploy. This badge will turn green.", "पुन्हा डिप्लॉय करा. हा बॅज हिरवा होईल.")}</li>
+        </ol>
+      )}
+      {configured === false && <p className="mt-3 text-xs text-slate-500">{t("Until then, the page still saves each enquiry and tells the visitor that your team will send the brochure.", "तोपर्यंत हे पान प्रत्येक चौकशी जतन करते व आपली टीम ब्रोशर पाठवेल असे अभ्यागताला सांगते.")}</p>}
+    </Card>
+  );
+}
+
 export function SettingsAdmin({ canManage }: { canManage: boolean }) {
   const { t } = useI18n();
   const { db, update, isOwner } = useA();
@@ -879,6 +900,7 @@ export function SettingsAdmin({ canManage }: { canManage: boolean }) {
           <Field label={t("Pricing", "किंमत")}>{(id) => <select id={id} disabled={!canManage} className="input" value={s.gst.inclusive ? "in" : "ex"} onChange={(e) => set((st) => { st.gst.inclusive = e.target.value === "in"; }, "gst.inclusive")}><option value="in">{t("Tax inclusive", "कर समाविष्ट")}</option><option value="ex">{t("Tax exclusive", "कर अतिरिक्त")}</option></select>}</Field>
         </div>
       </Card>
+      <BrochureCard />
       <Card title={t("Admission form", "प्रवेश अर्ज")}>
         <div className="flex flex-wrap gap-6">
           <Toggle disabled={!canManage} checked={(s.admissionForm ?? DEFAULT_ADMISSION_FORM).requireAadhaar} onChange={(v) => set((st) => { st.admissionForm = { ...(st.admissionForm ?? DEFAULT_ADMISSION_FORM), requireAadhaar: v }; }, "admission.requireAadhaar")} label={t("Aadhaar number is compulsory", "आधार क्रमांक सक्तीचा")} />

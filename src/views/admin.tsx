@@ -186,7 +186,7 @@ function Enquiries({ canManage }: { canManage: boolean }) {
             <div><dt className="text-slate-500">{t("Qualification", "पात्रता")}</dt><dd>{e.qualification ?? "—"}</dd></div>
             <div><dt className="text-slate-500">{t("Course", "अभ्यासक्रम")}</dt><dd>{l(db.courses.find((c) => c.id === e.courseId)?.name)}</dd></div>
             <div><dt className="text-slate-500">{t("Preferred batch", "पसंतीची बॅच")}</dt><dd>{db.batches.find((b) => b.id === e.batchId)?.name ?? "—"}</dd></div>
-            <div><dt className="text-slate-500">{t("Source", "स्रोत")}</dt><dd>{e.source}</dd></div>
+            <div><dt className="text-slate-500">{t("Source", "स्रोत")}</dt><dd>{e.source === "brochure" ? t("Brochure download", "ब्रोशर डाउनलोड") : e.source}</dd></div>
           </dl>
           {e.message && <p className="mt-2 rounded-md bg-slate-50 p-2 text-sm">“{e.message}”</p>}
           {canManage && (
