@@ -10,8 +10,8 @@ import { WhatsAppIcon } from "@/components/brand";
 import { GoogleReviews, ResultCard } from "@/components/GoogleReviews";
 import { academy } from "@/config/academy";
 import { fmtINR } from "@/lib/utils";
-import { DEFAULT_HOME_PHOTOS, DEFAULT_HOME_SECTIONS } from "@/lib/seed";
-import type { HomePhoto, HomeSectionKey } from "@/lib/types";
+import { resolveHomeSections } from "@/lib/seed";
+import type { HomeSectionKey } from "@/lib/types";
 
 export default function HomeView() {
   const { t, l, d } = useI18n();
@@ -24,9 +24,8 @@ export default function HomeView() {
   const updates = db.updates.filter((u) => u.status === "published").slice(0, 3);
   const minLib = Math.min(...db.libraryPlans.filter((p) => p.kind === "library").map((p) => p.fee));
 
-  const sections = cms.homeSections ?? DEFAULT_HOME_SECTIONS;
+  const sections = resolveHomeSections(cms.homeSections);
   const blocks: Record<HomeSectionKey, ReactNode> = {
-    photos: <PhotoStrip photos={cms.homePhotos ?? DEFAULT_HOME_PHOTOS} />,
     courses: (
       <>
       <section className="container-page py-14">
@@ -201,24 +200,6 @@ export default function HomeView() {
 
       {sections.filter((s) => s.enabled).map((s) => <Fragment key={s.key}>{blocks[s.key]}</Fragment>)}
     </>
-  );
-}
-
-function PhotoStrip({ photos }: { photos: HomePhoto[] }) {
-  const { l } = useI18n();
-  const shown = photos.filter((p) => p.enabled);
-  if (!shown.length) return null;
-  return (
-    <section className="container-page py-10">
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
-        {shown.map((p) => (
-          <figure key={p.id} className="overflow-hidden rounded-xl bg-slate-100">
-            <img src={p.src} alt={l(p.caption)} loading="lazy" className="aspect-[4/3] w-full object-cover" />
-            {l(p.caption) && <figcaption className="p-2 text-sm text-slate-600">{l(p.caption)}</figcaption>}
-          </figure>
-        ))}
-      </div>
-    </section>
   );
 }
 
