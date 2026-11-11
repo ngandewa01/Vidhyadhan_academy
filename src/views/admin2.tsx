@@ -5,7 +5,7 @@ import { Armchair, Check, Download, ExternalLink, Eye, LogIn, LogOut, Pencil, Pl
 import { useStore } from "@/lib/store";
 import { useI18n } from "@/lib/i18n";
 import { attendanceStats, balanceFor, createMembership, membershipFee, createStudent, membershipPaid, paidFor, PAY_METHOD_LABEL, recordPayment } from "@/lib/actions";
-import { buildSeed, resolveHomeSections } from "@/lib/seed";
+import { buildSeed, DEFAULT_DIRECTOR, DEFAULT_STATS, resolveHomeSections } from "@/lib/seed";
 import { addMonths, cn, daysBetween, downloadFile, fmtINR, isValidMobile, nowISO, toCSV, today, uid } from "@/lib/utils";
 import { Badge, BarChart, Card, EmptyState, Field, Modal, Notice, PageHeader, SearchBox, Select, StatCard, StatusBadge, Table, Tabs, Toggle, toast, statusLabel } from "@/components/ui";
 import { ReceiptModal } from "@/components/Receipt";
@@ -13,7 +13,7 @@ import { GoogleReviews } from "@/components/GoogleReviews";
 import { IdCardFace, TICKET_CATS } from "./student";
 import { DATE_LABEL } from "./public-pages";
 import { academy } from "@/config/academy";
-import type { Achievement, Announcement, Testimonial, Channel, ExamUpdate, HomeSection, HomeSectionKey, ImportantDateKind, L, LibraryPlan, PayMethod, PromoCode, Settings, Ticket, UpdateSource } from "@/lib/types";
+import type { Achievement, Announcement, Testimonial, Channel, ExamUpdate, HomeSection, HomeSectionKey, HomeStat, ImportantDateKind, L, LibraryPlan, PayMethod, PromoCode, Settings, Ticket, UpdateSource } from "@/lib/types";
 
 function useA() {
   const db = useStore((s) => s.db);
@@ -674,6 +674,10 @@ function LInput({ label, value, onChange, area }: { label: string; value: L; onC
   );
 }
 const SECTION_LABEL: Record<HomeSectionKey, L> = {
+  director: { en: "Meet our director", mr: "आमचे संचालक" },
+  vision: { en: "Vision & mission (shows once written)", mr: "दृष्टी व ध्येय (लिहिल्यावर दिसेल)" },
+  explore: { en: "Explore quick links", mr: "शोधा – जलद दुवे" },
+  stats: { en: "Numbers (shows once entered)", mr: "आकडेवारी (भरल्यावर दिसेल)" },
   courses: { en: "Courses we offer", mr: "आमचे अभ्यासक्रम" },
   why: { en: "Why choose us", mr: "आम्हालाच का" },
   batches: { en: "Batches & announcements", mr: "बॅचेस व सूचना" },
@@ -689,6 +693,75 @@ function moveItem<T>(arr: T[], i: number, dir: -1 | 1): T[] {
   const next = [...arr];
   [next[i], next[j]] = [next[j], next[i]];
   return next;
+}
+
+function HomeContent({ cms, setCms, canManage }: { cms: Settings["cms"]; setCms: (c: Settings["cms"]) => void; canManage: boolean }) {
+  const { t } = useI18n();
+  const director = cms.director ?? DEFAULT_DIRECTOR;
+  const stats = cms.stats ?? DEFAULT_STATS;
+  const setDirector = (patch: Partial<typeof director>) => setCms({ ...cms, director: { ...director, ...patch } });
+  const setStats = (next: HomeStat[]) => setCms({ ...cms, stats: next });
+  const updateStat = (i: number, patch: Partial<HomeStat>) => setStats(stats.map((s, k) => (k === i ? { ...s, ...patch } : s)));
+  const addPhoto = async (file: File) => setDirector({ photo: await resizeImage(file, 800) });
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card title={t("Meet our director", "आमचे संचालक")}>
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            {director.photo ? <img src={director.photo} alt="" className="h-24 w-20 rounded-lg object-cover ring-1 ring-slate-200" /> : <div className="flex h-24 w-20 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-400">{t("No photo", "फोटो नाही")}</div>}
+            {canManage && (
+              <div className="space-y-2">
+                <input type="file" accept="image/*" className="input" aria-label={t("Director photo", "संचालकांचा फोटो")} onChange={(e) => { const f = e.target.files?.[0]; if (f) addPhoto(f); e.target.value = ""; }} />
+                {director.photo && <button className="btn-ghost btn-sm text-red-600" onClick={() => setDirector({ photo: undefined })}>{t("Remove photo", "फोटो काढा")}</button>}
+              </div>
+            )}
+          </div>
+          <LInput label="Name" value={director.name} onChange={(v) => setDirector({ name: v })} />
+          <LInput label="Title" value={director.title} onChange={(v) => setDirector({ title: v })} />
+          <LInput label="Message" value={director.bio} onChange={(v) => setDirector({ bio: v })} area />
+          <div>
+            <p className="label">{t("Highlights", "वैशिष्ट्ये")}</p>
+            <div className="space-y-2">
+              {director.highlights.map((h, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <div className="flex-1"><LInput label={`#${i + 1}`} value={h} onChange={(v) => setDirector({ highlights: director.highlights.map((x, k) => (k === i ? v : x)) })} /></div>
+                  {canManage && <button className="btn-ghost btn-sm mt-6 text-red-600" onClick={() => setDirector({ highlights: director.highlights.filter((_, k) => k !== i) })}>{t("Delete", "हटवा")}</button>}
+                </div>
+              ))}
+            </div>
+            {canManage && <button className="btn-outline btn-sm mt-2" onClick={() => setDirector({ highlights: [...director.highlights, { en: "", mr: "" }] })}><Plus className="size-4" />{t("Add highlight", "वैशिष्ट्य जोडा")}</button>}
+          </div>
+        </div>
+      </Card>
+      <div className="space-y-4">
+        <Card title={t("Vision & mission", "दृष्टी व ध्येय")}>
+          <p className="mb-3 text-xs text-slate-500">{t("Each card appears on the homepage only after you write it.", "प्रत्येक कार्ड लिहिल्यानंतरच मुख्यपृष्ठावर दिसेल.")}</p>
+          <div className="space-y-3">
+            <LInput label="Vision" value={cms.vision ?? { en: "", mr: "" }} onChange={(v) => setCms({ ...cms, vision: v })} area />
+            <LInput label="Mission" value={cms.mission ?? { en: "", mr: "" }} onChange={(v) => setCms({ ...cms, mission: v })} area />
+          </div>
+        </Card>
+        <Card title={t("Numbers", "आकडेवारी")}>
+          <p className="mb-3 text-xs text-slate-500">{t("Enter only real figures, for example 500+. A number shows on the homepage only when it has a value and is switched on.", "फक्त खरे आकडे भरा, उदा. ५००+. मूल्य भरले व स्विच चालू असेल तरच आकडा दिसेल.")}</p>
+          <div className="space-y-3">
+            {stats.map((s, i) => (
+              <div key={s.id} className="rounded-lg border border-slate-200 p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <input className="input max-w-[160px]" disabled={!canManage} placeholder={t("Value, e.g. 500+", "मूल्य, उदा. ५००+")} value={s.value} onChange={(e) => updateStat(i, { value: e.target.value })} />
+                  <span className="flex items-center gap-2">
+                    <Toggle disabled={!canManage} checked={s.enabled} onChange={(v) => updateStat(i, { enabled: v })} label={t("Show", "दाखवा")} />
+                    {canManage && <button className="btn-ghost btn-sm text-red-600" onClick={() => setStats(stats.filter((_, k) => k !== i))}>{t("Delete", "हटवा")}</button>}
+                  </span>
+                </div>
+                <LInput label="Label" value={s.label} onChange={(v) => updateStat(i, { label: v })} />
+              </div>
+            ))}
+          </div>
+          {canManage && <button className="btn-outline btn-sm mt-3" onClick={() => setStats([...stats, { id: uid("st"), value: "", label: { en: "", mr: "" }, enabled: true }])}><Plus className="size-4" />{t("Add number", "आकडा जोडा")}</button>}
+        </Card>
+      </div>
+    </div>
+  );
 }
 
 function HomeLayout({ cms, setCms, canManage }: { cms: Settings["cms"]; setCms: (c: Settings["cms"]) => void; canManage: boolean }) {
@@ -727,7 +800,7 @@ export function Cms({ canManage }: { canManage: boolean }) {
   return (
     <div>
       <PageHeader title={t("Website CMS", "वेबसाइट CMS")} subtitle={t("Edit public website content without a developer.", "डेव्हलपरशिवाय सार्वजनिक संकेतस्थळ बदला.")} actions={<><a href="/" target="_blank" className="btn-outline"><ExternalLink className="size-4" />{t("View site", "साइट पहा")}</a>{canManage && <button className="btn-primary" onClick={save}>{t("Save & publish", "जतन व प्रकाशित")}</button>}</>} />
-      <Tabs tabs={[{ id: "home", label: t("Home & about", "मुख्यपृष्ठ व माहिती") }, { id: "layout", label: t("Homepage layout", "मुख्यपृष्ठ मांडणी") }, { id: "ann", label: t("Announcements", "सूचना") }, { id: "faq", label: "FAQ" }, { id: "faculty", label: t("Faculty profiles", "प्राध्यापक") }, { id: "seo", label: "SEO" }]} value={tab} onChange={setTab} />
+      <Tabs tabs={[{ id: "home", label: t("Home & about", "मुख्यपृष्ठ व माहिती") }, { id: "layout", label: t("Homepage layout", "मुख्यपृष्ठ मांडणी") }, { id: "director", label: t("Director, vision & numbers", "संचालक, दृष्टी व आकडेवारी") }, { id: "ann", label: t("Announcements", "सूचना") }, { id: "faq", label: "FAQ" }, { id: "faculty", label: t("Faculty profiles", "प्राध्यापक") }, { id: "seo", label: "SEO" }]} value={tab} onChange={setTab} />
       {tab === "home" && (
         <div className="space-y-4">
           <Card title={t("Hero", "मुख्य भाग")}><div className="space-y-3"><LInput label="Headline" value={cms.heroTitle} onChange={(v) => setCms({ ...cms, heroTitle: v })} /><LInput label="Subtitle" value={cms.heroSubtitle} onChange={(v) => setCms({ ...cms, heroSubtitle: v })} area /></div></Card>
@@ -737,6 +810,7 @@ export function Cms({ canManage }: { canManage: boolean }) {
         </div>
       )}
       {tab === "layout" && <HomeLayout cms={cms} setCms={setCms} canManage={canManage} />}
+      {tab === "director" && <HomeContent cms={cms} setCms={setCms} canManage={canManage} />}
       {tab === "ann" && (
         <>
           {canManage && <button className="btn-outline mb-3" onClick={() => setAnn({ id: "", title: { en: "", mr: "" }, body: { en: "", mr: "" }, date: today(), pinned: false, published: true })}><Plus className="size-4" />{t("New announcement", "नवीन सूचना")}</button>}
