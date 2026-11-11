@@ -34,8 +34,8 @@ const classrooms: T.Classroom[] = [
 
 const L = (en: string, mr: string): T.L => ({ en, mr });
 
-export const DEFAULT_HOME_SECTIONS: T.HomeSection[] = (["photos", "courses", "why", "batches", "results", "reviews", "library", "cta"] as T.HomeSectionKey[]).map((key) => ({ key, enabled: true }));
-export const DEFAULT_HOME_PHOTOS: T.HomePhoto[] = [{ id: "ph_banner", src: "/brand/banner.jpg", caption: L("", ""), enabled: true }];
+export const DEFAULT_HOME_SECTIONS: T.HomeSection[] = (["results", "courses", "why", "batches", "reviews", "library", "cta", "photos"] as T.HomeSectionKey[]).map((key) => ({ key, enabled: key !== "photos" }));
+export const DEFAULT_HOME_PHOTOS: T.HomePhoto[] = [];
 
 const courses: T.Course[] = [
   {

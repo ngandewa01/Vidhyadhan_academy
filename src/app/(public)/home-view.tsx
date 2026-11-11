@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactNode, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowRight, BookOpenCheck, CalendarDays, CheckCircle2, GraduationCap, Library, Megaphone, Phone, Trophy, Users, BellRing } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -20,7 +20,7 @@ export default function HomeView() {
   const courses = db.courses.filter((c) => c.published);
   const upcoming = [...db.batches].filter((b) => b.admissionOpen).sort((a, b) => a.startDate.localeCompare(b.startDate)).slice(0, 4);
   const anns = db.announcements.filter((a) => a.published).sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.date.localeCompare(a.date)).slice(0, 3);
-  const results = db.achievements.filter((a) => a.published && a.consent).sort((a, b) => Number(!!b.featured) - Number(!!a.featured)).slice(0, 3);
+  const results = db.achievements.filter((a) => a.published && a.consent).sort((a, b) => Number(!!b.featured) - Number(!!a.featured)).slice(0, 12);
   const updates = db.updates.filter((u) => u.status === "published").slice(0, 3);
   const minLib = Math.min(...db.libraryPlans.filter((p) => p.kind === "library").map((p) => p.fee));
 
@@ -103,8 +103,8 @@ export default function HomeView() {
         <div className="container-page">
           <SectionHead title={t("Our successful students", "आमचे यशस्वी विद्यार्थी")} subtitle={t("Proud moments of the Vidyadhan family", "विद्याधन परिवाराचे अभिमानाचे क्षण")} action={<Link href="/results" className="btn-outline">{t("View all", "सर्व पहा")}</Link>} />
           {results.length ? (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{results.map((r) => <ResultCard key={r.id} a={r} courseName={l(db.courses.find((c) => c.id === r.courseId)?.name)} />)}</div>
-          ) : <p className="text-sm text-slate-500">{t("Results will be published here.", "निकाल येथे प्रसिद्ध होतील.")}</p>}
+            <ResultsCarousel items={results.map((r) => <ResultCard key={r.id} a={r} courseName={l(db.courses.find((c) => c.id === r.courseId)?.name)} />)} />
+          ) :  <p className="text-sm text-slate-500">{t("Results will be published here.", "निकाल येथे प्रसिद्ध होतील.")}</p>}
         </div>
       </section>
       </>
@@ -219,5 +219,37 @@ function PhotoStrip({ photos }: { photos: HomePhoto[] }) {
         ))}
       </div>
     </section>
+  );
+}
+
+function ResultsCarousel({ items }: { items: ReactNode[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const paused = useRef(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || items.length < 2) return;
+    const id = setInterval(() => {
+      if (paused.current) return;
+      const step = (el.firstElementChild as HTMLElement | null)?.offsetWidth ?? el.clientWidth;
+      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4;
+      el.scrollTo({ left: atEnd ? 0 : el.scrollLeft + step + 16, behavior: "smooth" });
+    }, 3500);
+    return () => clearInterval(id);
+  }, [items.length]);
+  const pause = () => { paused.current = true; };
+  const resume = () => { paused.current = false; };
+  return (
+    <div
+      ref={ref}
+      onPointerEnter={pause}
+      onPointerLeave={resume}
+      onTouchStart={pause}
+      onTouchEnd={() => setTimeout(resume, 4000)}
+      className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+    >
+      {items.map((item, i) => (
+        <div key={i} className="w-[85%] shrink-0 snap-start sm:w-[320px]">{item}</div>
+      ))}
+    </div>
   );
 }
