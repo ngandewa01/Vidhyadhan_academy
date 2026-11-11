@@ -205,28 +205,31 @@ export default function HomeView() {
 
 function ResultsCarousel({ items }: { items: ReactNode[] }) {
   const ref = useRef<HTMLDivElement>(null);
-  const paused = useRef(false);
+  const holdUntil = useRef(0);
   useEffect(() => {
     const el = ref.current;
     if (!el || items.length < 2) return;
     const id = setInterval(() => {
-      if (paused.current) return;
-      const step = (el.firstElementChild as HTMLElement | null)?.offsetWidth ?? el.clientWidth;
-      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 4;
-      el.scrollTo({ left: atEnd ? 0 : el.scrollLeft + step + 16, behavior: "smooth" });
-    }, 3500);
+      if (Date.now() < holdUntil.current || document.hidden) return;
+      const before = el.scrollLeft;
+      const atEnd = before + el.clientWidth >= el.scrollWidth - 4;
+      const next = ([...el.children] as HTMLElement[]).find((c) => c.offsetLeft > before + 24);
+      const target = atEnd || !next ? 0 : next.offsetLeft;
+      el.scrollTo({ left: target, behavior: "smooth" });
+      // some mobile browsers ignore smooth programmatic scrolls inside snap containers
+      setTimeout(() => { if (Math.abs(el.scrollLeft - before) < 2) el.scrollLeft = target; }, 900);
+    }, 3000);
     return () => clearInterval(id);
   }, [items.length]);
-  const pause = () => { paused.current = true; };
-  const resume = () => { paused.current = false; };
+  const hold = (ms: number) => () => { holdUntil.current = Date.now() + ms; };
   return (
     <div
       ref={ref}
-      onPointerEnter={pause}
-      onPointerLeave={resume}
-      onTouchStart={pause}
-      onTouchEnd={() => setTimeout(resume, 4000)}
-      className="-mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      onTouchStart={hold(6000)}
+      onTouchEnd={hold(3000)}
+      onPointerDown={hold(6000)}
+      onWheel={hold(4000)}
+      className="relative -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       {items.map((item, i) => (
         <div key={i} className="w-[85%] shrink-0 snap-start sm:w-[320px]">{item}</div>
