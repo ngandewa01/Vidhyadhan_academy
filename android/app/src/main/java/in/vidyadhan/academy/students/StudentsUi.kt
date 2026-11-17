@@ -75,13 +75,15 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
     var filter by rememberSaveable { mutableStateOf("all") }
     var batch by rememberSaveable { mutableStateOf("") }
     val t = today()
-    val total = all.sumOf { it.totalFee }
-    val paid = all.sumOf { minOf(it.paid, it.totalFee) }
+    val current = all.filter { it.current }
+    val former = all.filter { !it.current }
+    val total = current.sumOf { it.totalFee }
+    val paid = current.sumOf { minOf(it.paid, it.totalFee) }
     val batches = (AppSettings.batchList + all.map { it.batch }).filter { it.isNotBlank() }.distinct()
-    val shown = all.filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) }
+    val shown = (if (filter == "former") former else current).filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) }
         .filter { batch.isEmpty() || it.batch == batch }
         .filter { when (filter) { "due" -> it.totalFee > it.paid; "paid" -> it.totalFee <= it.paid; else -> true } }
-    HeroPage("Students", "${all.size} enrolled", header = {
+    HeroPage("Students", "${current.size} studying now" + if (former.isNotEmpty()) " · ${former.size} former" else "", header = {
         Spacer(Modifier.height(16.dp))
         SearchBox(q, { q = it }, "Search by name or mobile")
         Spacer(Modifier.height(12.dp))
@@ -93,7 +95,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
     }) {
         Box(Modifier.fillMaxSize()) {
             Column {
-                Segmented(listOf("all" to "All", "due" to "Fees due", "paid" to "Fully paid"), filter, { filter = it }, Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 4.dp))
+                Segmented(listOf("all" to "All", "due" to "Fees due", "paid" to "Paid", "former" to "Former"), filter, { filter = it }, Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 4.dp))
                 if (batches.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     (listOf("") + batches).forEach { b ->
                         val sel = b == batch
@@ -104,8 +106,8 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
                     }
                 }
                 if (shown.isEmpty()) EmptyState(Icons.Rounded.School,
-                    if (all.isEmpty()) "No students yet" else "No matches",
-                    if (all.isEmpty()) "Add your first MPSC student to start tracking fees." else "Try a different name, batch or filter.",
+                    if (all.isEmpty()) "No students yet" else if (filter == "former") "No former students" else "No matches",
+                    if (all.isEmpty()) "Add your first MPSC student to start tracking fees." else if (filter == "former") "Students who finish or leave are kept here with their records." else "Try a different name, batch or filter.",
                     action = if (all.isEmpty()) "Add student" else null, onAction = onAdd)
                 else LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 110.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(shown, key = { it.id }) { s -> StudentCard(s, t) { onOpen(s.id) } }
@@ -133,7 +135,8 @@ private fun StudentCard(s: StudentWithFees, t: Long, onClick: () -> Unit) {
                     Text(s.mobile, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
                 }
             }
-            if (left > 0) Column(horizontalAlignment = Alignment.End) {
+            if (!s.current) StatusChip(s.leftReason.ifBlank { "Former" }, Tone.Neutral)
+            else if (left > 0) Column(horizontalAlignment = Alignment.End) {
                 Text(rupees(left), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron700)
                 Text("pending", style = MaterialTheme.typography.labelSmall, color = Brand.Slate400)
             } else StatusChip("Paid", Tone.Good)
@@ -143,7 +146,8 @@ private fun StudentCard(s: StudentWithFees, t: Long, onClick: () -> Unit) {
         Spacer(Modifier.height(10.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${rupees(minOf(s.paid, s.totalFee))} of ${rupees(s.totalFee)} paid", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-            if (left > 0 && s.nextDue != null) {
+            if (!s.current) Text("Left ${s.leftOn?.let { shortDate(it) } ?: ""}" + if (left > 0) " · ${rupees(left)} unpaid" else "", style = MaterialTheme.typography.labelMedium, color = if (left > 0) Brand.Red600 else Brand.Slate500)
+            else if (left > 0 && s.nextDue != null) {
                 if (s.nextDue < t) StatusChip("Overdue · ${shortDate(s.nextDue)}", Tone.Bad)
                 else if (s.nextDue == t) StatusChip("${rupees(s.nextDueAmount)} today", Tone.Warn)
                 else StatusChip("${rupees(s.nextDueAmount)} · ${shortDate(s.nextDue)}", Tone.Info)
@@ -304,6 +308,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     var saved by remember { mutableStateOf<StudentPayment?>(null) }
     var showAadhaar by remember { mutableStateOf(false) }
     var viewPhoto by remember { mutableStateOf<String?>(null) }
+    var leaving by remember { mutableStateOf(false) }
     val st = s ?: return
     val t = today()
     val paid = payments.sumOf { it.amount }
@@ -335,6 +340,15 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
         Sheet {
             Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Spacer(Modifier.height(4.dp))
+                if (st.leftOn != null) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Brand.Slate50).border(1.dp, Brand.Slate200, RoundedCornerShape(20.dp)).padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    IconTile(Icons.Rounded.History, Brand.Slate600, 40.dp); Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Former student", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                        Text("${st.leftReason.ifBlank { "Left" }} · ${st.leftOn.asDate()}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                    }
+                    PillButton("Make current", { vm.update(st.copy(leftOn = null, leftReason = "")) }, Brand.Blue700)
+                }
                 Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         ProgressRing(frac, 108.dp, 12.dp, Brand.Green500, Brand.Line) {
@@ -388,6 +402,16 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                     }
                 }
                 NotesSection("STUDENT", st.id)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    SoftButton("Admission form", {
+                        shareAdmissionForm(ctx, "ADMISSION FORM  /  प्रवेश अर्ज", "${AppSettings.receiptPrefix}-A${st.id.toString().padStart(4, '0')}", st.name, st.photo,
+                            listOf("Mobile" to "+91 ${st.mobile}", "Aadhaar" to st.aadhaar.chunked(4).joinToString(" ").ifBlank { "—" },
+                                "Date of birth" to (st.dob?.asDate() ?: "—"), "Course" to st.course, "Batch" to st.batch.ifBlank { "—" },
+                                "Joining date" to st.joinedOn.asDate(), "Total fee" to rupees(st.totalFee)),
+                            "Fee plan", listOf(listOf("No.", "Due date", "Amount")) + plan.map { listOf("${it.number}", it.dueOn.asDate(), rupees(it.amount)) })
+                    }, Modifier.weight(1f), icon = Icons.Rounded.Description)
+                    if (st.leftOn == null) SoftButton("Former student", { leaving = true }, Modifier.weight(1f), color = Brand.Slate600, icon = Icons.Rounded.History)
+                }
                 Spacer(Modifier.height(20.dp))
             }
         }
@@ -441,6 +465,19 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                     SoftButton("SMS", { Contact.sms(ctx, st.mobile, text); remind = false }, Modifier.weight(1f), icon = Icons.Rounded.Sms)
                 }
                 Text("The app opens with the message typed. You press send.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate400)
+            }
+        }
+    }
+    if (leaving) {
+        var reason by remember { mutableStateOf("Completed the course") }
+        var date by remember { mutableLongStateOf(t) }
+        ModalBottomSheet({ leaving = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+            Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SheetTitle("Move to former students", "${st.name}'s records and payments are kept")
+                ChoicePills(listOf("Completed the course", "Left midway", "Selected in exam 🎉", "Other"), reason, { reason = it })
+                DateField("Date", date, { date = it })
+                if (balance > 0) Text("${rupees(balance)} is still unpaid. It stays visible under Former.", style = MaterialTheme.typography.bodySmall, color = Brand.Red600)
+                PrimaryButton("Move to former", { vm.update(st.copy(leftOn = date, leftReason = reason)); leaving = false; onBack() }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Check)
             }
         }
     }

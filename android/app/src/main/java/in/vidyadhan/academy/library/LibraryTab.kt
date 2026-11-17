@@ -53,6 +53,12 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     fun seatHistory(seat: Int) = dao.seatHistory(seat)
     fun add(m: LibraryMember, pays: List<LibraryPayment>, onSaved: (Long) -> Unit = {}) = viewModelScope.launch { onSaved(dao.addMember(m, pays)) }
     fun update(m: LibraryMember, onSaved: (Long) -> Unit = {}) = viewModelScope.launch { dao.updateMember(m); onSaved(m.id) }
+
+    /** Changes the type of one seat; the member sitting there (if any) moves to the new type name too. */
+    fun setSeatType(n: Int, chosen: SeatType) = viewModelScope.launch {
+        reassignSeat(n, chosen, dao.seatTypesNow()).forEach { dao.updateType(it) }
+        dao.allMembers().filter { it.active && it.seatNo == n && it.seatType != chosen.name }.forEach { dao.updateMember(it.copy(seatType = chosen.name)) }
+    }
     fun delete(m: LibraryMember) = viewModelScope.launch { dao.deleteMember(m) }
     fun pay(m: LibraryMember, kind: String, amount: Long, mode: String, onSaved: (LibraryPayment) -> Unit = {}) = viewModelScope.launch {
         val p = LibraryPayment(memberId = m.id, kind = kind, amount = amount, paidOn = today(), mode = mode)
@@ -101,6 +107,7 @@ private fun LibraryMain(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Lon
     val types by vm.types.collectAsStateWithLifecycle()
     var view by rememberSaveable { mutableStateOf("seats") }
     var seatSheet by remember { mutableStateOf<Int?>(null) }
+    var typeMode by rememberSaveable { mutableStateOf(false) }
     val active = members.filter { it.active }
     val past = members.filter { !it.active }
     val bySeat = active.associateBy { it.seatNo }
@@ -133,9 +140,19 @@ private fun LibraryMain(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Lon
                     Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
                 when (view) {
                     "seats" -> {
+                        if (typeMode) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(18.dp)).background(Brand.Saffron50)
+                            .border(1.dp, Brand.Saffron200, RoundedCornerShape(18.dp)).padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.TouchApp, null, tint = Brand.Saffron700); Spacer(Modifier.width(10.dp))
+                            Text("Tap a seat to switch it between ${types.joinToString(" and ") { it.name }}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Brand.Saffron800)
+                            PillButton("Done", { typeMode = false }, Brand.Saffron600, Icons.Rounded.Check)
+                        }
                         Column(Modifier.padding(horizontal = 18.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                Legend(Color.White, Brand.Green500, "Free"); Legend(Brand.Blue700, Brand.Blue700, "Taken"); Legend(Brand.Red50, Brand.Red500, "Fee due")
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    Legend(Color.White, Brand.Green500, "Free"); Legend(Brand.Blue700, Brand.Blue700, "Taken"); Legend(Brand.Red50, Brand.Red500, "Fee due")
+                                }
+                                if (!typeMode) Text("Set seat types", Modifier.clip(RoundedCornerShape(50)).background(Brand.Blue50).clickable { typeMode = true }.padding(horizontal = 10.dp, vertical = 5.dp),
+                                    style = MaterialTheme.typography.labelMedium, color = Brand.Blue700)
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 types.forEach { ty ->
@@ -152,7 +169,13 @@ private fun LibraryMain(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Lon
                         }
                         LazyVerticalGrid(GridCells.Adaptive(60.dp), contentPadding = PaddingValues(16.dp, 4.dp, 16.dp, 110.dp),
                             horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            items((1..total).toList()) { n -> SeatTile(n, bySeat[n], typeForSeat(n, types)?.icon ?: "CHAIR", t) { m -> if (m == null) seatSheet = n else onOpen(m.id) } }
+                            items((1..total).toList()) { n ->
+                                val cur = typeForSeat(n, types)
+                                SeatTile(n, bySeat[n], cur?.icon ?: "CHAIR", t, highlight = typeMode && cur?.icon == "LEGROOM") { m ->
+                                    if (typeMode) { if (types.isNotEmpty()) vm.setSeatType(n, types[(types.indexOfFirst { it.id == cur?.id } + 1) % types.size]) }
+                                    else if (m == null) seatSheet = n else onOpen(m.id)
+                                }
+                            }
                         }
                     }
                     "members" -> if (active.isEmpty()) EmptyState(Icons.Rounded.LocalLibrary, "No members yet", "Tap a free seat on the seat map to add someone.")
@@ -183,6 +206,9 @@ private fun LibraryMain(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Lon
                         Text(listOfNotNull(ty?.name, ty?.let { "${rupees(it.fee)}/month" }).joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
                     }
                 }
+                Text("Seat type", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                ChoicePills(types.map { it.name }, ty?.name ?: "", { name -> types.firstOrNull { it.name == name }?.let { vm.setSeatType(n, it) } },
+                    captions = types.associate { it.name to "${rupees(it.fee)}/month" })
                 PrimaryButton("Add a member to seat $n", { seatSheet = null; onAdd(n) }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.PersonAdd)
                 SeatHistory(history, onOpen = { seatSheet = null; onOpen(it) })
             }
@@ -244,14 +270,14 @@ private fun MemberCard(m: LibraryMember, types: List<SeatType>, t: Long, onClick
 }
 
 @Composable
-private fun SeatTile(n: Int, m: LibraryMember?, icon: String, t: Long, onClick: (LibraryMember?) -> Unit) {
+private fun SeatTile(n: Int, m: LibraryMember?, icon: String, t: Long, highlight: Boolean = false, onClick: (LibraryMember?) -> Unit) {
     val due = m != null && m.validTill < t
     val shape = RoundedCornerShape(18.dp)
     Column(
         Modifier.aspectRatio(0.92f).let { if (m != null && !due) it.shadow(6.dp, shape, spotColor = Brand.Blue800.copy(alpha = 0.4f)) else it }
             .clip(shape)
             .background(when { m == null -> Brush.linearGradient(listOf(Color.White, Color.White)); due -> Brush.linearGradient(listOf(Brand.Red50, Brand.Red100)); else -> PrimaryBrush })
-            .border(1.5.dp, when { m == null -> Brand.Green500.copy(alpha = 0.30f); due -> Brand.Red500.copy(alpha = 0.5f); else -> Color.Transparent }, shape)
+            .border(if (highlight) 3.dp else 1.5.dp, when { highlight -> Brand.Saffron500; m == null -> Brand.Green500.copy(alpha = 0.30f); due -> Brand.Red500.copy(alpha = 0.5f); else -> Color.Transparent }, shape)
             .pressable { onClick(m) }.padding(6.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
@@ -427,7 +453,7 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     val due = m.validTill < t
     val icon = types.firstOrNull { it.name == m.seatType }?.icon ?: "CHAIR"
     HideBottomNav()
-    val remindText = "नमस्कार ${m.name}, विद्याधन अकॅडमी लायब्ररी: तुमची मासिक फी ${rupees(m.monthlyFee)} ${m.validTill.asDate()} रोजी देय आहे. धन्यवाद."
+    val remindText = `in`.vidyadhan.academy.Templates.fill("library", true, mapOf("name" to m.name, "amount" to rupees(m.monthlyFee), "date" to m.validTill.asDate()))
 
     fun receipt(p: LibraryPayment) = shareReceipt(ctx, ReceiptData(
         "${AppSettings.receiptPrefix}-L${p.id.toString().padStart(5, '0')}", p.paidOn,
@@ -523,6 +549,12 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                     }
                 }
                 NotesSection("MEMBER", m.id)
+                SoftButton("Admission form (PDF)", {
+                    shareAdmissionForm(ctx, "LIBRARY ADMISSION  /  लायब्ररी प्रवेश", "${AppSettings.receiptPrefix}-LA${m.id.toString().padStart(4, '0')}", m.name, m.photo,
+                        listOf("Mobile" to "+91 ${m.mobile}", "Aadhaar" to m.aadhaar.chunked(4).joinToString(" ").ifBlank { "—" }, "Date of birth" to (m.dob?.asDate() ?: "—"),
+                            "Seat" to "${m.seatNo} · ${m.seatType}", "Locker" to (if (m.hasLocker) lockerLabel(m) else "No"), "Joining date" to m.joinedOn.asDate(),
+                            "Monthly fee" to rupees(m.monthlyFee), "Deposit" to rupees(m.deposit)))
+                }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Description)
                 SeatHistory(history, onOpen, excludeId = m.id)
                 if (m.active) SoftButton("Member left · free seat ${m.seatNo}", { vacate = true }, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.AutoMirrored.Rounded.Logout)
                 Spacer(Modifier.height(20.dp))

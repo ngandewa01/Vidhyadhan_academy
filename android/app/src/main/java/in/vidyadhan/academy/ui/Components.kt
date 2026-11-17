@@ -390,7 +390,7 @@ fun SoftButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier,
 fun RoundAction(icon: ImageVector, label: String, color: Color, onClick: () -> Unit, glass: Boolean = false, modifier: Modifier = Modifier) {
     Column(modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
-            Modifier.size(54.dp).clip(RoundedCornerShape(18.dp))
+            Modifier.size(52.dp).clip(RoundedCornerShape(18.dp))
                 .background(if (glass) Brush.linearGradient(listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.10f))) else Brush.linearGradient(listOf(color.copy(alpha = 0.85f), color)))
                 .let { if (glass) it.border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(18.dp)) else it },
             Alignment.Center,

@@ -80,6 +80,8 @@ private enum class Tab(val label: String, val on: ImageVector, val off: ImageVec
 private fun AppShell(lock: LockStore) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
     var settings by rememberSaveable { mutableStateOf(false) }
+    var search by rememberSaveable { mutableStateOf(false) }
+    var broadcast by rememberSaveable { mutableStateOf(false) }
     var pending by remember { mutableStateOf<Go?>(null) }
     var pendingId by remember { mutableLongStateOf(0L) }
     val hider = remember { mutableIntStateOf(0) }
@@ -91,6 +93,8 @@ private fun AppShell(lock: LockStore) {
     fun go(g: Go, id: Long) {
         when (g) {
             Go.Settings, Go.Backup -> settings = true
+            Go.Search -> search = true
+            Go.Broadcast -> broadcast = true
             Go.Students, Go.NewStudent, Go.Student -> tab = Tab.Students
             Go.Enquiries, Go.NewEnquiry, Go.Enquiry -> tab = Tab.Enquiries
             Go.Library, Go.NewMember, Go.Member -> tab = Tab.Library
@@ -120,6 +124,12 @@ private fun AppShell(lock: LockStore) {
             }
             AnimatedVisibility(settings, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
                 SettingsTab(lock, openBackup = pending == Go.Backup, onOpened = done, onClose = { settings = false })
+            }
+            AnimatedVisibility(broadcast, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
+                `in`.vidyadhan.academy.home.BroadcastScreen(onClose = { broadcast = false })
+            }
+            AnimatedVisibility(search, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
+                `in`.vidyadhan.academy.home.SearchScreen(onClose = { search = false }, onGo = ::go)
             }
         }
     }

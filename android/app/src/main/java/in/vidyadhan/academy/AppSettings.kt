@@ -40,5 +40,8 @@ object AppSettings {
     var lockerFee: Int get() = get("lockerFee", "0").toInt(); set(v) = put("lockerFee", v.toString())
     var lockerDeposit: Int get() = get("lockerDep", "0").toInt(); set(v) = put("lockerDep", v.toString())
     var lockerCount: Int get() = get("lockerCount", "20").toInt(); set(v) = put("lockerCount", v.toString())
+    fun template(key: String, marathi: Boolean): String? = s["tpl_${key}_${if (marathi) "mr" else "en"}"]?.takeIf { it.isNotBlank() }
+    fun setTemplate(key: String, marathi: Boolean, text: String) = put("tpl_${key}_${if (marathi) "mr" else "en"}", text)
+    var telegramLink: String get() = get("tgLink", ""); set(v) = put("tgLink", v.trim())
     var updateUrl: String get() = get("updUrl", ""); set(v) = put("updUrl", v)
 }

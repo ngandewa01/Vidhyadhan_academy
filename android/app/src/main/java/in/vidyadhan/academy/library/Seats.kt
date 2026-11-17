@@ -60,3 +60,29 @@ fun SeatIcon(icon: String, tint: Color, size: Dp = 20.dp, badgeBg: Color = Color
         ) { Icon(Icons.Rounded.Lock, null, tint = tint, modifier = Modifier.size(size * 0.38f)) }
     }
 }
+
+/** Writes a set of seat numbers back as short ranges: {1,2,3,7} → "1-3, 7". */
+fun formatSeats(seats: Set<Int>): String {
+    val sorted = seats.sorted()
+    val out = mutableListOf<String>()
+    var i = 0
+    while (i < sorted.size) {
+        var j = i
+        while (j + 1 < sorted.size && sorted[j + 1] == sorted[j] + 1) j++
+        out += if (j > i) "${sorted[i]}-${sorted[j]}" else "${sorted[i]}"
+        i = j + 1
+    }
+    return out.joinToString(", ")
+}
+
+/** Gives seat [n] the type [chosen]: removes it from every other type's list. The default type (no list) needs no entry. */
+fun reassignSeat(n: Int, chosen: SeatType, types: List<SeatType>): List<SeatType> {
+    val default = types.firstOrNull { it.seats.isBlank() }
+    return types.mapNotNull { t ->
+        val set = parseSeats(t.seats).toMutableSet()
+        val before = set.toSet()
+        set.remove(n)
+        if (t.id == chosen.id && t.id != default?.id) set.add(n)
+        if (set == before) null else t.copy(seats = formatSeats(set))
+    }
+}

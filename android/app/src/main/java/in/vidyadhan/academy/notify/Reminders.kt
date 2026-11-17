@@ -56,7 +56,7 @@ class DailyWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
         val db = AppDb.get(applicationContext)
         val today = LocalDate.now().toEpochDay()
         val enq = db.enquiries().dueCount(today)
-        val all = `in`.vidyadhan.academy.students.studentsWithFeesNow(db.students())
+        val all = `in`.vidyadhan.academy.students.studentsWithFeesNow(db.students()).filter { it.current }
         val fees = all.count { it.nextDue != null && it.nextDue <= today }
         val now = LocalDate.now()
         val bdays = all.count { `in`.vidyadhan.academy.home.isBirthday(it.dob, now) } +

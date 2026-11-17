@@ -18,6 +18,7 @@ class StudentsViewModel(app: Application) : AndroidViewModel(app) {
     fun save(s: Student, plan: List<Installment>, onSaved: (Long) -> Unit = {}) = viewModelScope.launch {
         if (s.id == 0L) onSaved(dao.create(s, plan)) else { dao.replacePlan(s, plan); onSaved(s.id) }
     }
+    fun update(s: Student) = viewModelScope.launch { AppDb.get(getApplication()).students().update(s) }
     fun delete(s: Student) = viewModelScope.launch { dao.delete(s) }
     fun pay(p: StudentPayment, onSaved: (StudentPayment) -> Unit = {}) = viewModelScope.launch {
         val id = dao.insertPayment(p); onSaved(p.copy(id = id))
