@@ -37,5 +37,8 @@ object AppSettings {
     var defaultInstallments: Int get() = get("inst", "3").toInt(); set(v) = put("inst", v.toString())
     var lateFeeOn: Boolean get() = get("lateOn", "false") == "true"; set(v) = put("lateOn", v.toString())
     var lateFeePerDay: Int get() = get("lateFee", "10").toInt(); set(v) = put("lateFee", v.toString())
+    var lockerFee: Int get() = get("lockerFee", "0").toInt(); set(v) = put("lockerFee", v.toString())
+    var lockerDeposit: Int get() = get("lockerDep", "0").toInt(); set(v) = put("lockerDep", v.toString())
+    var lockerCount: Int get() = get("lockerCount", "20").toInt(); set(v) = put("lockerCount", v.toString())
     var updateUrl: String get() = get("updUrl", ""); set(v) = put("updUrl", v)
 }

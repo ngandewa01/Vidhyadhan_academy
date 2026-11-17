@@ -34,4 +34,21 @@ class MigrationTest {
         db.query("SELECT icon FROM SeatType ORDER BY id").use { c -> c.moveToFirst(); assertEquals("CHAIR", c.getString(0)); c.moveToNext(); assertEquals("LOCKER", c.getString(0)) }
         db.query("SELECT COUNT(*) FROM Enquiry").use { c -> c.moveToFirst(); assertEquals(1, c.getInt(0)) }
     }
+
+    @Test fun v3ToV4TurnsLockerSeatsIntoLockerAddOn() {
+        helper.createDatabase("mig4.db", 3).apply {
+            execSQL("INSERT INTO SeatType(name,fee,deposit,regFee,seats,icon) VALUES('Normal',600,500,100,'','CHAIR')")
+            execSQL("INSERT INTO SeatType(name,fee,deposit,regFee,seats,icon) VALUES('With locker',800,500,100,'','LOCKER')")
+            execSQL("INSERT INTO SeatType(name,fee,deposit,regFee,seats,icon) VALUES('Extra leg room',700,500,100,'','LEGROOM')")
+            execSQL("INSERT INTO LibraryMember(name,mobile,aadhaar,seatNo,seatType,monthlyFee,deposit,depositPaid,joinedOn,validTill,active,photo,aadhaarPhoto) VALUES('A','9000000001','',3,'With locker',800,500,1,20000,20030,1,'','')")
+            execSQL("INSERT INTO LibraryMember(name,mobile,aadhaar,seatNo,seatType,monthlyFee,deposit,depositPaid,joinedOn,validTill,active,photo,aadhaarPhoto) VALUES('B','9000000002','',9,'Extra leg room',700,500,1,20000,20030,1,'','')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("mig4.db", 4, true)
+        db.query("SELECT seatType, lockerNo, monthlyFee FROM LibraryMember ORDER BY name").use { c ->
+            c.moveToFirst(); assertEquals("Normal", c.getString(0)); assertEquals("-", c.getString(1)); assertEquals(800L, c.getLong(2))
+            c.moveToNext(); assertEquals("Extra leg room", c.getString(0)); assertEquals("", c.getString(1))
+        }
+        db.query("SELECT COUNT(*) FROM SeatType").use { c -> c.moveToFirst(); assertEquals(2, c.getInt(0)) }
+    }
 }

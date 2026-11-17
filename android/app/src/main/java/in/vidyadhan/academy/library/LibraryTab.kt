@@ -52,7 +52,7 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     fun payments(id: Long) = dao.payments(id)
     fun seatHistory(seat: Int) = dao.seatHistory(seat)
     fun add(m: LibraryMember, pays: List<LibraryPayment>, onSaved: (Long) -> Unit = {}) = viewModelScope.launch { onSaved(dao.addMember(m, pays)) }
-    fun update(m: LibraryMember) = viewModelScope.launch { dao.updateMember(m) }
+    fun update(m: LibraryMember, onSaved: (Long) -> Unit = {}) = viewModelScope.launch { dao.updateMember(m); onSaved(m.id) }
     fun delete(m: LibraryMember) = viewModelScope.launch { dao.deleteMember(m) }
     fun pay(m: LibraryMember, kind: String, amount: Long, mode: String, onSaved: (LibraryPayment) -> Unit = {}) = viewModelScope.launch {
         val p = LibraryPayment(memberId = m.id, kind = kind, amount = amount, paidOn = today(), mode = mode)
@@ -62,9 +62,11 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
 
 private sealed interface Screen {
     data object Main : Screen
-    data class Form(val seat: Int) : Screen
+    data class Form(val seat: Int, val id: Long = 0) : Screen
     data class Detail(val id: Long) : Screen
 }
+
+fun lockerLabel(m: LibraryMember) = when { !m.hasLocker -> ""; m.lockerNo == "-" -> "Locker"; else -> "Locker ${m.lockerNo}" }
 
 fun kindLabel(k: String) = when (k) {
     "FEE" -> "Monthly fee"; "DEPOSIT" -> "Deposit received"; "REGISTRATION" -> "Registration fee"
@@ -79,15 +81,15 @@ fun LibraryTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit 
         if (openNew) { val taken = members.filter { it.active }.map { it.seatNo }.toSet(); screen = Screen.Form((1..AppSettings.seatCount).firstOrNull { it !in taken } ?: 0); onOpened() }
         else if (openId > 0) { screen = Screen.Detail(openId); onOpened() }
     }
-    BackHandler(enabled = screen != Screen.Main) { screen = Screen.Main }
+    BackHandler(enabled = screen != Screen.Main) { screen = (screen as? Screen.Form)?.takeIf { it.id != 0L }?.let { Screen.Detail(it.id) } ?: Screen.Main }
     AnimatedContent(screen, transitionSpec = {
         if (targetState == Screen.Main) (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { it / 5 } + fadeOut())
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "lib") { s ->
         when (s) {
             Screen.Main -> LibraryMain(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) })
-            is Screen.Form -> MemberForm(vm, s.seat, onCancel = { screen = Screen.Main }, onSaved = { screen = Screen.Detail(it) })
-            is Screen.Detail -> MemberDetail(vm, s.id, onBack = { screen = Screen.Main }, onOpen = { screen = Screen.Detail(it) })
+            is Screen.Form -> MemberForm(vm, s.seat, s.id, onCancel = { screen = if (s.id == 0L) Screen.Main else Screen.Detail(s.id) }, onSaved = { screen = Screen.Detail(it) })
+            is Screen.Detail -> MemberDetail(vm, s.id, onBack = { screen = Screen.Main }, onOpen = { screen = Screen.Detail(it) }, onEdit = { screen = Screen.Form(0, s.id) })
         }
     }
 }
@@ -138,9 +140,13 @@ private fun LibraryMain(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Lon
                             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 types.forEach { ty ->
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        SeatIcon(ty.icon, Brand.Slate600, 16.dp); Spacer(Modifier.width(4.dp))
+                                        SeatIcon(ty.icon, Brand.Slate600, 16.dp, badgeBg = Brand.Bg); Spacer(Modifier.width(4.dp))
                                         Text(ty.name, style = MaterialTheme.typography.labelMedium, color = Brand.Slate600)
                                     }
+                                }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    SeatIcon("CHAIR", Brand.Slate600, 16.dp, badgeBg = Brand.Bg, locker = true); Spacer(Modifier.width(4.dp))
+                                    Text("Has locker", style = MaterialTheme.typography.labelMedium, color = Brand.Slate600)
                                 }
                             }
                         }
@@ -222,9 +228,9 @@ private fun MemberCard(m: LibraryMember, types: List<SeatType>, t: Long, onClick
                 Text(m.name, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1)
                 Spacer(Modifier.height(3.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    SeatIcon(types.firstOrNull { it.name == m.seatType }?.icon ?: "CHAIR", Brand.Teal700, 14.dp)
+                    SeatIcon(types.firstOrNull { it.name == m.seatType }?.icon ?: "CHAIR", Brand.Teal700, 14.dp, locker = m.hasLocker)
                     Spacer(Modifier.width(4.dp))
-                    Text(listOf("Seat ${m.seatNo}", m.seatType).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
+                    Text(listOf("Seat ${m.seatNo}", m.seatType, lockerLabel(m)).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
                 }
             }
             when {
@@ -250,19 +256,20 @@ private fun SeatTile(n: Int, m: LibraryMember?, icon: String, t: Long, onClick: 
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         val fg = when { m == null -> Brand.Green600; due -> Brand.Red600; else -> Color.White }
-        SeatIcon(icon, if (m == null) Brand.Green500.copy(alpha = 0.75f) else fg, 18.dp, badgeBg = when { m == null -> Color.White; due -> Brand.Red50; else -> Brand.Blue700 })
+        SeatIcon(icon, if (m == null) Brand.Green500.copy(alpha = 0.75f) else fg, 18.dp, badgeBg = when { m == null -> Color.White; due -> Brand.Red50; else -> Brand.Blue700 }, locker = m?.hasLocker == true)
         Text("$n", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = if (m == null) Brand.Slate600 else fg)
-        if (m != null) Text(m.name.substringBefore(' ').take(7), style = MaterialTheme.typography.labelSmall, color = fg.copy(alpha = 0.85f), maxLines = 1)
+        if (m != null) Text(m.name.substringBefore(' '), style = MaterialTheme.typography.labelSmall, color = fg.copy(alpha = 0.85f), maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-private fun SeatBadge(n: Int, size: androidx.compose.ui.unit.Dp, due: Boolean, icon: String) {
+private fun SeatBadge(n: Int, size: androidx.compose.ui.unit.Dp, due: Boolean, icon: String, locker: Boolean = false) {
     Column(
         Modifier.size(size).clip(RoundedCornerShape(22.dp)).background(if (due) Brush.linearGradient(listOf(Brand.Red500, Brand.Red700)) else PrimaryBrush),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
-        SeatIcon(icon, Color.White.copy(alpha = 0.9f), 20.dp, badgeBg = if (due) Brand.Red600 else Brand.Blue700)
+        SeatIcon(icon, Color.White.copy(alpha = 0.9f), 20.dp, badgeBg = if (due) Brand.Red600 else Brand.Blue700, locker = locker)
         Text("SEAT $n", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Color.White)
     }
 }
@@ -275,9 +282,12 @@ private fun Legend(fill: Color, edge: Color, t: String) = Row(verticalAlignment 
 }
 
 @Composable
-private fun MemberForm(vm: LibraryViewModel, startSeat: Int, onCancel: () -> Unit, onSaved: (Long) -> Unit) {
+private fun MemberForm(vm: LibraryViewModel, startSeat: Int, id: Long, onCancel: () -> Unit, onSaved: (Long) -> Unit) {
+    val ctx = LocalContext.current
     val types by vm.types.collectAsStateWithLifecycle()
     val members by vm.members.collectAsStateWithLifecycle()
+    val editing = id != 0L
+    var existing by remember { mutableStateOf<LibraryMember?>(null) }
     var name by remember { mutableStateOf("") }
     var mobile by remember { mutableStateOf("") }
     var aadhaar by remember { mutableStateOf("") }
@@ -290,22 +300,40 @@ private fun MemberForm(vm: LibraryViewModel, startSeat: Int, onCancel: () -> Uni
     var fee by remember { mutableStateOf("0") }
     var deposit by remember { mutableStateOf("0") }
     var reg by remember { mutableStateOf("0") }
+    var locker by remember { mutableStateOf(false) }
+    var lockerNo by remember { mutableStateOf("") }
+    var lockerFee by remember { mutableStateOf(AppSettings.lockerFee.toString()) }
     var joined by remember { mutableLongStateOf(today()) }
     var regPaid by remember { mutableStateOf(true) }
     var depPaid by remember { mutableStateOf(true) }
     var feePaid by remember { mutableStateOf(true) }
     var mode by remember { mutableStateOf("Cash") }
+    var loaded by remember { mutableStateOf(!editing) }
+    LaunchedEffect(id) {
+        if (editing) AppDb.get(ctx).library().memberNow(id)?.let { m ->
+            existing = m; name = m.name; mobile = m.mobile; aadhaar = m.aadhaar; dob = m.dob; photo = m.photo; aadhaarPhoto = m.aadhaarPhoto
+            seat = m.seatNo.toString(); type = m.seatType; fee = (m.monthlyFee - m.lockerFee).toString(); deposit = m.deposit.toString(); joined = m.joinedOn
+            locker = m.hasLocker; lockerNo = if (m.lockerNo == "-") "" else m.lockerNo; lockerFee = m.lockerFee.toString(); loaded = true
+        }
+    }
     val seatN = seat.toIntOrNull() ?: 0
     fun applyType(ty: SeatType) { type = ty.name; fee = ty.fee.toString(); deposit = ty.deposit.toString(); reg = ty.regFee.toString() }
-    LaunchedEffect(types, seatN) { if (types.isNotEmpty()) (typeForSeat(seatN, types) ?: types.first()).let(::applyType) }
-    val taken = members.any { it.active && it.seatNo == seatN }
-    val f = fee.toLongOrNull() ?: 0; val d = deposit.toLongOrNull() ?: 0; val r = reg.toLongOrNull() ?: 0
-    val collectingNow = (if (regPaid) r else 0) + (if (depPaid) d else 0) + (if (feePaid) f else 0)
-    val valid = name.isNotBlank() && mobile.length == 10 && (aadhaar.isEmpty() || aadhaar.length == 12) && seatN in 1..AppSettings.seatCount && !taken
+    // new members: seat number decides seat type and charges; when editing, only a changed seat does
+    LaunchedEffect(types, seatN, loaded) {
+        if (loaded && types.isNotEmpty() && (!editing || seatN != existing?.seatNo)) (typeForSeat(seatN, types) ?: types.first()).let(::applyType)
+    }
+    val taken = members.any { it.active && it.seatNo == seatN && it.id != id }
+    val lockerTaken = locker && lockerNo.isNotBlank() && members.any { it.active && it.id != id && it.lockerNo == lockerNo }
+    val base = fee.toLongOrNull() ?: 0; val lf = if (locker) lockerFee.toLongOrNull() ?: 0 else 0
+    val d = (deposit.toLongOrNull() ?: 0) + if (locker && !editing) AppSettings.lockerDeposit.toLong() else 0
+    val r = reg.toLongOrNull() ?: 0
+    val monthly = base + lf
+    val collectingNow = (if (regPaid) r else 0) + (if (depPaid) d else 0) + (if (feePaid) monthly else 0)
+    val valid = loaded && name.isNotBlank() && mobile.length == 10 && (aadhaar.isEmpty() || aadhaar.length == 12) && seatN in 1..AppSettings.seatCount && !taken && !lockerTaken
     val photoPicker = rememberPhotoPicker("Member photo", photo.isNotBlank(), { photo = it }, { photo = "" })
     val aadhaarPicker = rememberPhotoPicker("Aadhaar card photo", aadhaarPhoto.isNotBlank(), { aadhaarPhoto = it }, { aadhaarPhoto = "" })
     HideBottomNav()
-    HeroPage("New member", if (seatN > 0) "Seat $seatN · $type" else "Choose a seat", onBack = onCancel) {
+    HeroPage(if (editing) "Edit member" else "New member", if (seatN > 0) "Seat $seatN · $type" + if (locker) " · locker" else "" else "Choose a seat", onBack = onCancel) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Spacer(Modifier.height(4.dp))
             PhotoAvatarEdit(name, photo, photoPicker.open)
@@ -318,24 +346,36 @@ private fun MemberForm(vm: LibraryViewModel, startSeat: Int, onCancel: () -> Uni
                 DocPhoto("Aadhaar card photo", aadhaarPhoto, aadhaarPicker.open) { viewPhoto = aadhaarPhoto }
                 OptionalDateField("Date of birth (optional)", dob, { dob = it })
             }
-            FormCard("Seat", Icons.Rounded.EventSeat) {
+            FormCard("Seat and locker", Icons.Rounded.EventSeat) {
                 DigitsField("Seat number (1 – ${AppSettings.seatCount})", seat, 3, { seat = it }, Icons.Rounded.Tag,
                     supporting = if (taken) "Seat $seatN is already taken" else "Seat type and fees fill in automatically", isError = taken)
                 ChoicePills(types.map { it.name }, type, { n -> types.firstOrNull { it.name == n }?.let(::applyType) },
                     captions = types.associate { it.name to "${rupees(it.fee)}/month" })
+                HorizontalDivider(color = Brand.Line)
+                SwitchRow("Locker", "+${rupees(AppSettings.lockerFee.toLong())}/month" + if (AppSettings.lockerDeposit > 0) " · ${rupees(AppSettings.lockerDeposit.toLong())} key deposit" else "", locker) { locker = it }
+                if (locker) Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Field(lockerNo, { lockerNo = it.take(6) }, "Locker no.", Icons.Rounded.Lock, Modifier.weight(1f),
+                        supporting = if (lockerTaken) "Already given to someone" else null, isError = lockerTaken)
+                    DigitsField("Locker fee", lockerFee, 5, { lockerFee = it }, prefix = "₹ ", modifier = Modifier.weight(1f))
+                }
             }
             FormCard("Charges", Icons.Rounded.CurrencyRupee, Brand.Green600) {
-                DigitsField("Monthly fee", fee, 6, { fee = it }, prefix = "₹ ")
+                DigitsField("Seat fee per month", fee, 6, { fee = it }, prefix = "₹ ")
+                if (locker) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Monthly total (seat + locker)", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+                    Text(rupees(monthly), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Ink)
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    DigitsField("Deposit", deposit, 6, { deposit = it }, prefix = "₹ ", modifier = Modifier.weight(1f))
-                    DigitsField("Registration", reg, 6, { reg = it }, prefix = "₹ ", modifier = Modifier.weight(1f))
+                    DigitsField("Deposit", deposit, 6, { deposit = it }, prefix = "₹ ", modifier = Modifier.weight(1f),
+                        supporting = if (locker && !editing && AppSettings.lockerDeposit > 0) "+ ${rupees(AppSettings.lockerDeposit.toLong())} locker" else null)
+                    if (!editing) DigitsField("Registration", reg, 6, { reg = it }, prefix = "₹ ", modifier = Modifier.weight(1f))
                 }
                 DateField("Joining date", joined, { joined = it })
             }
-            FormCard("Collected today", Icons.Rounded.Payments, Brand.Saffron600) {
+            if (!editing) FormCard("Collected today", Icons.Rounded.Payments, Brand.Saffron600) {
                 SwitchRow("Registration fee", rupees(r), regPaid) { regPaid = it }
                 SwitchRow("Deposit", rupees(d), depPaid) { depPaid = it }
-                SwitchRow("First month's fee", rupees(f), feePaid) { feePaid = it }
+                SwitchRow("First month's fee", rupees(monthly), feePaid) { feePaid = it }
                 if (collectingNow > 0) { Text("Paid by", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500); ModeChoice(mode) { mode = it } }
                 HorizontalDivider(color = Brand.Line)
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -347,15 +387,22 @@ private fun MemberForm(vm: LibraryViewModel, startSeat: Int, onCancel: () -> Uni
         }
         BottomBar {
             SoftButton("Cancel", onCancel, Modifier.weight(1f), color = Brand.Slate600)
-            PrimaryButton("Add member", {
-                val pays = buildList {
-                    if (regPaid && r > 0) add(LibraryPayment(memberId = 0, kind = "REGISTRATION", amount = r, paidOn = joined, mode = mode))
-                    if (depPaid && d > 0) add(LibraryPayment(memberId = 0, kind = "DEPOSIT", amount = d, paidOn = joined, mode = mode))
-                    if (feePaid && f > 0) add(LibraryPayment(memberId = 0, kind = "FEE", amount = f, paidOn = joined, mode = mode))
+            PrimaryButton(if (editing) "Save changes" else "Add member", {
+                val lockerValue = if (!locker) "" else lockerNo.trim().ifBlank { "-" }
+                val old = existing
+                if (old != null) vm.update(old.copy(name = name.trim(), mobile = mobile, aadhaar = aadhaar, seatNo = seatN, seatType = type, monthlyFee = monthly,
+                    deposit = d, joinedOn = joined, dob = dob, photo = photo, aadhaarPhoto = aadhaarPhoto, lockerNo = lockerValue, lockerFee = lf), onSaved)
+                else {
+                    val pays = buildList {
+                        if (regPaid && r > 0) add(LibraryPayment(memberId = 0, kind = "REGISTRATION", amount = r, paidOn = joined, mode = mode))
+                        if (depPaid && d > 0) add(LibraryPayment(memberId = 0, kind = "DEPOSIT", amount = d, paidOn = joined, mode = mode))
+                        if (feePaid && monthly > 0) add(LibraryPayment(memberId = 0, kind = "FEE", amount = monthly, paidOn = joined, mode = mode))
+                    }
+                    val till = if (feePaid) LocalDate.ofEpochDay(joined).plusMonths(1).toEpochDay() else joined
+                    vm.add(LibraryMember(name = name.trim(), mobile = mobile, aadhaar = aadhaar, seatNo = seatN, seatType = type, monthlyFee = monthly,
+                        deposit = d, depositPaid = depPaid && d > 0, joinedOn = joined, validTill = till, dob = dob, photo = photo, aadhaarPhoto = aadhaarPhoto,
+                        lockerNo = lockerValue, lockerFee = lf), pays, onSaved)
                 }
-                val till = if (feePaid) LocalDate.ofEpochDay(joined).plusMonths(1).toEpochDay() else joined
-                vm.add(LibraryMember(name = name.trim(), mobile = mobile, aadhaar = aadhaar, seatNo = seatN, seatType = type, monthlyFee = f,
-                    deposit = d, depositPaid = depPaid && d > 0, joinedOn = joined, validTill = till, dob = dob, photo = photo, aadhaarPhoto = aadhaarPhoto), pays, onSaved)
             }, Modifier.weight(1.6f), enabled = valid, icon = Icons.Rounded.Check)
         }
     }
@@ -364,7 +411,7 @@ private fun MemberForm(vm: LibraryViewModel, startSeat: Int, onCancel: () -> Uni
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onOpen: (Long) -> Unit) {
+private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onOpen: (Long) -> Unit, onEdit: () -> Unit) {
     val ctx = LocalContext.current
     val mm by remember(id) { vm.member(id) }.collectAsStateWithLifecycle(null)
     val pays by remember(id) { vm.payments(id) }.collectAsStateWithLifecycle(emptyList())
@@ -399,8 +446,8 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                     }
                 }
             },
-            chips = { if (m.seatType.isNotBlank()) GlassChip(m.seatType, Icons.Rounded.EventSeat); GlassChip("Since ${shortDate(m.joinedOn)}", Icons.Rounded.CalendarMonth) },
-            topActions = { GlassIconButton(Icons.Rounded.DeleteOutline, "Delete", { confirm = true }) },
+            chips = { if (m.seatType.isNotBlank()) GlassChip(m.seatType, Icons.Rounded.EventSeat); if (m.hasLocker) GlassChip(lockerLabel(m), Icons.Rounded.Lock); GlassChip("Since ${shortDate(m.joinedOn)}", Icons.Rounded.CalendarMonth) },
+            topActions = { GlassIconButton(Icons.Rounded.Edit, "Edit", onEdit); GlassIconButton(Icons.Rounded.DeleteOutline, "Delete", { confirm = true }) },
             actions = {
                 RoundAction(Icons.Rounded.Call, "Call", Brand.Blue600, { Contact.call(ctx, m.mobile) }, glass = true)
                 RoundAction(Icons.AutoMirrored.Rounded.Chat, "WhatsApp", Brand.WhatsApp, { Contact.whatsapp(ctx, m.mobile) }, glass = true)
@@ -411,19 +458,25 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                 Spacer(Modifier.height(4.dp))
                 Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        SeatBadge(m.seatNo, 64.dp, due && m.active, icon)
+                        SeatBadge(m.seatNo, 64.dp, due && m.active, icon, m.hasLocker)
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(if (!m.active) "Left on" else if (due) "Monthly fee was due" else "Fee paid up to", style = MaterialTheme.typography.labelMedium, color = Brand.Slate400)
+                            Text(if (!m.active) "Left on" else if (due) "Monthly fee was due" else if (m.validTill == t) "Monthly fee due today" else "Fee paid up to", style = MaterialTheme.typography.labelMedium, color = Brand.Slate400)
                             Text((if (!m.active) m.leftOn ?: m.validTill else m.validTill).asDate(), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
                                 color = if (due && m.active) Brand.Red600 else Brand.Ink)
                         }
-                        when { !m.active -> StatusChip("Left", Tone.Neutral); due -> StatusChip("${t - m.validTill}d late", Tone.Bad); else -> StatusChip("${m.validTill - t} days left", Tone.Good) }
+                        when {
+                            !m.active -> StatusChip("Left", Tone.Neutral)
+                            due -> StatusChip("${t - m.validTill}d late", Tone.Bad)
+                            m.validTill == t -> StatusChip("Due today", Tone.Warn)
+                            m.validTill - t <= 3 -> StatusChip("${m.validTill - t} days left", Tone.Warn)
+                            else -> StatusChip("${m.validTill - t} days left", Tone.Good)
+                        }
                     }
                     if (m.active) {
                         val start = LocalDate.ofEpochDay(m.validTill).minusMonths(1).toEpochDay()
                         ProgressBar(if (due) 1f else (t - start).toFloat() / (m.validTill - start).coerceAtLeast(1), color = if (due) Brand.Red500 else Brand.Teal500, track = Brand.Line, height = 8.dp)
-                        PrimaryButton("Fee received · renew 1 month · ${rupees(m.monthlyFee)}", { collect = "FEE" }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Autorenew)
+                        PrimaryButton("Renew 1 month · ${rupees(m.monthlyFee)}", { collect = "FEE" }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Autorenew)
                     }
                 }
                 Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -445,7 +498,8 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                     InfoRow(Icons.Rounded.CreditCard, "Aadhaar", if (m.aadhaar.isBlank()) "Not added" else maskAadhaar(m.aadhaar))
                     if (m.aadhaarPhoto.isNotBlank()) { DocPhoto("Aadhaar card photo", m.aadhaarPhoto, {}) { viewPhoto = m.aadhaarPhoto }; Spacer(Modifier.height(8.dp)) }
                     HorizontalDivider(color = Brand.Line)
-                    InfoRow(Icons.Rounded.CurrencyRupee, "Monthly fee", rupees(m.monthlyFee))
+                    InfoRow(Icons.Rounded.CurrencyRupee, "Monthly fee", rupees(m.monthlyFee) + if (m.hasLocker && m.lockerFee > 0) " (seat ${rupees(m.monthlyFee - m.lockerFee)} + locker ${rupees(m.lockerFee)})" else "")
+                    if (m.hasLocker) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.Rounded.Lock, "Locker", if (m.lockerNo == "-") "Yes (number not noted)" else "Locker no. ${m.lockerNo}") }
                 }
                 SectionHeader("Payment history")
                 if (pays.isEmpty()) Text("No payments recorded yet.", color = Brand.Slate500)
