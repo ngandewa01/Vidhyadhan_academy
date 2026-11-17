@@ -208,8 +208,7 @@ private fun EnquiryDetail(vm: EnquiriesViewModel, id: Long, onBack: () -> Unit, 
     val t = today()
     val days = AppSettings.enquiryDays
     HideBottomNav()
-    val msg = "नमस्कार ${en.name}, विद्याधन अकॅडमी मध्ये चौकशी केल्याबद्दल धन्यवाद." +
-        (if (AppSettings.academyPhone.isNotBlank()) " अधिक माहितीसाठी संपर्क: ${AppSettings.academyPhone}" else "")
+    val msg = `in`.vidyadhan.academy.Templates.fill("enquiry", true, mapOf("name" to en.name))
     Column(Modifier.fillMaxSize().background(Brand.Bg)) {
         ProfileHero(en.name, onBack,
             chips = { if (en.course.isNotBlank()) GlassChip(en.course, Icons.Rounded.School); GlassChip("Asked ${whenText(en.createdOn)}", Icons.Rounded.Schedule) },

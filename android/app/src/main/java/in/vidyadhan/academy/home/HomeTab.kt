@@ -32,14 +32,14 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /** Where a Home shortcut should take the owner. */
-enum class Go { Students, NewStudent, Student, Enquiries, NewEnquiry, Enquiry, Library, NewMember, Member, Money, NewExpense, Settings, Backup }
+enum class Go { Students, NewStudent, Student, Enquiries, NewEnquiry, Enquiry, Library, NewMember, Member, Money, NewExpense, Settings, Backup, Search, Broadcast }
 
 private data class Agenda(val name: String, val detail: String, val icon: ImageVector, val color: Color, val tone: Tone, val chip: String, val go: Go, val id: Long, val photo: String = "")
 private data class Birthday(val name: String, val mobile: String, val photo: String, val what: String, val go: Go, val id: Long)
 
 fun isBirthday(dob: Long?, day: LocalDate): Boolean = dob != null && LocalDate.ofEpochDay(dob).let { it.month == day.month && it.dayOfMonth == day.dayOfMonth }
 
-fun birthdayWish(name: String) = "🎉 वाढदिवसाच्या हार्दिक शुभेच्छा, ${name.substringBefore(' ')}! तुमची अभ्यासातील मेहनत फळाला येवो आणि यश तुमच्या पायाशी असो. — विद्याधन अकॅडमी"
+fun birthdayWish(name: String) = `in`.vidyadhan.academy.Templates.fill("birthday", true, mapOf("name" to name.substringBefore(' ')))
 
 @Composable
 fun HomeTab(onGo: (Go, Long) -> Unit) {
@@ -48,7 +48,8 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val now = LocalDate.now()
     val monthStart = now.withDayOfMonth(1).toEpochDay()
     val monthEnd = now.withDayOfMonth(now.lengthOfMonth()).toEpochDay()
-    val students by remember { studentsWithFees(db.students()) }.collectAsStateWithLifecycle(emptyList())
+    val allStudents by remember { studentsWithFees(db.students()) }.collectAsStateWithLifecycle(emptyList())
+    val students = allStudents.filter { it.current }
     val enquiries by db.enquiries().all().collectAsStateWithLifecycle(emptyList())
     val members by db.library().members().collectAsStateWithLifecycle(emptyList())
     val feesMonth by remember(monthStart) { db.students().paidBetween(monthStart, monthEnd) }.collectAsStateWithLifecycle(0L)
@@ -99,6 +100,8 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                     Text("${greeting()} 👋 · ${now.format(DateTimeFormatter.ofPattern("EEE, dd MMM"))}", style = MaterialTheme.typography.bodySmall, color = Brand.Blue200, maxLines = 1)
                     Text(AppSettings.academyName, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1)
                 }
+                GlassIconButton(Icons.Rounded.Search, "Search", { onGo(Go.Search, 0) })
+                Spacer(Modifier.width(8.dp))
                 GlassIconButton(Icons.Rounded.Settings, "Settings", { onGo(Go.Settings, 0) })
             }
             Spacer(Modifier.height(26.dp))
@@ -118,11 +121,12 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
         }
 
         Column(Modifier.offset(y = (-52).dp).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(26.dp), 14.dp).padding(vertical = 14.dp, horizontal = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                RoundAction(Icons.Rounded.PersonAdd, "Student", Brand.Blue600, { onGo(Go.NewStudent, 0) })
-                RoundAction(Icons.Rounded.AddComment, "Enquiry", Brand.Saffron600, { onGo(Go.NewEnquiry, 0) })
-                RoundAction(Icons.Rounded.EventSeat, "Library", Brand.Teal700, { onGo(Go.NewMember, 0) })
-                RoundAction(Icons.Rounded.ReceiptLong, "Expense", Brand.Violet700, { onGo(Go.NewExpense, 0) })
+            Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(26.dp), 14.dp).padding(vertical = 14.dp, horizontal = 4.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                RoundAction(Icons.Rounded.PersonAdd, "Student", Brand.Blue600, { onGo(Go.NewStudent, 0) }, modifier = Modifier.weight(1f))
+                RoundAction(Icons.Rounded.AddComment, "Enquiry", Brand.Saffron600, { onGo(Go.NewEnquiry, 0) }, modifier = Modifier.weight(1f))
+                RoundAction(Icons.Rounded.EventSeat, "Library", Brand.Teal700, { onGo(Go.NewMember, 0) }, modifier = Modifier.weight(1f))
+                RoundAction(Icons.Rounded.Campaign, "Message", Color(0xFFE11D48), { onGo(Go.Broadcast, 0) }, modifier = Modifier.weight(1f))
+                RoundAction(Icons.Rounded.ReceiptLong, "Expense", Brand.Violet700, { onGo(Go.NewExpense, 0) }, modifier = Modifier.weight(1f))
             }
             if (birthdays.isNotEmpty()) Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFFFFF1F2), Brand.Saffron50)))

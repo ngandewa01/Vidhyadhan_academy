@@ -28,6 +28,7 @@ fun summarise(s: Student, plan: List<Installment>, payments: List<StudentPayment
         s.id, s.name, s.mobile, s.aadhaar, s.course, s.batch, s.photo, s.dob, s.totalFee, paid,
         if (paid >= s.totalFee) null else next?.inst?.dueOn,
         if (paid >= s.totalFee) 0 else next?.remaining ?: (s.totalFee - paid),
+        s.leftOn, s.leftReason,
     )
 }
 

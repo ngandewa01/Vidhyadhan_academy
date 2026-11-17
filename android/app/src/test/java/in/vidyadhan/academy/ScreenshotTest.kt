@@ -97,6 +97,9 @@ class ScreenshotTest {
         backButton()
         nav("Enquiries"); shot("07-enquiries")
         nav("Library"); shot("09-library")
+        rule.onNodeWithText("Set seat types").performClick(); settle()
+        rule.onNodeWithText("21").performClick(); shot("09c-seat-types")
+        rule.onNodeWithText("Done").performClick(); settle()
         rule.onNodeWithText("7").performClick(); shot("09b-seat-sheet"); back()
         rule.onNodeWithText("Members").performClick(); settle()
         rule.onNodeWithText("Snehal Mane").performClick(); shot("11-member-detail")
@@ -107,6 +110,11 @@ class ScreenshotTest {
         nav("Money"); shot("12-money")
         rule.onNodeWithText("Expenses (3)").performClick(); shot("13-expenses")
         nav("Home")
+        rule.onNodeWithContentDescription("Search").performClick(); settle()
+        rule.onNodeWithText("Name, mobile, seat or locker no.").performTextInput("sh"); shot("15-search")
+        backButton()
+        rule.onNodeWithText("Message").performClick(); shot("16-broadcast")
+        backButton()
         rule.onNodeWithContentDescription("Settings").performClick(); shot("14-settings")
     }
 }

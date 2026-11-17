@@ -51,4 +51,13 @@ class MigrationTest {
         }
         db.query("SELECT COUNT(*) FROM SeatType").use { c -> c.moveToFirst(); assertEquals(2, c.getInt(0)) }
     }
+
+    @Test fun v4ToV5AddsFormerStudentFields() {
+        helper.createDatabase("mig5.db", 4).apply {
+            execSQL("INSERT INTO Student(id,name,mobile,aadhaar,course,totalFee,joinedOn,notes,batch,photo,aadhaarPhoto) VALUES(1,'X','9876543210','','MPSC',100,1,'','','','')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("mig5.db", 5, true)
+        db.query("SELECT leftOn, leftReason FROM Student").use { c -> c.moveToFirst(); assertEquals(true, c.isNull(0)); assertEquals("", c.getString(1)) }
+    }
 }

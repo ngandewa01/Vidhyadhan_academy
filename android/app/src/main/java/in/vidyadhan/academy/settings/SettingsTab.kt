@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Reminders("Reminders"), Library("Library seats"), Backup("Backup & export"), Updates("App updates") }
+private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Library seats"), Backup("Backup & export"), Updates("App updates") }
 
 @Composable
 fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}, onClose: () -> Unit = {}) {
@@ -70,6 +70,7 @@ fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Un
                     when (p) {
                         Page.Academy -> AcademyPage()
                         Page.Courses -> CoursesPage()
+                        Page.Messages -> MessagesPage()
                         Page.Reminders -> RemindersPage()
                         Page.Library -> LibraryPage()
                         Page.Backup -> BackupPage()
@@ -143,6 +144,10 @@ private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit)
                 SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses, batches & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
                     if (AppSettings.lateFeeOn) " · late fee on" else "", divider = false) { open(Page.Courses) }
             }
+            Group("Messages") {
+                SettingRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message wording", "Fee, library, enquiry and birthday messages") { open(Page.Messages) }
+                SettingRow(Icons.Rounded.Groups, Color(0xFF229ED9), "Telegram group", AppSettings.telegramLink.ifBlank { "Add your group or channel link" }, divider = false) { open(Page.Academy) }
+            }
             Group("Daily work") {
                 SettingRow(Icons.Rounded.NotificationsActive, Brand.Red600, "Reminders", "Follow up after ${AppSettings.enquiryDays} days · daily at %02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)) { open(Page.Reminders) }
                 SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Library seats", "${AppSettings.seatCount} seats · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
@@ -198,7 +203,28 @@ private fun AcademyPage() {
         Field(AppSettings.receiptPrefix, { AppSettings.receiptPrefix = it.take(6).uppercase() }, "Receipt number starts with", Icons.Rounded.Tag,
             supporting = "Receipts look like ${AppSettings.receiptPrefix}-00012")
     }
+    FormCard("Telegram", Icons.Rounded.Groups, Color(0xFF229ED9)) {
+        Field(AppSettings.telegramLink, { AppSettings.telegramLink = it }, "Group or channel link, e.g. https://t.me/…", Icons.Rounded.Link, keyboard = KeyboardType.Uri,
+            supporting = "Used by “Send a message” to open your group")
+    }
     Text("Changes save automatically.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate400, modifier = Modifier.padding(start = 6.dp))
+}
+
+@Composable
+private fun MessagesPage() {
+    Text("Words in {curly brackets} are filled in by the app, e.g. {name} becomes the student's name. Keep them in your text.",
+        style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, modifier = Modifier.padding(horizontal = 6.dp))
+    `in`.vidyadhan.academy.Templates.all.forEach { t ->
+        var mr by remember { mutableStateOf(`in`.vidyadhan.academy.Templates.text(t.key, true)) }
+        var en by remember { mutableStateOf(`in`.vidyadhan.academy.Templates.text(t.key, false)) }
+        FormCard(t.title, Icons.Rounded.Sms, Brand.WhatsAppDark) {
+            Text("Can use: ${t.fields}", style = MaterialTheme.typography.labelMedium, color = Brand.Teal700)
+            Field(mr, { mr = it; AppSettings.setTemplate(t.key, true, it) }, "मराठी", singleLine = false, minLines = 3)
+            Field(en, { en = it; AppSettings.setTemplate(t.key, false, it) }, "English", singleLine = false, minLines = 3)
+            SoftButton("Reset to original", { mr = t.mr; en = t.en; AppSettings.setTemplate(t.key, true, ""); AppSettings.setTemplate(t.key, false, "") },
+                color = Brand.Slate600, icon = Icons.Rounded.Refresh)
+        }
+    }
 }
 
 @Composable
@@ -266,6 +292,7 @@ private fun LibraryPage() {
         }
     }
     FormCard("Seat types", Icons.Rounded.Category, Brand.Blue600) {
+        Text("Fees for each type. To choose which seats are Extra leg room, go to Library → Seat map → “Set seat types”.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
         types.forEach { t ->
             androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(18.dp))
                 .clickable { edit = t }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -289,7 +316,7 @@ private fun LibraryPage() {
             title = { Text(if (t.id == 0L) "New seat type" else "Edit seat type") },
             text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Field(n, { n = it }, "Name, e.g. Extra leg room")
-                Field(seats, { seats = it }, "Seat numbers, e.g. 1-10, 15", Icons.Rounded.Tag, supporting = "Leave empty for “all other seats”")
+                Field(seats, { seats = it }, "Seat numbers (optional)", Icons.Rounded.Tag, supporting = "Easier: Library → Seat map → “Set seat types” and tap seats")
                 Text("Icon", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
                 androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("CHAIR" to "Normal", "LEGROOM" to "Extra leg room").forEach { (k, lbl) ->

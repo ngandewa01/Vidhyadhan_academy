@@ -61,6 +61,7 @@ interface EnquiryDao {
 @Dao
 interface LibraryDao {
     @Query("SELECT * FROM SeatType ORDER BY id") fun seatTypes(): Flow<List<SeatType>>
+    @Query("SELECT * FROM SeatType ORDER BY id") suspend fun seatTypesNow(): List<SeatType>
     @Insert suspend fun insertType(t: SeatType)
     @Update suspend fun updateType(t: SeatType)
     @Delete suspend fun deleteType(t: SeatType)
@@ -126,8 +127,8 @@ class V2toV3 : AutoMigrationSpec {
 
 @Database(
     entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class],
-    version = 4, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class)],
+    version = 5, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5)],
 )
 abstract class AppDb : RoomDatabase() {
     abstract fun students(): StudentDao

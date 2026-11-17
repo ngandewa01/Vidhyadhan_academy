@@ -24,11 +24,8 @@ fun today(): Long = LocalDate.now().toEpochDay()
 fun rupees(v: Long): String = "₹" + java.text.NumberFormat.getIntegerInstance(java.util.Locale("en", "IN")).format(v)
 fun maskAadhaar(a: String) = if (a.length >= 4) "XXXX XXXX " + a.takeLast(4) else a
 
-fun feeMessage(marathi: Boolean, name: String, amount: Long, due: Long, academy: String = "विद्याधन अकॅडमी"): String =
-    if (marathi)
-        "नमस्कार $name, $academy कडून आठवण: तुमचा ${rupees(amount)} चा हप्ता ${due.asDate()} रोजी देय आहे. कृपया वेळेत भरावा. धन्यवाद."
-    else
-        "Hello $name, a reminder from Vidyadhan Academy: your installment of ${rupees(amount)} is due on ${due.asDate()}. Please pay on time. Thank you."
+fun feeMessage(marathi: Boolean, name: String, amount: Long, due: Long, @Suppress("UNUSED_PARAMETER") academy: String = ""): String =
+    `in`.vidyadhan.academy.Templates.fill("fee", marathi, mapOf("name" to name, "amount" to rupees(amount), "date" to due.asDate()))
 
 /** "Today", "Tomorrow", "in 3 days", "2 days ago"… */
 fun relativeDay(day: Long, from: Long = today()): String = when (val d = day - from) {

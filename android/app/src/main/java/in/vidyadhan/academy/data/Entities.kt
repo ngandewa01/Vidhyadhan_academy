@@ -16,6 +16,8 @@ data class Student(
     val dob: Long? = null, // epoch day
     @ColumnInfo(defaultValue = "") val photo: String = "",
     @ColumnInfo(defaultValue = "") val aadhaarPhoto: String = "",
+    val leftOn: Long? = null, // set when the student finished or left: a "former student"
+    @ColumnInfo(defaultValue = "") val leftReason: String = "",
 )
 
 /** The planned schedule. What has actually been paid lives in [StudentPayment]. */
@@ -142,7 +144,11 @@ data class StudentWithFees(
     val paid: Long,
     val nextDue: Long?, // due date of the first installment not fully covered
     val nextDueAmount: Long, // what is still owed on that installment
-)
+    val leftOn: Long? = null,
+    val leftReason: String = "",
+) {
+    val current: Boolean get() = leftOn == null
+}
 
 /** One received payment, for "Recent payments" (not stored as its own table). */
 data class PaymentRow(val name: String, val amount: Long, val paidOn: Long, val kind: String)
