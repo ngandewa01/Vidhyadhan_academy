@@ -90,7 +90,11 @@ data class LibraryMember(
     @ColumnInfo(defaultValue = "") val photo: String = "",
     @ColumnInfo(defaultValue = "") val aadhaarPhoto: String = "",
     val leftOn: Long? = null,
-)
+    @ColumnInfo(defaultValue = "") val lockerNo: String = "", // empty = no locker; "-" = locker without a number
+    @ColumnInfo(defaultValue = "0") val lockerFee: Long = 0, // part of monthlyFee
+) {
+    val hasLocker: Boolean get() = lockerNo.isNotBlank()
+}
 
 @Entity(
     foreignKeys = [ForeignKey(LibraryMember::class, ["id"], ["memberId"], onDelete = ForeignKey.CASCADE)],

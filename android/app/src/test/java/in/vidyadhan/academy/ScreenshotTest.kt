@@ -58,20 +58,22 @@ class ScreenshotTest {
         ed.insert(Enquiry(name = "Neha Kadam", mobile = "9001122335", course = "MPSC", createdOn = day(-6), followUpOn = day(-3), status = "JOINED", source = "Instagram"))
         val ld = db.library()
         ld.updateType(SeatType(1, "Normal", 600, 500, 100, "", "CHAIR"))
-        ld.updateType(SeatType(2, "With locker", 800, 500, 100, "1-8", "LOCKER"))
-        ld.updateType(SeatType(3, "Extra leg room", 700, 500, 100, "9-12", "LEGROOM"))
+        ld.updateType(SeatType(2, "Extra leg room", 700, 500, 100, "9-16", "LEGROOM"))
+        AppSettings.lockerFee = 200; AppSettings.lockerDeposit = 100
         val names = listOf("Akash Shinde", "Priya Gaikwad", "Nikhil Bhosale", "Snehal Mane", "Omkar Kale", "Rutuja Salunkhe", "Sagar Thorat", "Komal Jagtap", "Tejas Chavan", "Manasi Joshi", "Prathamesh Ghule", "Shruti Wagh")
         val seats = listOf(1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 17, 20)
         names.forEachIndexed { i, n ->
             val till = if (i == 3 || i == 7) t.minusDays(2) else t.plusDays((4 + i * 2).toLong())
-            val type = when (seats[i]) { in 1..8 -> "With locker"; in 9..12 -> "Extra leg room"; else -> "Normal" }
-            val fee = when (type) { "With locker" -> 800L; "Extra leg room" -> 700L; else -> 600L }
+            val type = if (seats[i] in 9..16) "Extra leg room" else "Normal"
+            val locker = i % 3 == 0
+            val fee = (if (type == "Extra leg room") 700L else 600L) + if (locker) 200 else 0
             ld.addMember(LibraryMember(name = n, mobile = "98${(10000000 + i * 1234567).toString().take(8)}", seatNo = seats[i], seatType = type,
-                monthlyFee = fee, deposit = 500, depositPaid = true, joinedOn = day(-25), validTill = till.toEpochDay(), dob = if (i == 1) t.minusYears(21).toEpochDay() else null),
+                monthlyFee = fee, deposit = 500, depositPaid = true, joinedOn = day(-25), validTill = till.toEpochDay(), dob = if (i == 1) t.minusYears(21).toEpochDay() else null,
+                lockerNo = if (locker) "${i + 1}" else "", lockerFee = if (locker) 200 else 0),
                 listOf(LibraryPayment(memberId = 0, kind = "DEPOSIT", amount = 500, paidOn = day(-25), mode = "Cash"),
                     LibraryPayment(memberId = 0, kind = "FEE", amount = fee, paidOn = day(-i.toLong()), mode = "UPI")))
         }
-        ld.addMember(LibraryMember(name = "Old Member", mobile = "9811111111", seatNo = 7, seatType = "With locker", monthlyFee = 800, deposit = 500, depositPaid = true,
+        ld.addMember(LibraryMember(name = "Old Member", mobile = "9811111111", seatNo = 7, seatType = "Normal", monthlyFee = 800, deposit = 500, depositPaid = true,
             depositReturnedOn = day(-30), joinedOn = day(-200), validTill = day(-30), active = false, leftOn = day(-30)), emptyList())
         val xd = db.expenses()
         xd.insert(Expense(category = "Rent", amount = 12000, spentOn = day(-3)))
@@ -98,6 +100,9 @@ class ScreenshotTest {
         rule.onNodeWithText("7").performClick(); shot("09b-seat-sheet"); back()
         rule.onNodeWithText("Members").performClick(); settle()
         rule.onNodeWithText("Snehal Mane").performClick(); shot("11-member-detail")
+        rule.onNodeWithContentDescription("Edit").performClick(); shot("11b-member-edit")
+        rule.onNodeWithText("Seat and locker").performScrollTo(); shot("11c-member-locker")
+        backButton()
         backButton()
         nav("Money"); shot("12-money")
         rule.onNodeWithText("Expenses (3)").performClick(); shot("13-expenses")

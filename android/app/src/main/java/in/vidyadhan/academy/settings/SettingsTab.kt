@@ -145,7 +145,7 @@ private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit)
             }
             Group("Daily work") {
                 SettingRow(Icons.Rounded.NotificationsActive, Brand.Red600, "Reminders", "Follow up after ${AppSettings.enquiryDays} days · daily at %02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)) { open(Page.Reminders) }
-                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Library seats", "${AppSettings.seatCount} seats · ${types.size} seat type${if (types.size == 1) "" else "s"}", divider = false) { open(Page.Library) }
+                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Library seats", "${AppSettings.seatCount} seats · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
             }
             Group("Security") {
                 SettingRow(Icons.Rounded.Password, Brand.Violet700, "Change PIN", "4-digit PIN to open the app") { pinDialog = true }
@@ -257,6 +257,14 @@ private fun LibraryPage() {
     FormCard("Seats", Icons.Rounded.EventSeat, Brand.Teal700) {
         Stepper("Total seats", AppSettings.seatCount, 1..300) { AppSettings.seatCount = it }
     }
+    FormCard("Lockers", Icons.Rounded.Lock, Brand.Violet700) {
+        Text("Any seat can take a locker. These amounts fill in when you tick “Locker” for a member.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        Stepper("Number of lockers", AppSettings.lockerCount, 0..300) { AppSettings.lockerCount = it }
+        androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            DigitsField("Locker fee / month", AppSettings.lockerFee.toString(), 5, { AppSettings.lockerFee = it.toIntOrNull() ?: 0 }, prefix = "₹ ", modifier = Modifier.weight(1f))
+            DigitsField("Key deposit", AppSettings.lockerDeposit.toString(), 5, { AppSettings.lockerDeposit = it.toIntOrNull() ?: 0 }, prefix = "₹ ", modifier = Modifier.weight(1f))
+        }
+    }
     FormCard("Seat types", Icons.Rounded.Category, Brand.Blue600) {
         types.forEach { t ->
             androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(18.dp))
@@ -280,11 +288,11 @@ private fun LibraryPage() {
         AlertDialog(onDismissRequest = { edit = null }, containerColor = Color.White, shape = RoundedCornerShape(28.dp),
             title = { Text(if (t.id == 0L) "New seat type" else "Edit seat type") },
             text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Field(n, { n = it }, "Name, e.g. With locker")
+                Field(n, { n = it }, "Name, e.g. Extra leg room")
                 Field(seats, { seats = it }, "Seat numbers, e.g. 1-10, 15", Icons.Rounded.Tag, supporting = "Leave empty for “all other seats”")
                 Text("Icon", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
                 androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("CHAIR" to "Normal", "LOCKER" to "Locker", "LEGROOM" to "Leg room").forEach { (k, lbl) ->
+                    listOf("CHAIR" to "Normal", "LEGROOM" to "Extra leg room").forEach { (k, lbl) ->
                         Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (icon == k) Brand.Blue50 else Color.White)
                             .border(if (icon == k) 2.dp else 1.dp, if (icon == k) Brand.Blue600 else Brand.Line, RoundedCornerShape(14.dp)).clickable { icon = k }.padding(vertical = 10.dp),
                             horizontalAlignment = Alignment.CenterHorizontally) {

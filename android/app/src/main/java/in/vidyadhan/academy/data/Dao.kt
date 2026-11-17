@@ -72,6 +72,7 @@ interface LibraryDao {
     @Query("SELECT * FROM LibraryPayment ORDER BY paidOn DESC") fun allPayments(): Flow<List<LibraryPayment>>
     @Query("SELECT COUNT(*) FROM LibraryMember WHERE active = 1 AND validTill <= :day") suspend fun expiringCount(day: Long): Int
     @Query("SELECT * FROM LibraryMember ORDER BY name COLLATE NOCASE") suspend fun allMembers(): List<LibraryMember>
+    @Query("SELECT * FROM LibraryMember WHERE id = :id") suspend fun memberNow(id: Long): LibraryMember?
     @Query("SELECT COALESCE(SUM(amount), 0) FROM LibraryPayment WHERE kind IN ('FEE','REGISTRATION') AND paidOn BETWEEN :from AND :to") fun collectedBetween(from: Long, to: Long): Flow<Long>
     @Query("SELECT m.name AS name, p.amount AS amount, p.paidOn AS paidOn, p.kind AS kind FROM LibraryPayment p JOIN LibraryMember m ON m.id = p.memberId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
     fun recentPayments(): Flow<List<PaymentRow>>
@@ -106,6 +107,14 @@ interface ExpenseDao {
     @Delete suspend fun delete(e: Expense)
 }
 
+/** Version 3 → 4: lockers become an add-on any seat can have, instead of a seat type. */
+class V3toV4 : AutoMigrationSpec {
+    override fun onPostMigrate(db: SupportSQLiteDatabase) {
+        db.execSQL("UPDATE LibraryMember SET lockerNo = '-', seatType = 'Normal' WHERE seatType LIKE '%locker%'")
+        db.execSQL("DELETE FROM SeatType WHERE icon = 'LOCKER' OR name LIKE '%locker%'")
+    }
+}
+
 /** Version 2 → 3: copies old "paid" marks into real payment records and gives seat types their icons. */
 class V2toV3 : AutoMigrationSpec {
     override fun onPostMigrate(db: SupportSQLiteDatabase) {
@@ -117,8 +126,8 @@ class V2toV3 : AutoMigrationSpec {
 
 @Database(
     entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class],
-    version = 3, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class)],
+    version = 4, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class)],
 )
 abstract class AppDb : RoomDatabase() {
     abstract fun students(): StudentDao
@@ -135,7 +144,6 @@ abstract class AppDb : RoomDatabase() {
                     override fun onCreate(db: SupportSQLiteDatabase) {
                         // Starting seat types; fees and seat numbers are set by the owner in Settings.
                         db.execSQL("INSERT INTO SeatType(name, fee, deposit, regFee, seats, icon) VALUES('Normal', 0, 0, 0, '', 'CHAIR')")
-                        db.execSQL("INSERT INTO SeatType(name, fee, deposit, regFee, seats, icon) VALUES('With locker', 0, 0, 0, '', 'LOCKER')")
                         db.execSQL("INSERT INTO SeatType(name, fee, deposit, regFee, seats, icon) VALUES('Extra leg room', 0, 0, 0, '', 'LEGROOM')")
                     }
                 })
