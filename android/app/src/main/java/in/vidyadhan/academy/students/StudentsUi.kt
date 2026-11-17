@@ -22,7 +22,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import `in`.vidyadhan.academy.AppSettings
 import `in`.vidyadhan.academy.data.*
+import `in`.vidyadhan.academy.ui.*
+import androidx.activity.compose.BackHandler
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -36,6 +39,7 @@ private sealed interface Screen {
 @Composable
 fun StudentsTab(vm: StudentsViewModel = viewModel()) {
     var screen by remember { mutableStateOf<Screen>(Screen.List) }
+    BackHandler(enabled = screen != Screen.List) { screen = Screen.List }
     when (val s = screen) {
         Screen.List -> StudentList(vm, onAdd = { screen = Screen.Form(0) }, onOpen = { screen = Screen.Detail(it) })
         is Screen.Form -> StudentForm(vm, s.id) { screen = if (s.id == 0L) Screen.List else Screen.Detail(s.id) }
@@ -51,7 +55,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
     val pending = all.sumOf { it.totalFee - it.paid }
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            Card(Modifier.fillMaxWidth().padding(12.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.primaryContainer)) {
+            Card(Modifier.fillMaxWidth().padding(12.dp), shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(MaterialTheme.colorScheme.primaryContainer)) {
                 Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column { Text("Students"); Text("${all.size}", style = MaterialTheme.typography.headlineSmall) }
                     Column(horizontalAlignment = Alignment.End) { Text("Fees pending"); Text(rupees(pending), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.secondary) }
@@ -60,15 +64,16 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
             OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth().padding(horizontal = 12.dp), placeholder = { Text("Search name or mobile") },
                 leadingIcon = { Icon(Icons.Filled.Search, null) }, singleLine = true)
             if (shown.isEmpty()) {
-                Box(Modifier.fillMaxSize(), Alignment.Center) { Text("No students yet. Tap + to add.", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                EmptyState(Icons.Filled.School, "No students yet", "Tap + to add your first student")
             } else LazyColumn(contentPadding = PaddingValues(12.dp, 8.dp, 12.dp, 88.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(shown, key = { it.id }) { s ->
                     val left = s.totalFee - s.paid
                     val overdue = s.nextDue != null && s.nextDue < today() && left > 0
-                    Card(Modifier.fillMaxWidth().clickable { onOpen(s.id) }) {
+                    AppCard(onClick = { onOpen(s.id) }) {
                         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Avatar(s.name); Spacer(Modifier.width(12.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(s.name, style = MaterialTheme.typography.titleMedium)
+                                Text(s.name, style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
                                 Text("${s.mobile} · ${s.course}", color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 if (s.nextDue != null && left > 0) Text(
                                     (if (overdue) "Overdue since " else "Next due ") + s.nextDue.asDate(),
@@ -78,7 +83,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 if (left > 0) { Text(rupees(left), color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.titleMedium); Text("pending", style = MaterialTheme.typography.bodySmall) }
-                                else Text("Paid ✓", color = MaterialTheme.colorScheme.primary)
+                                else GoodPill("Fully paid")
                             }
                         }
                     }
@@ -93,20 +98,6 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DateField(label: String, epochDay: Long, onChange: (Long) -> Unit) {
-    var open by remember { mutableStateOf(false) }
-    OutlinedTextField(epochDay.asDate(), {}, Modifier.fillMaxWidth(), readOnly = true, label = { Text(label) },
-        trailingIcon = { IconButton({ open = true }) { Icon(Icons.Filled.CalendarMonth, "Pick date") } })
-    if (open) {
-        val st = rememberDatePickerState(initialSelectedDateMillis = epochDay * 86_400_000L)
-        DatePickerDialog(onDismissRequest = { open = false },
-            confirmButton = { TextButton({ st.selectedDateMillis?.let { onChange(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toEpochDay()) }; open = false }) { Text("OK") } },
-            dismissButton = { TextButton({ open = false }) { Text("Cancel") } }) { DatePicker(st) }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
 private fun StudentForm(vm: StudentsViewModel, id: Long, onDone: () -> Unit) {
     val existing by remember(id) { vm.student(id) }.collectAsStateWithLifecycle(null)
     val existingPlan by remember(id) { vm.installments(id) }.collectAsStateWithLifecycle(emptyList())
@@ -114,9 +105,9 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onDone: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var mobile by remember { mutableStateOf("") }
     var aadhaar by remember { mutableStateOf("") }
-    var course by remember { mutableStateOf("MPSC") }
+    var course by remember { mutableStateOf(AppSettings.courseList.first()) }
     var fee by remember { mutableStateOf("") }
-    var count by remember { mutableStateOf("3") }
+    var count by remember { mutableStateOf(AppSettings.defaultInstallments.toString()) }
     var first by remember { mutableLongStateOf(today()) }
     var joined by remember { mutableLongStateOf(today()) }
     var plan by remember { mutableStateOf<List<Installment>>(emptyList()) } // custom plan when editing
@@ -138,7 +129,8 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onDone: () -> Unit) {
             singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
         OutlinedTextField(aadhaar, { if (it.length <= 12 && it.all(Char::isDigit)) aadhaar = it }, Modifier.fillMaxWidth(), label = { Text("Aadhaar number (12 digits)") },
             singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
-        OutlinedTextField(course, { course = it }, Modifier.fillMaxWidth(), label = { Text("Course") }, singleLine = true)
+        Text("Course", style = MaterialTheme.typography.labelLarge)
+        ChipChoice(AppSettings.courseList, course) { course = it }
         DateField("Joining date", joined) { joined = it }
         OutlinedTextField(fee, { if (it.length <= 7 && it.all(Char::isDigit)) fee = it }, Modifier.fillMaxWidth(), label = { Text("Total fee (₹)") },
             singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
@@ -191,17 +183,21 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
         Text("Installments", style = MaterialTheme.typography.titleMedium)
         plan.forEach { i ->
             val late = i.paidOn == null && i.dueOn < today()
-            Card(Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            AppCard {
+                Row(Modifier.padding(0.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("#${i.number}  ${rupees(i.amount)}", style = MaterialTheme.typography.titleSmall)
-                        Text(if (i.paidOn != null) "Paid ${i.paidOn.asDate()} (${i.mode})" else (if (late) "Overdue — " else "Due ") + i.dueOn.asDate(),
+                        val lateFee = if (late && AppSettings.lateFeeOn) (today() - i.dueOn) * AppSettings.lateFeePerDay else 0L
+                        Text(if (i.paidOn != null) "Paid ${i.paidOn.asDate()} (${i.mode})" else (if (late) "Overdue — " else "Due ") + i.dueOn.asDate() + (if (lateFee > 0) "  ·  late fee ${rupees(lateFee)}" else ""),
                             color = if (late) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                     }
                     if (i.paidOn == null) {
                         IconButton({ msgFor = i }) { Icon(Icons.Filled.Send, "Send message", tint = MaterialTheme.colorScheme.primary) }
                         Button({ payFor = i }) { Text("Paid") }
-                    } else TextButton({ vm.undoPaid(i) }) { Text("Undo") }
+                    } else {
+                        IconButton({ shareReceipt(ctx, st, i, paid) }) { Icon(Icons.Filled.Receipt, "Receipt", tint = MaterialTheme.colorScheme.primary) }
+                        TextButton({ vm.undoPaid(i) }) { Text("Undo") }
+                    }
                 }
             }
         }
