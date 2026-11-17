@@ -3,9 +3,7 @@ package `in`.vidyadhan.academy
 import android.Manifest
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -50,8 +48,12 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 @Composable
 private fun HomeShell(lock: LockStore) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-    LaunchedEffect(Unit) { if (Build.VERSION.SDK_INT >= 33) ask.launch(Manifest.permission.POST_NOTIFICATIONS) }
+    val activity = androidx.compose.ui.platform.LocalContext.current as FragmentActivity
+    LaunchedEffect(Unit) {
+        // asked directly: the newer result-launcher route crashes on a FragmentActivity
+        if (Build.VERSION.SDK_INT >= 33 && androidx.core.content.ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            runCatching { androidx.core.app.ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100) }
+    }
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = androidx.compose.ui.graphics.Color.White) {

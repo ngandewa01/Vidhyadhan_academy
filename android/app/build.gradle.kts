@@ -13,8 +13,8 @@ android {
         applicationId = "in.vidyadhan.academy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.2.2"
     }
     buildTypes {
         release {
@@ -45,6 +45,7 @@ dependencies {
     implementation(libs.core.ktx)
     implementation(libs.coroutines)
     implementation(libs.datastore)
+    implementation(libs.fragment)
     implementation(libs.biometric)
     implementation(libs.work.runtime)
     implementation(libs.serialization.json)
