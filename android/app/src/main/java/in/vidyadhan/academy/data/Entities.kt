@@ -38,3 +38,53 @@ data class StudentWithFees(
     val paid: Long,
     val nextDue: Long?, // earliest unpaid due date
 )
+
+@Entity
+data class Enquiry(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val mobile: String,
+    val course: String = "",
+    val details: String = "",
+    val createdOn: Long,
+    val followUpOn: Long,
+    val status: String = "NEW", // NEW, CONTACTED, JOINED, CLOSED
+)
+
+@Entity
+data class SeatType(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val fee: Long = 0,
+    val deposit: Long = 0,
+    val regFee: Long = 0,
+)
+
+@Entity
+data class LibraryMember(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val mobile: String,
+    val aadhaar: String = "",
+    val seatNo: Int,
+    val seatType: String = "",
+    val monthlyFee: Long = 0,
+    val deposit: Long = 0,
+    val depositPaid: Boolean = false,
+    val depositReturnedOn: Long? = null,
+    val joinedOn: Long,
+    val validTill: Long, // epoch day; fee paid up to this day
+    val active: Boolean = true,
+)
+
+@Entity(
+    foreignKeys = [ForeignKey(LibraryMember::class, ["id"], ["memberId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("memberId")],
+)
+data class LibraryPayment(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val memberId: Long,
+    val kind: String, // FEE, DEPOSIT, REGISTRATION, DEPOSIT_RETURN
+    val amount: Long,
+    val paidOn: Long,
+)

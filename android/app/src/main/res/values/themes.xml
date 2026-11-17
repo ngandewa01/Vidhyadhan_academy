@@ -1,6 +1,6 @@
 <resources>
     <style name="Theme.Vidyadhan" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">#0b5583</item>
+        <item name="android:statusBarColor">#0f3a58</item>
         <item name="android:windowBackground">#f8fafc</item>
     </style>
 </resources>

@@ -9,6 +9,11 @@ import androidx.compose.ui.graphics.Color
 object Brand {
     val Blue50 = Color(0xFFEEF7FC)
     val Blue100 = Color(0xFFD6ECF7)
+    val Blue500 = Color(0xFF1A7DB2)
+    val Green700 = Color(0xFF15803D)
+    val Green100 = Color(0xFFDCFCE7)
+    val Red700 = Color(0xFFB91C1C)
+    val Red100 = Color(0xFFFEE2E2)
     val Blue700 = Color(0xFF0B5583)
     val Blue800 = Color(0xFF0D466B)
     val Blue900 = Color(0xFF0F3A58)
