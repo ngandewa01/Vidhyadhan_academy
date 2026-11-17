@@ -1,0 +1,31 @@
+package `in`.vidyadhan.academy.students
+
+import `in`.vidyadhan.academy.data.Installment
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+/** Splits [total] into [count] monthly installments; the remainder goes into the first one. */
+fun buildPlan(total: Long, count: Int, firstDue: LocalDate): List<Installment> {
+    require(count >= 1)
+    val base = total / count
+    val extra = total - base * count
+    return (1..count).map { n ->
+        Installment(
+            studentId = 0, number = n,
+            amount = base + if (n == 1) extra else 0,
+            dueOn = firstDue.plusMonths((n - 1).toLong()).toEpochDay(),
+        )
+    }
+}
+
+private val fmt = DateTimeFormatter.ofPattern("dd MMM yyyy")
+fun Long.asDate(): String = LocalDate.ofEpochDay(this).format(fmt)
+fun today(): Long = LocalDate.now().toEpochDay()
+fun rupees(v: Long): String = "₹" + java.text.NumberFormat.getIntegerInstance(java.util.Locale("en", "IN")).format(v)
+fun maskAadhaar(a: String) = if (a.length >= 4) "XXXX XXXX " + a.takeLast(4) else a
+
+fun feeMessage(marathi: Boolean, name: String, amount: Long, due: Long, academy: String = "विद्याधन अकॅडमी"): String =
+    if (marathi)
+        "नमस्कार $name, $academy कडून आठवण: तुमचा ${rupees(amount)} चा हप्ता ${due.asDate()} रोजी देय आहे. कृपया वेळेत भरावा. धन्यवाद."
+    else
+        "Hello $name, a reminder from Vidyadhan Academy: your installment of ${rupees(amount)} is due on ${due.asDate()}. Please pay on time. Thank you."
