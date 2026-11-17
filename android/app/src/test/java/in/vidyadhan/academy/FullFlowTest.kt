@@ -43,10 +43,10 @@ class UnlockFlowTest {
     @Test fun unlockAndOpenEveryTab() {
         LockStore(ApplicationProvider.getApplicationContext()).setPin("1234")
         rule.activityRule.scenario.recreate()
-        rule.onNode(hasSetTextAction()).performTextInput("1234")
+        listOf("1", "2", "3", "4").forEach { rule.onNodeWithText(it).performClick() }
         rule.waitForIdle()
         listOf("Students", "Enquiries", "Library", "Settings", "Home").forEach {
-            rule.onNode(hasText(it) and hasClickAction() and hasAnyAncestor(isRoot()).and(SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab))).performClick(); rule.waitForIdle()
+            rule.onAllNodesWithText(it).onLast().performClick(); rule.waitForIdle()
         }
     }
 }
@@ -59,11 +59,14 @@ class PickersTest {
     @Test fun backupRestoreExportButtonsDoNotCrash() {
         LockStore(ApplicationProvider.getApplicationContext()).setPin("1234")
         rule.activityRule.scenario.recreate()
-        rule.onNode(hasSetTextAction()).performTextInput("1234")
+        listOf("1", "2", "3", "4").forEach { rule.onNodeWithText(it).performClick() }
         rule.waitForIdle()
-        rule.onNode(hasText("Settings") and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab)).performClick()
-        listOf("Back up now", "Restore from a backup", "Export students list (Excel / CSV)").forEach {
-            rule.onNode(hasText(it)).performScrollTo().performClick(); rule.waitForIdle()
+        rule.onAllNodesWithText("Settings").onLast().performClick()
+        rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
+        rule.onNodeWithText("Backup & export").performScrollTo().performClick()
+        rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
+        listOf("Back up now", "Restore from a backup", "Export students to Excel").forEach {
+            rule.onNodeWithText(it).performScrollTo().performClick(); rule.waitForIdle()
         }
     }
 }

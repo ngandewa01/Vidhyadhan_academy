@@ -13,8 +13,8 @@ android {
         applicationId = "in.vidyadhan.academy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.2.2"
+        versionCode = 5
+        versionName = "0.3.0"
     }
     buildTypes {
         release {
@@ -28,7 +28,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
-    testOptions { unitTests { isIncludeAndroidResources = true } }
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            all { it.systemProperty("shots.dir", System.getenv("SHOTS_DIR") ?: "build/shots") }
+        }
+    }
 }
 
 dependencies {
