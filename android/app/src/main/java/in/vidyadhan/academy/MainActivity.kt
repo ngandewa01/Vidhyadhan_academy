@@ -64,7 +64,8 @@ private fun HomeShell() {
         },
     ) { pad ->
         Box(Modifier.padding(pad).fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("${tab.label} — coming in the next steps", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (tab == Tab.Students) `in`.vidyadhan.academy.students.StudentsTab()
+            else Text("${tab.label} — coming in the next steps", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
