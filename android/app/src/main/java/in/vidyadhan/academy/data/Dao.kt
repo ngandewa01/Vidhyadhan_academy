@@ -18,6 +18,9 @@ interface StudentDao {
     @Query("SELECT * FROM Installment WHERE studentId = :id ORDER BY number") fun installments(id: Long): Flow<List<Installment>>
     @Query("SELECT COUNT(DISTINCT studentId) FROM Installment WHERE paidOn IS NULL AND dueOn <= :day") suspend fun dueCount(day: Long): Int
     @Query("SELECT * FROM Student ORDER BY name COLLATE NOCASE") suspend fun allStudents(): List<Student>
+    @Query("SELECT COALESCE(SUM(amount), 0) FROM Installment WHERE paidOn BETWEEN :from AND :to") fun paidBetween(from: Long, to: Long): Flow<Long>
+    @Query("SELECT s.name AS name, i.amount AS amount, i.paidOn AS paidOn, 'STUDENT_FEE' AS kind FROM Installment i JOIN Student s ON s.id = i.studentId WHERE i.paidOn IS NOT NULL ORDER BY i.paidOn DESC, i.id DESC LIMIT 8")
+    fun recentPaid(): Flow<List<PaymentRow>>
 
     @Insert suspend fun insert(s: Student): Long
     @Update suspend fun update(s: Student)
@@ -62,6 +65,9 @@ interface LibraryDao {
     @Query("SELECT * FROM LibraryPayment WHERE memberId = :id ORDER BY paidOn DESC, id DESC") fun payments(id: Long): Flow<List<LibraryPayment>>
     @Query("SELECT COUNT(*) FROM LibraryMember WHERE active = 1 AND validTill <= :day") suspend fun expiringCount(day: Long): Int
     @Query("SELECT * FROM LibraryMember ORDER BY name COLLATE NOCASE") suspend fun allMembers(): List<LibraryMember>
+    @Query("SELECT COALESCE(SUM(amount), 0) FROM LibraryPayment WHERE kind IN ('FEE','REGISTRATION') AND paidOn BETWEEN :from AND :to") fun collectedBetween(from: Long, to: Long): Flow<Long>
+    @Query("SELECT m.name AS name, p.amount AS amount, p.paidOn AS paidOn, p.kind AS kind FROM LibraryPayment p JOIN LibraryMember m ON m.id = p.memberId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
+    fun recentPayments(): Flow<List<PaymentRow>>
 
     @Insert suspend fun insertMember(m: LibraryMember): Long
     @Update suspend fun updateMember(m: LibraryMember)

@@ -29,3 +29,24 @@ fun feeMessage(marathi: Boolean, name: String, amount: Long, due: Long, academy:
         "नमस्कार $name, $academy कडून आठवण: तुमचा ${rupees(amount)} चा हप्ता ${due.asDate()} रोजी देय आहे. कृपया वेळेत भरावा. धन्यवाद."
     else
         "Hello $name, a reminder from Vidyadhan Academy: your installment of ${rupees(amount)} is due on ${due.asDate()}. Please pay on time. Thank you."
+
+/** "Today", "Tomorrow", "in 3 days", "2 days ago"… */
+fun relativeDay(day: Long, from: Long = today()): String = when (val d = day - from) {
+    0L -> "Today"
+    1L -> "Tomorrow"
+    -1L -> "Yesterday"
+    in 2..6 -> "in $d days"
+    in -6..-2 -> "${-d} days ago"
+    else -> day.asDate()
+}
+
+fun shortDate(day: Long): String = LocalDate.ofEpochDay(day).format(DateTimeFormatter.ofPattern("dd MMM"))
+
+fun greeting(): String = when (java.time.LocalTime.now().hour) {
+    in 4..11 -> "Good morning"
+    in 12..16 -> "Good afternoon"
+    else -> "Good evening"
+}
+
+/** "today", "tomorrow", "in 3 days", "2 days ago" or "on 12 Dec". */
+fun whenText(day: Long): String = relativeDay(day).let { if (it.first().isDigit()) "on ${shortDate(day)}" else it.lowercase() }

@@ -88,3 +88,6 @@ data class LibraryPayment(
     val amount: Long,
     val paidOn: Long,
 )
+
+/** One received payment, for the "Recent payments" list (not stored as its own table). */
+data class PaymentRow(val name: String, val amount: Long, val paidOn: Long, val kind: String)
