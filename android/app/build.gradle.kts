@@ -13,8 +13,8 @@ android {
         applicationId = "in.vidyadhan.academy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.2.1"
     }
     buildTypes {
         release {
@@ -28,6 +28,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
+    testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
 dependencies {
@@ -52,4 +53,8 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     testImplementation(libs.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.test.core)
+    testImplementation(libs.compose.test)
+    debugImplementation(libs.compose.test.manifest)
 }
