@@ -53,18 +53,18 @@ import java.io.File
 private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Reminders("Reminders"), Library("Library seats"), Backup("Backup & export"), Updates("App updates") }
 
 @Composable
-fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}) {
+fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}, onClose: () -> Unit = {}) {
     var page by remember { mutableStateOf(Page.Main) }
     LaunchedEffect(openBackup) { if (openBackup) { page = Page.Backup; onOpened() } }
-    BackHandler(enabled = page != Page.Main) { page = Page.Main }
+    HideBottomNav()
+    BackHandler { if (page != Page.Main) page = Page.Main else onClose() }
     AnimatedContent(page, transitionSpec = {
         if (targetState == Page.Main) (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { it / 5 } + fadeOut())
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "settings") { p ->
         when (p) {
-            Page.Main -> MainPage(lock) { page = it }
+            Page.Main -> MainPage(lock, onClose) { page = it }
             else -> HeroPage(p.title, onBack = { page = Page.Main }) {
-                HideBottomNav()
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Spacer(Modifier.height(4.dp))
                     when (p) {
@@ -113,14 +113,14 @@ private fun SettingRow(icon: ImageVector, color: Color, title: String, subtitle:
 }
 
 @Composable
-private fun MainPage(lock: LockStore, open: (Page) -> Unit) {
+private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit) {
     val ctx = LocalContext.current
     val types by viewModel<LibraryViewModel>().types.collectAsStateWithLifecycle()
     var bio by remember { mutableStateOf(lock.biometricOn) }
     var pinDialog by remember { mutableStateOf(false) }
     var done by remember { mutableStateOf<String?>(null) }
     val (code, version) = remember { Updater.currentVersion(ctx) }
-    HeroPage("Settings", "Make the app work your way", header = {
+    HeroPage("Settings", "Make the app work your way", onBack = onClose, header = {
         Spacer(Modifier.height(18.dp))
         androidx.compose.foundation.layout.Row(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White.copy(alpha = 0.11f))
@@ -136,11 +136,11 @@ private fun MainPage(lock: LockStore, open: (Page) -> Unit) {
             GlassChip("Edit", Icons.Rounded.Edit)
         }
     }) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Spacer(Modifier.height(2.dp))
             Group("Academy") {
                 SettingRow(Icons.Rounded.Apartment, Brand.Blue600, "Academy details", "Name, phone, address, receipt number") { open(Page.Academy) }
-                SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.defaultInstallments} installments" +
+                SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses, batches & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
                     if (AppSettings.lateFeeOn) " · late fee on" else "", divider = false) { open(Page.Courses) }
             }
             Group("Daily work") {
@@ -161,7 +161,7 @@ private fun MainPage(lock: LockStore, open: (Page) -> Unit) {
             }
             Text("Made for ${AppSettings.academyName}\nAll data is stored only on this phone", Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall, color = Brand.Slate400, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(90.dp))
+            Spacer(Modifier.height(20.dp))
         }
     }
     if (pinDialog) ChangePinDialog(lock, onDone = { pinDialog = false; done = it })
@@ -206,6 +206,10 @@ private fun CoursesPage() {
     FormCard("Courses", Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600) {
         Field(AppSettings.courses, { AppSettings.courses = it }, "Course names, separated by commas", singleLine = false, minLines = 2)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { AppSettings.courseList.forEach { SmallTag(it, Brand.Saffron700) } }
+    }
+    FormCard("Batches", Icons.Rounded.Schedule, Brand.Teal700) {
+        Field(AppSettings.batches, { AppSettings.batches = it }, "Batch names, separated by commas", singleLine = false, minLines = 2)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { AppSettings.batchList.forEach { SmallTag(it, Brand.Teal700) } }
     }
     FormCard("Installments", Icons.Rounded.Timeline, Brand.Violet700) {
         Stepper("Usual number of installments", AppSettings.defaultInstallments, 1..12) { AppSettings.defaultInstallments = it }
@@ -257,9 +261,12 @@ private fun LibraryPage() {
         types.forEach { t ->
             androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(18.dp))
                 .clickable { edit = t }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                `in`.vidyadhan.academy.library.SeatIcon(t.icon, Brand.Teal700, 24.dp, badgeBg = Brand.Slate50)
+                Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Text(t.name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
                     Text("${rupees(t.fee)}/month · deposit ${rupees(t.deposit)} · registration ${rupees(t.regFee)}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                    Text(if (t.seats.isBlank()) "All other seats" else "Seats ${t.seats}", style = MaterialTheme.typography.labelMedium, color = Brand.Teal700)
                 }
                 Icon(Icons.Rounded.Edit, "Edit", tint = Brand.Blue600, modifier = Modifier.size(20.dp))
             }
@@ -269,16 +276,29 @@ private fun LibraryPage() {
     edit?.let { t ->
         var n by remember { mutableStateOf(t.name) }; var f by remember { mutableStateOf(t.fee.toString()) }
         var d by remember { mutableStateOf(t.deposit.toString()) }; var r by remember { mutableStateOf(t.regFee.toString()) }
+        var seats by remember { mutableStateOf(t.seats) }; var icon by remember { mutableStateOf(t.icon) }
         AlertDialog(onDismissRequest = { edit = null }, containerColor = Color.White, shape = RoundedCornerShape(28.dp),
             title = { Text(if (t.id == 0L) "New seat type" else "Edit seat type") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Field(n, { n = it }, "Name, e.g. With locker")
+                Field(seats, { seats = it }, "Seat numbers, e.g. 1-10, 15", Icons.Rounded.Tag, supporting = "Leave empty for “all other seats”")
+                Text("Icon", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("CHAIR" to "Normal", "LOCKER" to "Locker", "LEGROOM" to "Leg room").forEach { (k, lbl) ->
+                        Column(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(if (icon == k) Brand.Blue50 else Color.White)
+                            .border(if (icon == k) 2.dp else 1.dp, if (icon == k) Brand.Blue600 else Brand.Line, RoundedCornerShape(14.dp)).clickable { icon = k }.padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally) {
+                            `in`.vidyadhan.academy.library.SeatIcon(k, if (icon == k) Brand.Blue700 else Brand.Slate500, 22.dp, badgeBg = if (icon == k) Brand.Blue50 else Color.White)
+                            Text(lbl, style = MaterialTheme.typography.labelMedium, color = Brand.Slate600)
+                        }
+                    }
+                }
                 DigitsField("Monthly fee", f, 6, { f = it }, prefix = "₹ ")
                 DigitsField("Deposit", d, 6, { d = it }, prefix = "₹ ")
                 DigitsField("Registration fee", r, 6, { r = it }, prefix = "₹ ")
             } },
             confirmButton = { TextButton(enabled = n.isNotBlank(), onClick = {
-                val nt = t.copy(name = n.trim(), fee = f.toLongOrNull() ?: 0, deposit = d.toLongOrNull() ?: 0, regFee = r.toLongOrNull() ?: 0)
+                val nt = t.copy(name = n.trim(), fee = f.toLongOrNull() ?: 0, deposit = d.toLongOrNull() ?: 0, regFee = r.toLongOrNull() ?: 0, seats = seats.trim(), icon = icon)
                 scope.launch { val dao = AppDb.get(ctx).library(); if (t.id == 0L) dao.insertType(nt) else dao.updateType(nt) }; edit = null }) { Text("Save", fontWeight = FontWeight.Bold) } },
             dismissButton = { androidx.compose.foundation.layout.Row {
                 if (t.id != 0L) TextButton({ scope.launch { AppDb.get(ctx).library().deleteType(t) }; edit = null }) { Text("Delete", color = Brand.Red600) }
@@ -293,7 +313,7 @@ private fun BackupPage() {
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<String?>(null) }
     var restoreUri by remember { mutableStateOf<Uri?>(null) }
-    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) scope.launch { status = runCatching { backup(ctx, uri) }.fold({ "Backup saved ✓" }, { "Backup failed: ${it.message}" }) }
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) restoreUri = uri }
@@ -303,9 +323,9 @@ private fun BackupPage() {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(PrimaryBrush).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         IconTile(Icons.Rounded.CloudUpload, Color.White, 48.dp)
         Text("Keep a safe copy", style = MaterialTheme.typography.titleLarge, color = Color.White)
-        Text("Save a backup to Google Drive every week, and always before changing phones. Choose Drive in the screen that opens.",
+        Text("Saves all records and photos in one file. Save it to Google Drive every week, and always before changing phones. Choose Drive in the screen that opens.",
             style = MaterialTheme.typography.bodyMedium, color = Brand.Blue100)
-        PrimaryButton("Back up now", { backupLauncher.launch("vidyadhan-backup-${java.time.LocalDate.now()}.db") }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Backup)
+        PrimaryButton("Back up now", { backupLauncher.launch("vidyadhan-backup-${java.time.LocalDate.now()}.zip") }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Backup)
     }
     status?.let { StatusChip(it, if (it.contains("fail")) Tone.Bad else Tone.Good) }
     OptionRow(Icons.Rounded.SettingsBackupRestore, Brand.Saffron700, "Restore from a backup", "Replaces everything in the app") { restoreLauncher.launch(arrayOf("*/*")) }
@@ -369,18 +389,41 @@ private suspend fun backup(ctx: Context, dest: Uri) = withContext(Dispatchers.IO
     val db = AppDb.get(ctx)
     db.openHelper.writableDatabase.query("PRAGMA wal_checkpoint(FULL)").close()
     val f = ctx.getDatabasePath(AppDb.dbFileName())
-    ctx.contentResolver.openOutputStream(dest)!!.use { out -> f.inputStream().use { it.copyTo(out) } }
+    ctx.contentResolver.openOutputStream(dest)!!.use { raw ->
+        java.util.zip.ZipOutputStream(raw).use { zip ->
+            zip.putNextEntry(java.util.zip.ZipEntry("academy.db")); f.inputStream().use { it.copyTo(zip) }; zip.closeEntry()
+            `in`.vidyadhan.academy.ui.Photos.dir(ctx).listFiles()?.forEach { p ->
+                zip.putNextEntry(java.util.zip.ZipEntry("photos/${p.name}")); p.inputStream().use { it.copyTo(zip) }; zip.closeEntry()
+            }
+        }
+    }
 }
 
+/** Accepts the new .zip backups (records + photos) and older .db backups. */
 private suspend fun restore(ctx: Context, src: Uri) = withContext(Dispatchers.IO) {
-    val tmp = File(ctx.cacheDir, "restore.db")
+    val tmp = File(ctx.cacheDir, "restore.bin")
     ctx.contentResolver.openInputStream(src)!!.use { i -> tmp.outputStream().use { i.copyTo(it) } }
     val head = tmp.inputStream().use { s -> ByteArray(15).also { s.read(it) } }
-    require(String(head) == "SQLite format 3") { "That file is not a backup from this app" }
+    val dbTmp = File(ctx.cacheDir, "restore.db")
+    val photosTmp = File(ctx.cacheDir, "restore-photos").apply { deleteRecursively(); mkdirs() }
+    if (head[0] == 'P'.code.toByte() && head[1] == 'K'.code.toByte()) {
+        java.util.zip.ZipInputStream(tmp.inputStream()).use { zip ->
+            while (true) {
+                val e = zip.nextEntry ?: break
+                val name = e.name.substringAfterLast('/')
+                if (e.name == "academy.db") dbTmp.outputStream().use { zip.copyTo(it) }
+                else if (e.name.startsWith("photos/") && name.isNotBlank() && !name.contains("..")) File(photosTmp, name).outputStream().use { zip.copyTo(it) }
+            }
+        }
+    } else tmp.copyTo(dbTmp, overwrite = true)
+    val dbHead = dbTmp.takeIf { it.exists() }?.inputStream()?.use { s -> ByteArray(15).also { s.read(it) } }
+    require(dbHead != null && String(dbHead) == "SQLite format 3") { "That file is not a backup from this app" }
     AppDb.closeForRestore()
     val f = ctx.getDatabasePath(AppDb.dbFileName())
     File(f.path + "-wal").delete(); File(f.path + "-shm").delete()
-    tmp.copyTo(f, overwrite = true); tmp.delete()
+    dbTmp.copyTo(f, overwrite = true)
+    photosTmp.listFiles()?.forEach { it.copyTo(File(`in`.vidyadhan.academy.ui.Photos.dir(ctx), it.name), overwrite = true) }
+    tmp.delete(); dbTmp.delete(); photosTmp.deleteRecursively()
     val i = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)!!.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
     ctx.startActivity(i)
     Runtime.getRuntime().exit(0)

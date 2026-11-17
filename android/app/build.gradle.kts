@@ -13,8 +13,8 @@ android {
         applicationId = "in.vidyadhan.academy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.3.0"
+        versionCode = 6
+        versionName = "0.4.0"
     }
     buildTypes {
         release {
@@ -28,12 +28,18 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
+    // Room schema files, so the database-upgrade test can read them (debug builds only)
+    sourceSets.getByName("debug").assets.directories.add("$projectDir/schemas")
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
             all { it.systemProperty("shots.dir", System.getenv("SHOTS_DIR") ?: "build/shots") }
         }
     }
+}
+
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }
 
 dependencies {
@@ -60,6 +66,7 @@ dependencies {
     ksp(libs.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.robolectric)
+    testImplementation(libs.room.testing)
     testImplementation(libs.test.core)
     testImplementation(libs.compose.test)
     debugImplementation(libs.compose.test.manifest)

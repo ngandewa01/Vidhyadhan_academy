@@ -2,11 +2,13 @@ package `in`.vidyadhan.academy.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,17 +32,23 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 /** Where a Home shortcut should take the owner. */
-enum class Go { Students, NewStudent, Enquiries, NewEnquiry, Library, NewMember, Settings, Backup }
+enum class Go { Students, NewStudent, Student, Enquiries, NewEnquiry, Enquiry, Library, NewMember, Member, Money, NewExpense, Settings, Backup }
 
-private data class Agenda(val name: String, val detail: String, val icon: ImageVector, val color: Color, val tone: Tone, val chip: String, val go: Go)
+private data class Agenda(val name: String, val detail: String, val icon: ImageVector, val color: Color, val tone: Tone, val chip: String, val go: Go, val id: Long, val photo: String = "")
+private data class Birthday(val name: String, val mobile: String, val photo: String, val what: String, val go: Go, val id: Long)
+
+fun isBirthday(dob: Long?, day: LocalDate): Boolean = dob != null && LocalDate.ofEpochDay(dob).let { it.month == day.month && it.dayOfMonth == day.dayOfMonth }
+
+fun birthdayWish(name: String) = "🎉 वाढदिवसाच्या हार्दिक शुभेच्छा, ${name.substringBefore(' ')}! तुमची अभ्यासातील मेहनत फळाला येवो आणि यश तुमच्या पायाशी असो. — विद्याधन अकॅडमी"
 
 @Composable
-fun HomeTab(onGo: (Go) -> Unit) {
-    val db = AppDb.get(LocalContext.current)
+fun HomeTab(onGo: (Go, Long) -> Unit) {
+    val ctx = LocalContext.current
+    val db = AppDb.get(ctx)
     val now = LocalDate.now()
     val monthStart = now.withDayOfMonth(1).toEpochDay()
     val monthEnd = now.withDayOfMonth(now.lengthOfMonth()).toEpochDay()
-    val students by db.students().listWithFees().collectAsStateWithLifecycle(emptyList())
+    val students by remember { studentsWithFees(db.students()) }.collectAsStateWithLifecycle(emptyList())
     val enquiries by db.enquiries().all().collectAsStateWithLifecycle(emptyList())
     val members by db.library().members().collectAsStateWithLifecycle(emptyList())
     val feesMonth by remember(monthStart) { db.students().paidBetween(monthStart, monthEnd) }.collectAsStateWithLifecycle(0L)
@@ -51,7 +59,7 @@ fun HomeTab(onGo: (Go) -> Unit) {
     val t = today()
     val pending = students.sumOf { (it.totalFee - it.paid).coerceAtLeast(0) }
     val collected = feesMonth + libMonth
-    val overdue = students.filter { it.nextDue != null && it.nextDue < t && it.totalFee > it.paid }
+    val overdue = students.filter { it.nextDue != null && it.nextDue < t }
     val openEnq = enquiries.filter { it.status == "NEW" || it.status == "CONTACTED" }
     val active = members.filter { it.active }
     val seats = AppSettings.seatCount
@@ -59,76 +67,97 @@ fun HomeTab(onGo: (Go) -> Unit) {
     val agenda = buildList {
         openEnq.filter { it.followUpOn <= t }.forEach {
             add(Agenda(it.name, "Enquiry · ${it.course.ifBlank { it.mobile }}", Icons.Rounded.Forum, Brand.Saffron600,
-                if (it.followUpOn < t) Tone.Bad else Tone.Accent, if (it.followUpOn < t) "Overdue" else "Follow up", Go.Enquiries))
+                if (it.followUpOn < t) Tone.Bad else Tone.Accent, if (it.followUpOn < t) "Overdue" else "Follow up", Go.Enquiry, it.id))
         }
-        students.filter { it.nextDue != null && it.nextDue <= t && it.totalFee > it.paid }.forEach {
-            add(Agenda(it.name, "${rupees(it.totalFee - it.paid)} pending", Icons.Rounded.CurrencyRupee, Brand.Red600,
-                if (it.nextDue!! < t) Tone.Bad else Tone.Warn, if (it.nextDue < t) "Fee overdue" else "Fee due", Go.Students))
+        students.filter { it.nextDue != null && it.nextDue <= t }.forEach {
+            add(Agenda(it.name, "${rupees(it.nextDueAmount)} due · ${rupees(it.totalFee - it.paid)} pending", Icons.Rounded.CurrencyRupee, Brand.Red600,
+                if (it.nextDue!! < t) Tone.Bad else Tone.Warn, if (it.nextDue < t) "Fee overdue" else "Fee due", Go.Student, it.id, it.photo))
         }
-        active.filter { it.validTill <= t + 3 }.forEach {
-            add(Agenda(it.name, "Seat ${it.seatNo} · ${if (it.validTill < t) "ended " else "ends "}${relativeDay(it.validTill).lowercase()}", Icons.Rounded.EventSeat,
-                Brand.Teal700, if (it.validTill < t) Tone.Bad else Tone.Warn, "Renewal", Go.Library))
+        active.filter { it.validTill <= t }.forEach {
+            add(Agenda(it.name, "Seat ${it.seatNo} · fee ${rupees(it.monthlyFee)}", Icons.Rounded.EventSeat,
+                Brand.Teal700, Tone.Bad, "Renewal", Go.Member, it.id, it.photo))
         }
     }
+    val upcoming = buildList {
+        students.filter { it.nextDue != null && it.nextDue in (t + 1)..(t + 7) }.forEach {
+            add(Agenda(it.name, "Course fee · ${whenText(it.nextDue!!)}", Icons.Rounded.School, Brand.Blue600, Tone.Info, rupees(it.nextDueAmount), Go.Student, it.id, it.photo) to it.nextDue)
+        }
+        active.filter { it.validTill in (t + 1)..(t + 7) }.forEach {
+            add(Agenda(it.name, "Library · seat ${it.seatNo} · ${whenText(it.validTill)}", Icons.Rounded.EventSeat, Brand.Teal700, Tone.Info, rupees(it.monthlyFee), Go.Member, it.id, it.photo) to it.validTill)
+        }
+    }.sortedBy { it.second }.map { it.first }
+    val birthdays = students.filter { isBirthday(it.dob, now) }.map { Birthday(it.name, it.mobile, it.photo, "Student · ${it.course}", Go.Student, it.id) } +
+        active.filter { isBirthday(it.dob, now) }.map { Birthday(it.name, it.mobile, it.photo, "Library · seat ${it.seatNo}", Go.Member, it.id) }
     val recent = (recentFees + recentLib).sortedByDescending { it.paidOn }.take(5)
 
     Column(Modifier.fillMaxSize().background(Brand.Bg).verticalScroll(rememberScrollState())) {
-        // ── hero ──
-        Column(Modifier.fillMaxWidth().heroBackground().statusBarsPadding().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 74.dp)) {
+        Column(Modifier.fillMaxWidth().heroBackground().statusBarsPadding().padding(start = 20.dp, end = 16.dp, top = 14.dp, bottom = 74.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 LogoBadge(46.dp)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("${greeting()} 👋", style = MaterialTheme.typography.bodyMedium, color = Brand.Blue200)
+                    Text("${greeting()} 👋 · ${now.format(DateTimeFormatter.ofPattern("EEE, dd MMM"))}", style = MaterialTheme.typography.bodySmall, color = Brand.Blue200, maxLines = 1)
                     Text(AppSettings.academyName, style = MaterialTheme.typography.titleLarge, color = Color.White, maxLines = 1)
                 }
-                Text(
-                    now.format(DateTimeFormatter.ofPattern("EEE, dd MMM")),
-                    Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.12f)).border(1.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(50))
-                        .padding(horizontal = 12.dp, vertical = 7.dp),
-                    style = MaterialTheme.typography.labelMedium, color = Color.White,
-                )
+                GlassIconButton(Icons.Rounded.Settings, "Settings", { onGo(Go.Settings, 0) })
             }
             Spacer(Modifier.height(26.dp))
-            Text("Collected in ${now.format(DateTimeFormatter.ofPattern("MMMM"))}", style = MaterialTheme.typography.labelLarge, color = Brand.Blue200)
+            Row(Modifier.clip(RoundedCornerShape(12.dp)).clickable { onGo(Go.Money, 0) }, verticalAlignment = Alignment.CenterVertically) {
+                Text("Collected in ${now.format(DateTimeFormatter.ofPattern("MMMM"))}", style = MaterialTheme.typography.labelLarge, color = Brand.Blue200)
+                Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue200, modifier = Modifier.size(18.dp))
+            }
             Text(rupees(collected), style = MaterialTheme.typography.displaySmall.copy(fontSize = 38.sp), color = Color.White)
             Spacer(Modifier.height(10.dp))
             val total = collected + pending
             ProgressBar(if (total == 0L) 0f else collected.toFloat() / total, color = Brand.Saffron400, track = Color.White.copy(alpha = 0.16f), height = 8.dp)
             Spacer(Modifier.height(8.dp))
             Row {
-                Text("Student fees ${rupees(feesMonth)} · Library ${rupees(libMonth)}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Brand.Blue200)
+                Text("Students ${rupees(feesMonth)} · Library ${rupees(libMonth)}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Brand.Blue200, maxLines = 1)
                 Text("${rupees(pending)} to collect", style = MaterialTheme.typography.labelMedium, color = Brand.Saffron200)
             }
         }
 
         Column(Modifier.offset(y = (-52).dp).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            // ── quick actions ──
-            Row(
-                Modifier.fillMaxWidth().softCard(RoundedCornerShape(26.dp), 14.dp).padding(vertical = 14.dp, horizontal = 6.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-            ) {
-                RoundAction(Icons.Rounded.PersonAdd, "Student", Brand.Blue600, { onGo(Go.NewStudent) })
-                RoundAction(Icons.Rounded.AddComment, "Enquiry", Brand.Saffron600, { onGo(Go.NewEnquiry) })
-                RoundAction(Icons.Rounded.EventSeat, "Library", Brand.Teal700, { onGo(Go.NewMember) })
-                RoundAction(Icons.Rounded.CloudUpload, "Backup", Brand.Violet700, { onGo(Go.Backup) })
+            Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(26.dp), 14.dp).padding(vertical = 14.dp, horizontal = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                RoundAction(Icons.Rounded.PersonAdd, "Student", Brand.Blue600, { onGo(Go.NewStudent, 0) })
+                RoundAction(Icons.Rounded.AddComment, "Enquiry", Brand.Saffron600, { onGo(Go.NewEnquiry, 0) })
+                RoundAction(Icons.Rounded.EventSeat, "Library", Brand.Teal700, { onGo(Go.NewMember, 0) })
+                RoundAction(Icons.Rounded.ReceiptLong, "Expense", Brand.Violet700, { onGo(Go.NewExpense, 0) })
             }
-            // ── metrics ──
+            if (birthdays.isNotEmpty()) Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Color(0xFFFFF1F2), Brand.Saffron50)))
+                    .border(1.dp, Color(0xFFFECDD3), RoundedCornerShape(24.dp)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconTile(Icons.Rounded.Cake, Color(0xFFE11D48), 40.dp, filled = true); Spacer(Modifier.width(12.dp))
+                    Text("Birthday today 🎂", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
+                }
+                birthdays.forEach { b ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.clickable { onGo(b.go, b.id) }) { Avatar(b.name, 40.dp, photo = b.photo) }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(b.name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                            Text(b.what, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                        }
+                        PillButton("Wish", { Contact.whatsapp(ctx, b.mobile, birthdayWish(b.name)) }, Brand.WhatsAppDark, Icons.AutoMirrored.Rounded.Chat)
+                    }
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 MetricCard(Icons.Rounded.School, "Students", "${students.size}", Brand.Blue600, Modifier.weight(1f),
-                    sub = if (overdue.isEmpty()) "All on time" else "${overdue.size} overdue", subColor = if (overdue.isEmpty()) Brand.Green700 else Brand.Red600) { onGo(Go.Students) }
+                    sub = if (overdue.isEmpty()) "All on time" else "${overdue.size} overdue", subColor = if (overdue.isEmpty()) Brand.Green700 else Brand.Red600) { onGo(Go.Students, 0) }
                 MetricCard(Icons.Rounded.Forum, "Open enquiries", "${openEnq.size}", Brand.Saffron600, Modifier.weight(1f),
-                    sub = "${openEnq.count { it.followUpOn <= t }} due today") { onGo(Go.Enquiries) }
+                    sub = "${openEnq.count { it.followUpOn <= t }} due today") { onGo(Go.Enquiries, 0) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 MetricCard(Icons.Rounded.EventSeat, "Seats filled", "${active.size}/$seats", Brand.Teal700, Modifier.weight(1f),
-                    sub = "${(seats - active.size).coerceAtLeast(0)} free") { onGo(Go.Library) }
+                    sub = "${(seats - active.size).coerceAtLeast(0)} free") { onGo(Go.Library, 0) }
                 MetricCard(Icons.Rounded.AccountBalanceWallet, "Fees pending", rupees(pending), Brand.Violet700, Modifier.weight(1f),
-                    sub = "${students.count { it.totalFee > it.paid }} students") { onGo(Go.Students) }
+                    sub = "${students.count { it.totalFee > it.paid }} students") { onGo(Go.Students, 0) }
             }
 
-            // ── agenda ──
-            SectionHeader("Today's to-do", action = if (agenda.size > 5) "${agenda.size} items" else null)
+            SectionHeader("Today's to-do", action = if (agenda.size > 6) "${agenda.size} items" else null)
             if (agenda.isEmpty()) {
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Brand.Green50, Color.White)))
                     .border(1.dp, Brand.Green100, RoundedCornerShape(24.dp)).padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -139,29 +168,37 @@ fun HomeTab(onGo: (Go) -> Unit) {
                         Text("No follow-ups, dues or renewals today.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                     }
                 }
-            } else Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(vertical = 6.dp)) {
-                agenda.take(6).forEachIndexed { i, a ->
-                    if (i > 0) HorizontalDivider(Modifier.padding(start = 72.dp, end = 16.dp), color = Brand.Line)
-                    Row(Modifier.fillMaxWidth().pressable { onGo(a.go) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconTile(a.icon, a.color, 42.dp)
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(a.name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1)
-                            Text(a.detail, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
-                        }
-                        StatusChip(a.chip, a.tone)
-                    }
-                }
-            }
+            } else AgendaList(agenda.take(8)) { onGo(it.go, it.id) }
 
-            // ── recent payments ──
             if (recent.isNotEmpty()) {
                 SectionHeader("Recent payments")
                 Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(vertical = 6.dp)) {
                     recent.forEachIndexed { i, p -> if (i > 0) HorizontalDivider(Modifier.padding(start = 72.dp, end = 16.dp), color = Brand.Line); PaymentLine(p) }
                 }
             }
+            SectionHeader("Coming up · next 7 days", action = if (upcoming.isNotEmpty()) rupees(upcoming.sumOf { it.chip.filter(Char::isDigit).toLongOrNull() ?: 0 }) else null)
+            if (upcoming.isEmpty()) Text("No payments due in the next week.", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500, modifier = Modifier.padding(start = 4.dp))
+            else AgendaList(upcoming, amountChip = true) { onGo(it.go, it.id) }
             Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
+@Composable
+private fun AgendaList(items: List<Agenda>, amountChip: Boolean = false, onClick: (Agenda) -> Unit) {
+    Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(vertical = 6.dp)) {
+        items.forEachIndexed { i, a ->
+            if (i > 0) HorizontalDivider(Modifier.padding(start = 72.dp, end = 16.dp), color = Brand.Line)
+            Row(Modifier.fillMaxWidth().pressable { onClick(a) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (a.photo.isNotBlank()) Avatar(a.name, 42.dp, photo = a.photo) else IconTile(a.icon, a.color, 42.dp)
+                Spacer(Modifier.width(14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(a.name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1)
+                    Text(a.detail, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
+                }
+                if (amountChip) Text(a.chip, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Ink)
+                else StatusChip(a.chip, a.tone)
+            }
         }
     }
 }

@@ -25,7 +25,8 @@ class TabsTest {
         rule.setContent { VidyadhanTheme { c() } }
         rule.waitForIdle()
     }
-    @Test fun home() = show { HomeTab { } }
+    @Test fun home() = show { HomeTab { _, _ -> } }
+    @Test fun money() = show { `in`.vidyadhan.academy.money.MoneyTab() }
     @Test fun students() = show { StudentsTab() }
     @Test fun enquiries() = show { EnquiriesTab() }
     @Test fun library() = show { LibraryTab() }

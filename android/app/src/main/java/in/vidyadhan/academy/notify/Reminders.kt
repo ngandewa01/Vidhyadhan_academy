@@ -56,12 +56,17 @@ class DailyWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
         val db = AppDb.get(applicationContext)
         val today = LocalDate.now().toEpochDay()
         val enq = db.enquiries().dueCount(today)
-        val fees = db.students().dueCount(today)
+        val all = `in`.vidyadhan.academy.students.studentsWithFeesNow(db.students())
+        val fees = all.count { it.nextDue != null && it.nextDue <= today }
+        val now = LocalDate.now()
+        val bdays = all.count { `in`.vidyadhan.academy.home.isBirthday(it.dob, now) } +
+            db.library().allMembers().count { it.active && `in`.vidyadhan.academy.home.isBirthday(it.dob, now) }
         val lib = db.library().expiringCount(today + 3)
         val parts = buildList {
             if (enq > 0) add("$enq enquiry follow-up(s)")
             if (fees > 0) add("$fees student(s) with fees due")
             if (lib > 0) add("$lib library renewal(s)")
+            if (bdays > 0) add("$bdays birthday(s) 🎂")
         }
         if (parts.isNotEmpty()) Reminders.notify(applicationContext, "Today: " + parts.joinToString(", "))
         return Result.success()
