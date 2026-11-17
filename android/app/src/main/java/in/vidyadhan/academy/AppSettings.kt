@@ -24,6 +24,12 @@ object AppSettings {
     var courses: String get() = get("courses", "MPSC"); set(v) = put("courses", v)
     val courseList: List<String> get() = courses.split(",").map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf("MPSC") }
 
+    var batches: String get() = get("batches", "Morning, Evening, Weekend"); set(v) = put("batches", v)
+    val batchList: List<String> get() = batches.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+
+    val enquirySources = listOf("Walk-in", "Phone call", "WhatsApp", "Instagram", "Facebook", "Poster / banner", "Friend / referral", "Other")
+    val expenseCategories = listOf("Rent", "Electricity", "Salary", "Internet", "Books & material", "Advertising", "Maintenance", "Other")
+
     var enquiryDays: Int get() = get("enqDays", "2").toInt(); set(v) = put("enqDays", v.toString())
     var reminderHour: Int get() = get("remH", "9").toInt(); set(v) = put("remH", v.toString())
     var reminderMinute: Int get() = get("remM", "0").toInt(); set(v) = put("remM", v.toString())

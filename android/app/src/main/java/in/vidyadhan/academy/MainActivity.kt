@@ -7,8 +7,7 @@ import android.os.Bundle
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.Crossfade
-import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -42,10 +41,12 @@ import `in`.vidyadhan.academy.home.HomeTab
 import `in`.vidyadhan.academy.library.LibraryTab
 import `in`.vidyadhan.academy.lock.LockScreen
 import `in`.vidyadhan.academy.lock.LockStore
+import `in`.vidyadhan.academy.money.MoneyTab
 import `in`.vidyadhan.academy.settings.SettingsTab
 import `in`.vidyadhan.academy.students.Handoff
 import `in`.vidyadhan.academy.students.StudentsTab
 import `in`.vidyadhan.academy.ui.Brand
+import `in`.vidyadhan.academy.ui.LocalNavHider
 import `in`.vidyadhan.academy.ui.VidyadhanTheme
 
 class MainActivity : FragmentActivity() {
@@ -72,48 +73,55 @@ private enum class Tab(val label: String, val on: ImageVector, val off: ImageVec
     Students("Students", Icons.Rounded.School, Icons.Outlined.School),
     Enquiries("Enquiries", Icons.Rounded.Forum, Icons.Outlined.Forum),
     Library("Library", Icons.Rounded.LocalLibrary, Icons.Outlined.LocalLibrary),
-    Settings("Settings", Icons.Rounded.Settings, Icons.Outlined.Settings),
+    Money("Money", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet),
 }
 
 @Composable
 private fun AppShell(lock: LockStore) {
     var tab by rememberSaveable { mutableStateOf(Tab.Home) }
+    var settings by rememberSaveable { mutableStateOf(false) }
     var pending by remember { mutableStateOf<Go?>(null) }
+    var pendingId by remember { mutableLongStateOf(0L) }
     val hider = remember { mutableIntStateOf(0) }
     val activity = LocalContext.current as FragmentActivity
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             runCatching { ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100) }
     }
-    fun go(g: Go) {
-        tab = when (g) {
-            Go.Students, Go.NewStudent -> Tab.Students
-            Go.Enquiries, Go.NewEnquiry -> Tab.Enquiries
-            Go.Library, Go.NewMember -> Tab.Library
-            Go.Settings, Go.Backup -> Tab.Settings
+    fun go(g: Go, id: Long) {
+        when (g) {
+            Go.Settings, Go.Backup -> settings = true
+            Go.Students, Go.NewStudent, Go.Student -> tab = Tab.Students
+            Go.Enquiries, Go.NewEnquiry, Go.Enquiry -> tab = Tab.Enquiries
+            Go.Library, Go.NewMember, Go.Member -> tab = Tab.Library
+            Go.Money, Go.NewExpense -> tab = Tab.Money
         }
-        pending = g
+        pending = g; pendingId = id
     }
-    CompositionLocalProvider(`in`.vidyadhan.academy.ui.LocalNavHider provides hider) {
-    Column(Modifier.fillMaxSize().background(Brand.Bg)) {
-        Box(Modifier.weight(1f)) {
-            Crossfade(tab, animationSpec = tween(220), label = "tabs") { t ->
-                when (t) {
-                    Tab.Home -> HomeTab(::go)
-                    Tab.Students -> StudentsTab(openNew = pending == Go.NewStudent, onOpened = { pending = null })
-                    Tab.Enquiries -> EnquiriesTab(openNew = pending == Go.NewEnquiry, onOpened = { pending = null },
-                        onConvert = { Handoff.prefill = it; tab = Tab.Students })
-                    Tab.Library -> LibraryTab(openNew = pending == Go.NewMember, onOpened = { pending = null })
-                    Tab.Settings -> SettingsTab(lock, openBackup = pending == Go.Backup, onOpened = { pending = null })
+    val done = { pending = null; pendingId = 0L }
+    CompositionLocalProvider(LocalNavHider provides hider) {
+        Box(Modifier.fillMaxSize().background(Brand.Bg)) {
+            Column(Modifier.fillMaxSize()) {
+                Box(Modifier.weight(1f)) {
+                    Crossfade(tab, animationSpec = tween(220), label = "tabs") { t ->
+                        when (t) {
+                            Tab.Home -> HomeTab(::go)
+                            Tab.Students -> StudentsTab(openNew = pending == Go.NewStudent, openId = if (pending == Go.Student) pendingId else 0, onOpened = done)
+                            Tab.Enquiries -> EnquiriesTab(openNew = pending == Go.NewEnquiry, openId = if (pending == Go.Enquiry) pendingId else 0, onOpened = done,
+                                onConvert = { Handoff.prefill = it; tab = Tab.Students })
+                            Tab.Library -> LibraryTab(openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0, onOpened = done)
+                            Tab.Money -> MoneyTab(openNew = pending == Go.NewExpense, onOpened = done)
+                        }
+                    }
+                }
+                AnimatedVisibility(hider.intValue == 0, enter = expandVertically() + fadeIn(), exit = shrinkVertically() + fadeOut()) {
+                    BottomNav(tab) { tab = it; done() }
                 }
             }
+            AnimatedVisibility(settings, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
+                SettingsTab(lock, openBackup = pending == Go.Backup, onOpened = done, onClose = { settings = false })
+            }
         }
-        androidx.compose.animation.AnimatedVisibility(hider.intValue == 0,
-            enter = androidx.compose.animation.expandVertically() + androidx.compose.animation.fadeIn(),
-            exit = androidx.compose.animation.shrinkVertically() + androidx.compose.animation.fadeOut()) {
-            BottomNav(tab) { tab = it; pending = null }
-        }
-    }
     }
 }
 

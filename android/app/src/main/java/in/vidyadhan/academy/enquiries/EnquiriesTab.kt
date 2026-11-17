@@ -62,9 +62,11 @@ private fun EnquiryStatus(e: Enquiry, t: Long) = when {
 }
 
 @Composable
-fun EnquiriesTab(openNew: Boolean = false, onOpened: () -> Unit = {}, onConvert: (Prefill) -> Unit = {}, vm: EnquiriesViewModel = viewModel()) {
+fun EnquiriesTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit = {}, onConvert: (Prefill) -> Unit = {}, vm: EnquiriesViewModel = viewModel()) {
     var screen by remember { mutableStateOf<Screen>(Screen.List) }
-    LaunchedEffect(openNew) { if (openNew) { screen = Screen.Form(0); onOpened() } }
+    LaunchedEffect(openNew, openId) {
+        if (openNew) { screen = Screen.Form(0); onOpened() } else if (openId > 0) { screen = Screen.Detail(openId); onOpened() }
+    }
     BackHandler(enabled = screen != Screen.List) { screen = Screen.List }
     AnimatedContent(screen, transitionSpec = {
         if (targetState == Screen.List) (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { it / 5 } + fadeOut())
@@ -117,7 +119,8 @@ private fun EnquiryList(vm: EnquiriesViewModel, onAdd: () -> Unit, onOpen: (Long
                                     Text(e.name, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1)
                                     Spacer(Modifier.height(3.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        if (e.course.isNotBlank()) { SmallTag(e.course, Brand.Saffron700); Spacer(Modifier.width(8.dp)) }
+                                        if (e.course.isNotBlank()) { SmallTag(e.course, Brand.Saffron700); Spacer(Modifier.width(6.dp)) }
+                                        if (e.source.isNotBlank()) { SmallTag(e.source, Brand.Blue600); Spacer(Modifier.width(8.dp)) }
                                         Text(e.mobile, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                                     }
                                 }
@@ -153,10 +156,11 @@ private fun EnquiryForm(vm: EnquiriesViewModel, id: Long, onDone: () -> Unit) {
     var mobile by remember { mutableStateOf("") }
     var course by remember { mutableStateOf("") }
     var details by remember { mutableStateOf("") }
+    var source by remember { mutableStateOf("") }
     var follow by remember { mutableLongStateOf(today() + AppSettings.enquiryDays) }
     LaunchedEffect(existing) {
         val e = existing
-        if (!loaded && e != null) { name = e.name; mobile = e.mobile; course = e.course; details = e.details; follow = e.followUpOn; loaded = true }
+        if (!loaded && e != null) { name = e.name; mobile = e.mobile; course = e.course; details = e.details; source = e.source; follow = e.followUpOn; loaded = true }
     }
     HideBottomNav()
     HeroPage(if (id == 0L) "New enquiry" else "Edit enquiry", "Who called or walked in?", onBack = onDone) {
@@ -169,6 +173,9 @@ private fun EnquiryForm(vm: EnquiriesViewModel, id: Long, onDone: () -> Unit) {
             }
             FormCard("Interested in", Icons.Rounded.School) {
                 ChoicePills(AppSettings.courseList, course, { course = if (course == it) "" else it })
+            }
+            FormCard("How did they hear about us?", Icons.Rounded.Campaign, Brand.Blue600) {
+                ChoicePills(AppSettings.enquirySources, source, { source = if (source == it) "" else it })
             }
             FormCard("Notes", Icons.AutoMirrored.Rounded.Notes, Brand.Violet700) {
                 Field(details, { details = it }, "What did they ask? Fees, timing, batch…", singleLine = false, minLines = 3)
@@ -186,7 +193,7 @@ private fun EnquiryForm(vm: EnquiriesViewModel, id: Long, onDone: () -> Unit) {
             SoftButton("Cancel", onDone, Modifier.weight(1f), color = Brand.Slate600)
             PrimaryButton("Save enquiry", {
                 val old = existing
-                vm.save(Enquiry(if (id == 0L) 0 else id, name.trim(), mobile, course, details.trim(), old?.createdOn ?: today(), follow, old?.status ?: "NEW")); onDone()
+                vm.save(Enquiry(if (id == 0L) 0 else id, name.trim(), mobile, course, details.trim(), old?.createdOn ?: today(), follow, old?.status ?: "NEW", source)); onDone()
             }, Modifier.weight(1.6f), enabled = name.isNotBlank() && mobile.length == 10, accent = true, icon = Icons.Rounded.Check)
         }
     }
@@ -245,12 +252,15 @@ private fun EnquiryDetail(vm: EnquiriesViewModel, id: Long, onBack: () -> Unit, 
                     HorizontalDivider(color = Brand.Line)
                     InfoRow(Icons.Rounded.School, "Interested in", en.course.ifBlank { "Not noted" })
                     HorizontalDivider(color = Brand.Line)
+                    InfoRow(Icons.Rounded.Campaign, "Came from", en.source.ifBlank { "Not noted" })
+                    HorizontalDivider(color = Brand.Line)
                     InfoRow(Icons.Rounded.EventNote, "Enquired on", en.createdOn.asDate())
                 }
                 if (en.details.isNotBlank()) {
-                    SectionHeader("Notes")
+                    SectionHeader("What they asked")
                     Text(en.details, Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(18.dp), style = MaterialTheme.typography.bodyLarge, color = Brand.Slate800)
                 }
+                NotesSection("ENQUIRY", en.id)
                 Spacer(Modifier.height(20.dp))
             }
         }

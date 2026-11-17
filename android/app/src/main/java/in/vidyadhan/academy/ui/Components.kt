@@ -47,6 +47,8 @@ import `in`.vidyadhan.academy.students.asDate
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.math.absoluteValue
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.automirrored.rounded.Send
 
 // ───────────────────────── backgrounds ─────────────────────────
 
@@ -167,14 +169,16 @@ fun initials(name: String): String =
     name.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }.take(2).joinToString("") { it.take(1).uppercase() }.ifEmpty { "?" }
 
 @Composable
-fun Avatar(name: String, size: Dp = 46.dp, ring: Boolean = false) {
+fun Avatar(name: String, size: Dp = 46.dp, ring: Boolean = false, photo: String = "") {
     val (a, b) = avatarPalettes[name.hashCode().absoluteValue % avatarPalettes.size]
+    val img = rememberPhoto(photo, (size.value * 3).toInt())
     Box(
         Modifier.size(size).let { if (ring) it.border(3.dp, Color.White.copy(alpha = 0.85f), CircleShape) else it }
             .padding(if (ring) 3.dp else 0.dp).clip(CircleShape).background(Brush.linearGradient(listOf(a, b))),
         Alignment.Center,
     ) {
-        Text(initials(name), color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = (size.value * 0.36f).sp)
+        if (img != null) Image(img, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        else Text(initials(name), color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = (size.value * 0.36f).sp)
     }
 }
 
@@ -645,4 +649,112 @@ fun ProfileHero(
 @Composable
 fun Sheet(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier.fillMaxSize().overlapUp(28.dp).clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).background(Brand.Bg), content = content)
+}
+
+// ───────────────────────── photos, notes, dates ─────────────────────────
+
+/** Round photo with a small camera badge, used at the top of forms. */
+@Composable
+fun PhotoAvatarEdit(name: String, photo: String, onClick: () -> Unit) {
+    Box(Modifier.fillMaxWidth(), Alignment.Center) {
+        Box(Modifier.clip(CircleShape).clickable(onClick = onClick)) {
+            Avatar(name.ifBlank { "+" }, 96.dp, photo = photo)
+            Box(Modifier.align(Alignment.BottomEnd).size(32.dp).clip(CircleShape).background(Color.White).padding(3.dp).clip(CircleShape).background(AccentBrush), Alignment.Center) {
+                Icon(Icons.Rounded.PhotoCamera, "Photo", tint = Color.White, modifier = Modifier.size(17.dp))
+            }
+        }
+    }
+}
+
+/** Small card showing a document photo (e.g. Aadhaar), or a button to add one. */
+@Composable
+fun DocPhoto(label: String, photo: String, onAdd: () -> Unit, onView: () -> Unit) {
+    val img = rememberPhoto(photo, 500)
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(16.dp))
+            .clickable { if (photo.isBlank()) onAdd() else onView() }.padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(width = 72.dp, height = 48.dp).clip(RoundedCornerShape(10.dp)).background(Brand.Blue50), Alignment.Center) {
+            if (img != null) Image(img, null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+            else Icon(Icons.Rounded.AddAPhoto, null, tint = Brand.Blue600)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+            Text(if (photo.isBlank()) "Tap to take or choose a photo" else "Tap to view", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        }
+        if (photo.isNotBlank()) SmallIconButton(Icons.Rounded.Edit, "Change", Brand.Blue600, onAdd)
+    }
+}
+
+/** Date that may be left empty (e.g. date of birth). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OptionalDateField(label: String, epochDay: Long?, onChange: (Long?) -> Unit, icon: ImageVector = Icons.Rounded.Cake) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Field(epochDay?.asDate() ?: "", {}, label, icon, readOnly = true,
+            trailing = { if (epochDay != null) IconButton({ onChange(null) }) { Icon(Icons.Rounded.Close, "Clear", tint = Brand.Slate400) } else Icon(Icons.Rounded.ExpandMore, null, tint = Brand.Slate400) })
+        Box(Modifier.matchParentSize().padding(end = 48.dp).clip(RoundedCornerShape(16.dp)).clickable { open = true })
+    }
+    if (open) {
+        val st = rememberDatePickerState(initialSelectedDateMillis = (epochDay ?: java.time.LocalDate.now().minusYears(20).toEpochDay()) * 86_400_000L,
+            initialDisplayMode = DisplayMode.Input)
+        DatePickerDialog(onDismissRequest = { open = false },
+            confirmButton = { TextButton({ st.selectedDateMillis?.let { onChange(Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate().toEpochDay()) }; open = false }) { Text("Done") } },
+            dismissButton = { TextButton({ open = false }) { Text("Cancel") } }) { DatePicker(st) }
+    }
+}
+
+/** Cash / UPI / Bank choice. */
+@Composable
+fun ModeChoice(mode: String, onChange: (String) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf(Triple("Cash", Icons.Rounded.Payments, Brand.Green600), Triple("UPI", Icons.Rounded.QrCode2, Brand.Violet700), Triple("Bank", Icons.Rounded.AccountBalance, Brand.Blue600)).forEach { (m, ic, c) ->
+            val sel = m == mode
+            Column(
+                Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(if (sel) c.copy(alpha = 0.10f) else Color.White)
+                    .border(if (sel) 2.dp else 1.dp, if (sel) c else Brand.Line, RoundedCornerShape(18.dp)).clickable { onChange(m) }.padding(vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Icon(ic, null, tint = c)
+                Spacer(Modifier.height(4.dp))
+                Text(m, style = MaterialTheme.typography.labelLarge, color = if (sel) c else Brand.Slate600)
+            }
+        }
+    }
+}
+
+/** Dated notes for a student, member or enquiry. */
+@Composable
+fun NotesSection(kind: String, ownerId: Long) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val dao = remember { `in`.vidyadhan.academy.data.AppDb.get(ctx).notes() }
+    val notes by remember(kind, ownerId) { dao.notes(kind, ownerId) }.collectAsState(emptyList())
+    val scope = rememberCoroutineScope()
+    var text by remember { mutableStateOf("") }
+    SectionHeader("Notes", action = if (notes.isNotEmpty()) "${notes.size}" else null)
+    Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Field(text, { text = it }, "Add a note, e.g. promised to pay on 5th", modifier = Modifier.weight(1f), singleLine = false)
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.size(48.dp).clip(CircleShape).background(if (text.isBlank()) Brush.linearGradient(listOf(Brand.Slate300, Brand.Slate300)) else PrimaryBrush)
+                .clickable(enabled = text.isNotBlank()) {
+                    val t = text.trim(); text = ""
+                    scope.launch { dao.insert(`in`.vidyadhan.academy.data.Note(kind = kind, ownerId = ownerId, text = t, createdAt = System.currentTimeMillis())) }
+                }, Alignment.Center) { Icon(Icons.AutoMirrored.Rounded.Send, "Add note", tint = Color.White, modifier = Modifier.size(20.dp)) }
+        }
+        notes.forEach { n ->
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Amber50).padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 4.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text(n.text, style = MaterialTheme.typography.bodyMedium, color = Brand.Slate800)
+                    Spacer(Modifier.height(4.dp))
+                    Text(java.time.Instant.ofEpochMilli(n.createdAt).atZone(java.time.ZoneId.systemDefault()).format(java.time.format.DateTimeFormatter.ofPattern("dd MMM yyyy, h:mm a")),
+                        style = MaterialTheme.typography.labelSmall, color = Brand.Slate400)
+                }
+                IconButton({ scope.launch { dao.delete(n) } }, Modifier.size(32.dp)) { Icon(Icons.Rounded.Close, "Delete note", tint = Brand.Slate400, modifier = Modifier.size(16.dp)) }
+            }
+        }
+    }
 }
