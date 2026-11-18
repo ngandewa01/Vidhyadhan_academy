@@ -102,6 +102,7 @@ class ScreenshotTest {
         rule.onNodeWithText("Done").performClick(); settle()
         rule.onNodeWithText("7").performClick(); shot("09b-seat-sheet"); back()
         rule.onNodeWithText("Members").performClick(); settle()
+        rule.onNode(hasSetTextAction()).performTextReplacement("Snehal"); settle()
         rule.onNodeWithText("Snehal Mane").performClick(); shot("11-member-detail")
         rule.onNodeWithContentDescription("Edit").performClick(); shot("11b-member-edit")
         rule.onNodeWithText("Seat and locker").performScrollTo(); shot("11c-member-locker")
@@ -126,7 +127,9 @@ class ScreenshotTest {
         }
         nav("Library")
         rule.onNodeWithText("Seat map").performClick(); shot("17-library-rooms")
-        rule.onNodeWithText("Members").performClick(); shot("18-members")
+        rule.onNodeWithText("Members").performClick(); settle()
+        rule.onNode(hasSetTextAction()).performTextReplacement(""); shot("18-members")
+        rule.onNode(hasSetTextAction()).performTextReplacement("Akash"); settle()
         rule.onNodeWithText("Akash Shinde").performClick(); settle()
         rule.onNodeWithText("Renew", substring = true).performScrollTo().performClick(); shot("19-renew-sheet"); back()
         backButton()
