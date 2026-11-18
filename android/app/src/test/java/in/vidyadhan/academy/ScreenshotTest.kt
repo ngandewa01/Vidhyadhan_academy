@@ -86,6 +86,12 @@ class ScreenshotTest {
     @Test fun allScreens() {
         repeat(2) { listOf("1", "2", "3", "4").forEach { d -> rule.onNodeWithText(d).performClick() } }
         seed()
+        runBlocking {
+            val ld = AppDb.get(ApplicationProvider.getApplicationContext()).library()
+            ld.insertPlan(MemberPlan(name = "3 months", months = 3, price = 1700))
+            ld.insertPlan(MemberPlan(name = "6 months with locker", months = 6, price = 4200, withLocker = true))
+            ld.allMembers().first { it.name == "Priya Gaikwad" }.let { ld.updateMember(it.copy(balance = 300, planName = "3 months")) }
+        }
         shot("02-home")
         nav("Students"); shot("04-students")
         rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("05-student-detail")
@@ -95,45 +101,39 @@ class ScreenshotTest {
         rule.onNodeWithText("Total course fee").performTextInput("25000"); settle()
         rule.onNodeWithText("Installment plan").performScrollTo(); shot("06b-student-plan")
         backButton()
-        nav("Enquiries"); shot("07-enquiries")
-        nav("Library"); shot("09-library")
-        rule.onNodeWithText("Set seat types").performClick(); settle()
-        rule.onNodeWithText("21").performClick(); shot("09c-seat-types")
-        rule.onNodeWithText("Done").performClick(); settle()
-        rule.onNodeWithText("7").performClick(); shot("09b-seat-sheet"); back()
-        rule.onNodeWithText("Members").performClick(); settle()
+        nav("More"); shot("07-more")
+        rule.onNodeWithText("Enquiries").performClick(); shot("07b-enquiries")
+
+        // Seats: no room yet → create one → edit → view
+        nav("Seats"); shot("08-seats-start")
+        rule.onNodeWithText("Create first room").performClick(); shot("08b-room-edit")
+        rule.onNodeWithText("Done").performClick(); shot("08c-room-plan")
+        rule.onNodeWithText("7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
+
+        nav("Members"); shot("09-members")
         rule.onNode(hasSetTextAction()).performTextReplacement("Snehal"); settle()
-        rule.onNodeWithText("Snehal Mane").performClick(); shot("11-member-detail")
-        rule.onNodeWithContentDescription("Edit").performClick(); shot("11b-member-edit")
-        rule.onNodeWithText("Seat and locker").performScrollTo(); shot("11c-member-locker")
+        rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Snehal Mane"))
+        rule.onNodeWithText("Snehal Mane").performClick(); shot("10-member-detail")
+        rule.onNodeWithContentDescription("Edit").performClick(); shot("10b-member-edit")
+        rule.onNodeWithText("Seat and locker").performScrollTo(); shot("10c-member-locker")
         backButton()
         backButton()
-        nav("Money"); shot("12-money")
-        rule.onNodeWithText("Expenses (3)").performClick(); shot("13-expenses")
-        nav("Home")
-        rule.onNodeWithContentDescription("Search").performClick(); settle()
-        rule.onNodeWithText("Name, mobile, seat or locker no.").performTextInput("sh"); shot("15-search")
+        rule.onNodeWithText("Plans").performClick(); shot("11-plans")
         backButton()
-        rule.onNodeWithText("Message").performClick(); shot("16-broadcast")
-        backButton()
-        // v0.6: rooms with a real layout, plans and part payments
-        runBlocking {
-            val ld = AppDb.get(ApplicationProvider.getApplicationContext()).library()
-            ld.insertRoom(LibraryRoom(name = "Lab 1", sortOrder = 1, layout = "1 2 3 4 5 6 7 8\n9 10 11 12 _ 13 14 15 16"))
-            ld.insertRoom(LibraryRoom(name = "Lab 2", sortOrder = 2, layout = "17 18 19 20 _ 21 22\n23 24 D 25 26 27 28"))
-            ld.insertPlan(MemberPlan(name = "3 months", months = 3, price = 1700))
-            ld.insertPlan(MemberPlan(name = "6 months with locker", months = 6, price = 4200, withLocker = true))
-            ld.allMembers().first { it.name == "Priya Gaikwad" }.let { ld.updateMember(it.copy(balance = 300, planName = "3 months")) }
-        }
-        nav("Library")
-        rule.onNodeWithText("Seat map").performClick(); shot("17-library-rooms")
-        rule.onNodeWithText("Members").performClick(); settle()
-        rule.onNode(hasSetTextAction()).performTextReplacement(""); shot("18-members")
         rule.onNode(hasSetTextAction()).performTextReplacement("Akash"); settle()
+        rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Akash Shinde"))
         rule.onNodeWithText("Akash Shinde").performClick(); settle()
-        rule.onNodeWithText("Renew", substring = true).performScrollTo().performClick(); shot("19-renew-sheet"); back()
+        rule.onNodeWithText("Renew", substring = true).performScrollTo().performClick(); shot("12-renew-sheet"); back()
         backButton()
-        nav("Home"); shot("20-home")
-        rule.onNodeWithContentDescription("Settings").performClick(); shot("14-settings")
+
+        nav("More"); rule.onNodeWithText("Money").performClick(); shot("13-money")
+        rule.onNodeWithText("Expenses (3)").performClick(); shot("13b-expenses")
+        nav("More"); rule.onNodeWithText("Send a message").performClick(); shot("14-broadcast")
+        backButton()
+        nav("Dashboard"); shot("15-dashboard")
+        rule.onNodeWithContentDescription("Search").performClick(); settle()
+        rule.onNodeWithText("Name, mobile, seat or locker no.").performTextInput("sh"); shot("16-search")
+        backButton()
+        rule.onNodeWithContentDescription("Settings").performClick(); shot("17-settings")
     }
 }

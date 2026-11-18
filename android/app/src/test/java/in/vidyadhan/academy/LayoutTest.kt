@@ -9,22 +9,25 @@ import org.junit.Test
 import java.time.LocalDate
 
 class LayoutTest {
-    @Test fun parsesRowsGapsAndDoors() {
-        val rows = parseLayout("16 17 _ 18\n\n30 D  29 x 0")
-        assertEquals(2, rows.size)
-        assertEquals(listOf(Cell.Seat(16), Cell.Seat(17), Cell.Gap, Cell.Seat(18)), rows[0])
-        assertEquals(listOf(Cell.Seat(30), Cell.Door, Cell.Seat(29)), rows[1]) // junk and 0 are dropped
-        assertEquals("16 17 _ 18\n30 D 29", formatLayout(rows))
+    @Test fun oldRowLayoutBecomesAPlan() {
+        val p = planOf("16 17 _ 18\n30 D 29")
+        assertEquals(listOf(16, 17, 18, 30, 29), p.items.filter { it.type == PlanItem.SEAT }.map { it.n })
+        assertEquals(1, p.items.count { it.type == PlanItem.DOOR })
+        assertEquals(2, p.items.count { it.type == PlanItem.DESK })
+        assertEquals(p, planOf(planText(p))) // JSON round trip
+        assertEquals(FloorPlan(), planOf("not json {"))
     }
 
-    @Test fun quickFillAndSeatLists() {
-        assertEquals("1 2 3\n4 5", quickLayout(1, 5, 3))
-        assertEquals("5 6\n7", quickLayout(7, 5, 2))
-        val rooms = listOf(LibraryRoom(1, "Lab 1", 0, "1 2 3"), LibraryRoom(2, "Lab 2", 1, "10 _ 11\nD 3"))
+    @Test fun quickPlanAndSeatLists() {
+        val q = quickPlan(1, 10, 4)
+        assertEquals((1..10).toList(), q.items.filter { it.type == PlanItem.SEAT }.map { it.n })
+        assertEquals(3, q.items.count { it.type == PlanItem.DESK })
+        val rooms = listOf(LibraryRoom(1, "Room 1", 0, planText(quickPlan(1, 3, 8))), LibraryRoom(2, "Room 2", 1, "10 _ 11\nD 3"))
         assertEquals(listOf(1, 2, 3, 10, 11), allSeats(rooms, 40))
         assertEquals((1..4).toList(), allSeats(emptyList(), 4))
-        assertEquals("Lab 2", roomOf(11, rooms)?.name)
+        assertEquals("Room 2", roomOf(11, rooms)?.name)
         assertEquals(setOf(3), duplicateSeats(rooms))
+        assertEquals(12, nextSeatNumber(rooms))
     }
 
     @Test fun statusOrder() {

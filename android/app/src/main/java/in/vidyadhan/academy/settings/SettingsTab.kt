@@ -281,15 +281,12 @@ private fun LibraryPage() {
     val types by viewModel<LibraryViewModel>().types.collectAsStateWithLifecycle()
     var edit by remember { mutableStateOf<SeatType?>(null) }
     val rooms by viewModel<LibraryViewModel>().rooms.collectAsStateWithLifecycle()
-    var showRooms by remember { mutableStateOf(false) }
-    FormCard("Seats and rooms", Icons.Rounded.EventSeat, Brand.Teal700) {
+    FormCard("Seats", Icons.Rounded.EventSeat, Brand.Teal700) {
         if (rooms.isEmpty()) Stepper("Total seats", AppSettings.seatCount, 1..300) { AppSettings.seatCount = it }
         else Text("${`in`.vidyadhan.academy.library.allSeats(rooms, AppSettings.seatCount).size} seats in ${rooms.size} room${if (rooms.size == 1) "" else "s"}: " +
             rooms.joinToString(", ") { it.name }, style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
-        SoftButton(if (rooms.isEmpty()) "Set up rooms and seat layout" else "Edit rooms and seat layout", { showRooms = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.MeetingRoom)
+        Text("Rooms and the floor plan are drawn on the Seats page. Plans are on the Members page.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
     }
-    if (showRooms) `in`.vidyadhan.academy.library.RoomsDialog { showRooms = false }
-    `in`.vidyadhan.academy.library.PlansCard()
     FormCard("Lockers", Icons.Rounded.Lock, Brand.Violet700) {
         Text("Any seat can take a locker. These amounts fill in when you tick “Locker” for a member.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
         Stepper("Number of lockers", AppSettings.lockerCount, 0..300) { AppSettings.lockerCount = it }
@@ -299,7 +296,7 @@ private fun LibraryPage() {
         }
     }
     FormCard("Seat types", Icons.Rounded.Category, Brand.Blue600) {
-        Text("Fees for each type. To choose which seats are Extra leg room, go to Library → Seat map → “Set seat types”.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        Text("Fees for each type. To change one seat, tap it on the Seats page while it is free.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
         types.forEach { t ->
             androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(18.dp))
                 .clickable { edit = t }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -323,7 +320,7 @@ private fun LibraryPage() {
             title = { Text(if (t.id == 0L) "New seat type" else "Edit seat type") },
             text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Field(n, { n = it }, "Name, e.g. Extra leg room")
-                Field(seats, { seats = it }, "Seat numbers (optional)", Icons.Rounded.Tag, supporting = "Easier: Library → Seat map → “Set seat types” and tap seats")
+                Field(seats, { seats = it }, "Seat numbers (optional)", Icons.Rounded.Tag, supporting = "e.g. 9-16, 20. Or tap a free seat on the Seats page")
                 Text("Icon", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
                 androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("CHAIR" to "Normal", "LEGROOM" to "Extra leg room").forEach { (k, lbl) ->

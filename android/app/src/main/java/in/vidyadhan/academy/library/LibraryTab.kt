@@ -63,6 +63,11 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
         dao.allMembers().filter { it.active && it.seatNo == n && it.seatType != chosen.name }.forEach { dao.updateMember(it.copy(seatType = chosen.name)) }
     }
     fun delete(m: LibraryMember) = viewModelScope.launch { dao.deleteMember(m) }
+    fun addRoom(r: LibraryRoom, onSaved: (Long) -> Unit = {}) = viewModelScope.launch { onSaved(dao.insertRoom(r)) }
+    fun saveRoom(r: LibraryRoom) = viewModelScope.launch { if (r.id == 0L) dao.insertRoom(r) else dao.updateRoom(r) }
+    fun deleteRoom(r: LibraryRoom) = viewModelScope.launch { dao.deleteRoom(r) }
+    fun savePlan(p: MemberPlan) = viewModelScope.launch { if (p.id == 0L) dao.insertPlan(p) else dao.updatePlan(p) }
+    fun deletePlan(p: MemberPlan) = viewModelScope.launch { dao.deletePlan(p) }
     fun pay(m: LibraryMember, kind: String, amount: Long, mode: String, onSaved: (LibraryPayment) -> Unit = {}) = viewModelScope.launch {
         val p = LibraryPayment(memberId = m.id, kind = kind, amount = amount, paidOn = today(), mode = mode)
         onSaved(p.copy(id = dao.pay(m, p)))
@@ -73,6 +78,7 @@ private sealed interface Screen {
     data object Main : Screen
     data class Form(val seat: Int, val id: Long = 0) : Screen
     data class Detail(val id: Long) : Screen
+    data object Plans : Screen
 }
 
 fun lockerLabel(m: LibraryMember) = when { !m.hasLocker -> ""; m.lockerNo == "-" -> "Locker"; else -> "Locker ${m.lockerNo}" }
@@ -89,16 +95,22 @@ fun libraryReminder(m: LibraryMember, t: Long): String {
 }
 
 @Composable
-fun LibraryTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit = {}, vm: LibraryViewModel = viewModel()) {
+fun LibraryTab(
+    seats: Boolean = false, openNew: Boolean = false, openId: Long = 0, startFilter: MemberFilter = MemberFilter.All,
+    onOpened: () -> Unit = {}, vm: LibraryViewModel = viewModel(),
+) {
     var screen by remember { mutableStateOf<Screen>(Screen.Main) }
+    var memberFilter by rememberSaveable { mutableStateOf(MemberFilter.All) }
+    LaunchedEffect(startFilter) { if (startFilter != MemberFilter.All) memberFilter = startFilter }
     val members by vm.members.collectAsStateWithLifecycle()
-    LaunchedEffect(openNew, openId) {
+    LaunchedEffect(openNew, openId, startFilter) {
         if (openNew) {
             val taken = members.filter { it.active }.map { it.seatNo }.toSet()
             val rooms = AppDb.get(vm.getApplication<Application>()).library().roomsNow()
             screen = Screen.Form(allSeats(rooms, AppSettings.seatCount).firstOrNull { it !in taken } ?: 0); onOpened()
         }
         else if (openId > 0) { screen = Screen.Detail(openId); onOpened() }
+        else if (startFilter != MemberFilter.All) { screen = Screen.Main; onOpened() }
     }
     BackHandler(enabled = screen != Screen.Main) { screen = (screen as? Screen.Form)?.takeIf { it.id != 0L }?.let { Screen.Detail(it.id) } ?: Screen.Main }
     AnimatedContent(screen, transitionSpec = {
@@ -106,351 +118,15 @@ fun LibraryTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit 
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "lib") { s ->
         when (s) {
-            Screen.Main -> LibraryMain(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) })
+            Screen.Main -> if (seats) SeatsPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) })
+            else MembersPage(vm, memberFilter, { memberFilter = it }, onAdd = {
+                val taken = members.filter { it.active }.map { it.seatNo }.toSet()
+                screen = Screen.Form(allSeats(vm.rooms.value, AppSettings.seatCount).firstOrNull { it !in taken } ?: 0)
+            }, onOpen = { screen = Screen.Detail(it) }, onPlans = { screen = Screen.Plans })
+            Screen.Plans -> PlansPage(vm) { screen = Screen.Main }
             is Screen.Form -> MemberForm(vm, s.seat, s.id, onCancel = { screen = if (s.id == 0L) Screen.Main else Screen.Detail(s.id) }, onSaved = { screen = Screen.Detail(it) })
             is Screen.Detail -> MemberDetail(vm, s.id, onBack = { screen = Screen.Main }, onOpen = { screen = Screen.Detail(it) }, onEdit = { screen = Screen.Form(0, s.id) })
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun LibraryMain(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Long) -> Unit) {
-    val members by vm.members.collectAsStateWithLifecycle()
-    val types by vm.types.collectAsStateWithLifecycle()
-    val rooms by vm.rooms.collectAsStateWithLifecycle()
-    var view by rememberSaveable { mutableStateOf("seats") }
-    var seatSheet by remember { mutableStateOf<Int?>(null) }
-    var typeMode by rememberSaveable { mutableStateOf(false) }
-    var filter by remember { mutableStateOf<SeatStatus?>(null) }
-    var roomPick by rememberSaveable { mutableLongStateOf(0L) } // 0 = all rooms
-    var showRooms by remember { mutableStateOf(false) }
-    var query by rememberSaveable { mutableStateOf("") }
-    val active = members.filter { it.active }
-    val past = members.filter { !it.active }
-    val bySeat = active.associateBy { it.seatNo }
-    val seats = allSeats(rooms, AppSettings.seatCount)
-    val total = seats.size
-    val t = today()
-    val statusOf: (Int) -> SeatStatus = { n -> bySeat[n]?.let { memberStatus(it, t) } ?: SeatStatus.Empty }
-    val free = seats.count { it !in bySeat }
-    val due = active.count { it.validTill < t }
-    val held = members.filter { it.depositPaid && it.depositReturnedOn == null }.sumOf { it.deposit }
-    HeroPage("Library", "${active.size} members · $free seats free", header = {
-        Spacer(Modifier.height(16.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val filled = total - free
-            ProgressRing(if (total == 0) 0f else filled.toFloat() / total, 96.dp, 10.dp, Brand.Saffron400, Color.White.copy(alpha = 0.16f)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("$filled/$total", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = Color.White)
-                    Text("filled", style = MaterialTheme.typography.labelSmall, color = Brand.Blue200)
-                }
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GlassStat("Free seats", "$free", Modifier.weight(1f))
-                    GlassStat("Fee due", "$due", Modifier.weight(1f), valueColor = if (due > 0) Brand.Saffron200 else Color.White)
-                }
-                GlassStat("Deposits held", rupees(held), Modifier.fillMaxWidth())
-            }
-        }
-    }) {
-        Box(Modifier.fillMaxSize()) {
-            Column {
-                Segmented(listOf("seats" to "Seat map", "members" to "Members", "past" to "Past (${past.size})"), view, { view = it },
-                    Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
-                when (view) {
-                    "seats" -> Column(Modifier.verticalScroll(rememberScrollState()).padding(bottom = 110.dp)) {
-                        if (typeMode) Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(18.dp)).background(Brand.Saffron50)
-                            .border(1.dp, Brand.Saffron200, RoundedCornerShape(18.dp)).padding(start = 14.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.TouchApp, null, tint = Brand.Saffron700); Spacer(Modifier.width(10.dp))
-                            Text("Tap a seat to switch it between ${types.joinToString(" and ") { it.name }}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Brand.Saffron800)
-                            PillButton("Done", { typeMode = false }, Brand.Saffron600, Icons.Rounded.Check)
-                        }
-                        StatusFilters(seats.groupingBy(statusOf).eachCount(), seats.size, filter, { filter = it }, withEmpty = true)
-                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            types.forEach { ty ->
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    SeatIcon(ty.icon, Brand.Slate600, 16.dp, badgeBg = Brand.Bg); Spacer(Modifier.width(4.dp))
-                                    Text(ty.name, style = MaterialTheme.typography.labelMedium, color = Brand.Slate600, maxLines = 1)
-                                }
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                SeatIcon("CHAIR", Brand.Slate600, 16.dp, badgeBg = Brand.Bg, locker = true); Spacer(Modifier.width(4.dp))
-                                Text("Has locker", style = MaterialTheme.typography.labelMedium, color = Brand.Slate600, maxLines = 1)
-                            }
-                        }
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            if (!typeMode) MiniLink("Set seat types", Icons.Rounded.Category) { typeMode = true }
-                            MiniLink(if (rooms.isEmpty()) "Set up rooms" else "Edit rooms", Icons.Rounded.MeetingRoom) { showRooms = true }
-                        }
-                        if (rooms.size > 1) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            RoomChip("All rooms", total, roomPick == 0L) { roomPick = 0L }
-                            rooms.forEach { r -> RoomChip(r.name, seatsIn(r.layout).size, roomPick == r.id) { roomPick = r.id } }
-                        }
-                        val onSeat: (Int, LibraryMember?) -> Unit = { n, m ->
-                            if (typeMode) { val cur = typeForSeat(n, types); if (types.isNotEmpty()) vm.setSeatType(n, types[(types.indexOfFirst { it.id == cur?.id } + 1) % types.size]) }
-                            else if (m == null) seatSheet = n else onOpen(m.id)
-                        }
-                        val tile: @Composable (Int) -> Unit = { n ->
-                            val cur = typeForSeat(n, types)
-                            SeatTile(n, bySeat[n], cur?.icon ?: "CHAIR", t, highlight = typeMode && cur?.icon == "LEGROOM",
-                                dim = filter != null && statusOf(n) != filter) { m -> onSeat(n, m) }
-                        }
-                        Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                            if (rooms.isEmpty()) RoomBox("All seats", seats.size, free) {
-                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { seats.forEach { tile(it) } }
-                            }
-                            rooms.filter { roomPick == 0L || it.id == roomPick }.forEach { r ->
-                                val rs = seatsIn(r.layout)
-                                RoomBox(r.name, rs.size, rs.count { it !in bySeat }) {
-                                    Column(Modifier.horizontalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        parseLayout(r.layout).forEach { row ->
-                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                row.forEach { c ->
-                                                    when (c) {
-                                                        is Cell.Seat -> tile(c.n)
-                                                        Cell.Gap -> Spacer(Modifier.size(TileW, TileH))
-                                                        Cell.Door -> DoorTile()
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            val placed = seats.toSet()
-                            val stray = active.filter { rooms.isNotEmpty() && it.seatNo !in placed }.sortedBy { it.seatNo }
-                            if (stray.isNotEmpty() && roomPick == 0L) RoomBox("Not in a room", stray.size, 0) {
-                                Text("These members sit on seats that are not in any room. Add the seats to a room or edit the member.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { stray.forEach { tile(it.seatNo) } }
-                            }
-                        }
-                    }
-                    "members" -> {
-                        val counts = active.groupingBy { memberStatus(it, t) }.eachCount()
-                        val q = query.trim().lowercase()
-                        val f = filter.takeIf { it != SeatStatus.Empty }
-                        val shown = active.filter { m -> (f == null || memberStatus(m, t) == f) &&
-                            (q.isEmpty() || m.name.lowercase().contains(q) || m.mobile.contains(q) || m.seatNo.toString() == q || m.lockerNo.lowercase() == q) }
-                        Column {
-                            StatusFilters(counts, active.size, f, { filter = it }, withEmpty = false)
-                            SearchBox(query, { query = it }, "Search name, mobile, seat", Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
-                            if (active.isEmpty()) EmptyState(Icons.Rounded.LocalLibrary, "No members yet", "Tap a free seat on the seat map to add someone.")
-                            else if (shown.isEmpty()) EmptyState(Icons.Rounded.SearchOff, "Nobody here", "No member matches this search or filter.")
-                            else LazyColumn(contentPadding = PaddingValues(16.dp, 6.dp, 16.dp, 110.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                items(shown.sortedBy { it.seatNo }, key = { it.id }) { m -> MemberCard(m, types, rooms, t) { onOpen(m.id) } }
-                            }
-                        }
-                    }
-                    else -> if (past.isEmpty()) EmptyState(Icons.Rounded.History, "No past members", "When someone leaves, they appear here with their dates.")
-                    else LazyColumn(contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, 110.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(past.sortedByDescending { it.leftOn ?: it.validTill }, key = { it.id }) { m -> MemberCard(m, types, rooms, t) { onOpen(m.id) } }
-                    }
-                }
-            }
-            Fab("Add member", Icons.Rounded.PersonAdd, { onAdd(seats.firstOrNull { it !in bySeat } ?: 0) }, Modifier.align(Alignment.BottomEnd).padding(20.dp))
-        }
-    }
-    if (showRooms) RoomsDialog { showRooms = false }
-    seatSheet?.let { n ->
-        val ty = typeForSeat(n, types)
-        val room = roomOf(n, rooms)
-        val history by remember(n) { vm.seatHistory(n) }.collectAsStateWithLifecycle(emptyList())
-        ModalBottomSheet({ seatSheet = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
-            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)).background(Brand.Green50).border(1.5.dp, Brand.Green500.copy(alpha = 0.4f), RoundedCornerShape(18.dp)), Alignment.Center) {
-                        SeatIcon(ty?.icon ?: "CHAIR", Brand.Green600, 26.dp)
-                    }
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Seat $n is free", style = MaterialTheme.typography.headlineSmall, color = Brand.Ink)
-                        Text(listOfNotNull(room?.name, ty?.name, ty?.let { "${rupees(it.fee)}/month" }).joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
-                    }
-                }
-                Text("Seat type", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
-                ChoicePills(types.map { it.name }, ty?.name ?: "", { name -> types.firstOrNull { it.name == name }?.let { vm.setSeatType(n, it) } },
-                    captions = types.associate { it.name to "${rupees(it.fee)}/month" })
-                PrimaryButton("Add a member to seat $n", { seatSheet = null; onAdd(n) }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.PersonAdd)
-                SeatHistory(history, onOpen = { seatSheet = null; onOpen(it) })
-            }
-        }
-    }
-}
-
-private val TileW = 60.dp
-private val TileH = 66.dp
-
-/** Background and text/icon colour of a seat in each status. */
-private fun statusColors(s: SeatStatus): Pair<Brush, Color> = when (s) {
-    SeatStatus.Empty -> Brush.linearGradient(listOf(Color.White, Color.White)) to Brand.Green600
-    SeatStatus.Active -> PrimaryBrush to Color.White
-    SeatStatus.Ending -> Brush.linearGradient(listOf(Brand.Saffron400, Brand.Saffron600)) to Color.White
-    SeatStatus.Partly -> Brush.linearGradient(listOf(Brand.Violet500, Brand.Violet700)) to Color.White
-    SeatStatus.Expired -> Brush.linearGradient(listOf(Brand.Red50, Brand.Red100)) to Brand.Red600
-}
-
-/** Dot colour of a status (filters and lists). */
-fun statusDot(s: SeatStatus): Color = when (s) {
-    SeatStatus.Empty -> Brand.Green500; SeatStatus.Active -> Brand.Blue600; SeatStatus.Ending -> Brand.Saffron500
-    SeatStatus.Partly -> Brand.Violet500; SeatStatus.Expired -> Brand.Red500
-}
-
-/** Tap-to-filter chips with counts. Tapping the selected one again shows everything. */
-@Composable
-private fun StatusFilters(counts: Map<SeatStatus, Int>, all: Int, selected: SeatStatus?, onSelect: (SeatStatus?) -> Unit, withEmpty: Boolean) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FilterPill("All", all, null, selected == null) { onSelect(null) }
-        SeatStatus.entries.filter { withEmpty || it != SeatStatus.Empty }.forEach { s ->
-            FilterPill(s.label, counts[s] ?: 0, statusDot(s), selected == s) { onSelect(if (selected == s) null else s) }
-        }
-    }
-}
-
-@Composable
-private fun FilterPill(label: String, count: Int, dot: Color?, selected: Boolean, onClick: () -> Unit) {
-    Row(Modifier.clip(RoundedCornerShape(50)).background(if (selected) Brand.Blue700 else Color.White)
-        .border(1.dp, if (selected) Brand.Blue700 else Brand.Line, RoundedCornerShape(50)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        if (dot != null) { Box(Modifier.size(8.dp).clip(CircleShape).background(dot)); Spacer(Modifier.width(6.dp)) }
-        Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) Color.White else Brand.Slate800, maxLines = 1)
-        Spacer(Modifier.width(6.dp))
-        Text("$count", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold), color = if (selected) Brand.Blue100 else Brand.Slate400)
-    }
-}
-
-@Composable
-private fun RoomChip(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
-    Row(Modifier.clip(RoundedCornerShape(14.dp)).background(if (selected) Brand.Teal700 else Color.White)
-        .border(1.dp, if (selected) Brand.Teal700 else Brand.Line, RoundedCornerShape(14.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) Color.White else Brand.Ink, maxLines = 1)
-        Spacer(Modifier.width(6.dp))
-        Text("$count", style = MaterialTheme.typography.labelMedium, color = if (selected) Brand.Green100 else Brand.Slate400)
-    }
-}
-
-@Composable
-private fun MiniLink(text: String, icon: ImageVector, onClick: () -> Unit) {
-    Row(Modifier.clip(RoundedCornerShape(50)).background(Brand.Blue50).clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = Brand.Blue700, modifier = Modifier.size(15.dp)); Spacer(Modifier.width(5.dp))
-        Text(text, style = MaterialTheme.typography.labelMedium, color = Brand.Blue700)
-    }
-}
-
-@Composable
-private fun RoomBox(name: String, seats: Int, free: Int, content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Rounded.MeetingRoom, null, tint = Brand.Teal700, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp))
-            Text(name, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
-            Text("$seats seats · $free free", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
-        }
-        content()
-    }
-}
-
-@Composable
-private fun DoorTile() {
-    Column(Modifier.size(TileW, TileH).clip(RoundedCornerShape(18.dp)).background(Brand.Saffron50).border(1.dp, Brand.Saffron200, RoundedCornerShape(18.dp)),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Icon(Icons.Rounded.DoorFront, null, tint = Brand.Saffron700, modifier = Modifier.size(22.dp))
-        Text("Door", style = MaterialTheme.typography.labelSmall, color = Brand.Saffron700)
-    }
-}
-
-@Composable
-private fun SeatHistory(history: List<LibraryMember>, onOpen: (Long) -> Unit, excludeId: Long = -1) {
-    val list = history.filter { it.id != excludeId }
-    SectionHeader("Seat history")
-    if (list.isEmpty()) Text("Nobody else has used this seat yet.", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
-    else Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).border(1.dp, Brand.Line, RoundedCornerShape(20.dp))) {
-        list.forEachIndexed { i, m ->
-            if (i > 0) HorizontalDivider(Modifier.padding(start = 66.dp), color = Brand.Line)
-            Row(Modifier.fillMaxWidth().clickable { onOpen(m.id) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Avatar(m.name, 40.dp, photo = m.photo)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(m.name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
-                    Text("${shortDate(m.joinedOn)} ’${LocalDate.ofEpochDay(m.joinedOn).year % 100} → " + (m.leftOn?.let { "${shortDate(it)} ’${LocalDate.ofEpochDay(it).year % 100}" } ?: "now"),
-                        style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                }
-                StatusChip(if (m.active) "Current" else "Left", if (m.active) Tone.Good else Tone.Neutral)
-            }
-        }
-    }
-}
-
-/** "Seat 12 · Lab 2 · Extra leg room · Locker 4" */
-private fun seatLine(m: LibraryMember, rooms: List<LibraryRoom>) =
-    listOf("Seat ${m.seatNo}", roomOf(m.seatNo, rooms)?.name ?: "", m.seatType, lockerLabel(m)).filter { it.isNotBlank() }.joinToString(" · ")
-
-@Composable
-private fun MemberCard(m: LibraryMember, types: List<SeatType>, rooms: List<LibraryRoom>, t: Long, onClick: () -> Unit) {
-    val st = memberStatus(m, t)
-    val edge = when { !m.active -> Color.Transparent; st == SeatStatus.Expired -> Brand.Red500; st == SeatStatus.Ending -> Brand.Saffron400; st == SeatStatus.Partly -> Brand.Violet500; else -> Color.Transparent }
-    ListCard(Modifier.border(1.5.dp, edge, RoundedCornerShape(22.dp)), onClick = onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box {
-                Avatar(m.name, 50.dp, photo = m.photo)
-                Box(Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 4.dp).clip(RoundedCornerShape(8.dp)).background(if (m.active) statusDot(st) else Brand.Slate400)
-                    .border(2.dp, Color.White, RoundedCornerShape(8.dp)).padding(horizontal = 5.dp, vertical = 1.dp)) {
-                    Text("${m.seatNo}", style = MaterialTheme.typography.labelSmall, color = Color.White)
-                }
-            }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
-                Text(m.name, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 2)
-                Spacer(Modifier.height(3.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SeatIcon(types.firstOrNull { it.name == m.seatType }?.icon ?: "CHAIR", Brand.Teal700, 14.dp, locker = m.hasLocker)
-                    Spacer(Modifier.width(4.dp))
-                    Text(seatLine(m, rooms), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            when {
-                !m.active -> StatusChip("Left ${m.leftOn?.let { shortDate(it) } ?: ""}".trim(), Tone.Neutral)
-                st == SeatStatus.Expired -> StatusChip("Fee due", Tone.Bad)
-                st == SeatStatus.Partly -> StatusChip("${rupees(m.balance)} left", Tone.Accent)
-                st == SeatStatus.Ending -> StatusChip(if (m.validTill == t) "Ends today" else "${m.validTill - t} days left", Tone.Warn)
-                else -> StatusChip("Paid", Tone.Good)
-            }
-        }
-        if (m.active) {
-            HorizontalDivider(Modifier.padding(top = 12.dp, bottom = 8.dp), color = Brand.Line)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Plan: ${m.planName.ifBlank { "Monthly" }}", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, maxLines = 1)
-                Text("Valid till ${m.validTill.asDate()}", style = MaterialTheme.typography.labelMedium,
-                    color = when (st) { SeatStatus.Expired -> Brand.Red600; SeatStatus.Ending -> Brand.Saffron700; else -> Brand.Slate600 })
-            }
-        }
-    }
-}
-
-@Composable
-private fun SeatTile(n: Int, m: LibraryMember?, icon: String, t: Long, highlight: Boolean = false, dim: Boolean = false, onClick: (LibraryMember?) -> Unit) {
-    val st = m?.let { memberStatus(it, t) } ?: SeatStatus.Empty
-    val (bg, fg) = statusColors(st)
-    val solid = st == SeatStatus.Active || st == SeatStatus.Ending || st == SeatStatus.Partly
-    val shape = RoundedCornerShape(18.dp)
-    Column(
-        Modifier.size(TileW, TileH).alpha(if (dim) 0.22f else 1f)
-            .let { if (solid) it.shadow(5.dp, shape, spotColor = Brand.Blue800.copy(alpha = 0.35f)) else it }
-            .clip(shape).background(bg)
-            .border(if (highlight) 3.dp else 1.5.dp, when { highlight -> Brand.Saffron500; st == SeatStatus.Empty -> Brand.Green500.copy(alpha = 0.30f); st == SeatStatus.Expired -> Brand.Red500.copy(alpha = 0.5f); else -> Color.Transparent }, shape)
-            .pressable { onClick(m) }.padding(4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
-    ) {
-        val badge = when (st) { SeatStatus.Empty -> Color.White; SeatStatus.Expired -> Brand.Red50; SeatStatus.Ending -> Brand.Saffron500; SeatStatus.Partly -> Brand.Violet700; SeatStatus.Active -> Brand.Blue700 }
-        SeatIcon(icon, if (m == null) Brand.Green500.copy(alpha = 0.75f) else fg, 18.dp, badgeBg = badge, locker = m?.hasLocker == true)
-        Text("$n", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = if (m == null) Brand.Slate600 else fg)
-        if (m != null) Text(m.name.substringBefore(' '), style = MaterialTheme.typography.labelSmall, color = fg.copy(alpha = 0.9f), maxLines = 1,
-            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
     }
 }
 
@@ -659,8 +335,8 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
             topActions = { GlassIconButton(Icons.Rounded.Edit, "Edit", onEdit); GlassIconButton(Icons.Rounded.DeleteOutline, "Delete", { confirm = true }) },
             actions = {
                 RoundAction(Icons.Rounded.Call, "Call", Brand.Blue600, { Contact.call(ctx, m.mobile) }, glass = true)
-                RoundAction(Icons.AutoMirrored.Rounded.Chat, "WhatsApp", Brand.WhatsApp, { Contact.whatsapp(ctx, m.mobile) }, glass = true)
-                RoundAction(Icons.Rounded.NotificationsActive, "Remind", Brand.Saffron600, { Contact.whatsapp(ctx, m.mobile, remindText) }, glass = true)
+                RoundAction(Icons.AutoMirrored.Rounded.Chat, if (m.active && memberStatus(m, t) != SeatStatus.Active) "Send reminder" else "WhatsApp", Brand.WhatsApp,
+                    { if (m.active && memberStatus(m, t) != SeatStatus.Active) Contact.whatsapp(ctx, m.mobile, remindText) else Contact.whatsapp(ctx, m.mobile) }, glass = true)
             })
         Sheet {
             Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {

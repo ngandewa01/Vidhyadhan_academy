@@ -71,3 +71,11 @@ jobs:
             gh release create "$TAG" "$APK" --target "$GITHUB_SHA" --title "Android app $VERSION" $PRE \
               --notes "Built from \`$GITHUB_REF_NAME\` ($GITHUB_SHA). Open this page on the phone and tap the .apk file to download."
           fi
+          # A fixed link that always has the newest build: .../releases/download/app-latest/Vidhyadhan.apk
+          cp "$APK" "$RUNNER_TEMP/Vidhyadhan.apk"
+          if gh release view app-latest >/dev/null 2>&1; then
+            gh release upload app-latest "$RUNNER_TEMP/Vidhyadhan.apk" --clobber
+          else
+            gh release create app-latest "$RUNNER_TEMP/Vidhyadhan.apk" --target "$GITHUB_SHA" --title "Android app (latest build)" --prerelease \
+              --notes "Always the newest build. Download Vidhyadhan.apk below."
+          fi
