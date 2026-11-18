@@ -15,7 +15,7 @@ class LayoutTest {
         assertEquals(1, p.items.count { it.type == PlanItem.DOOR })
         assertEquals(2, p.items.count { it.type == PlanItem.DESK })
         assertEquals(p, planOf(planText(p))) // JSON round trip
-        assertEquals(FloorPlan(), planOf("not json {"))
+        assertEquals(FloorPlan(), planOf("{ not json"))
     }
 
     @Test fun quickPlanAndSeatLists() {
