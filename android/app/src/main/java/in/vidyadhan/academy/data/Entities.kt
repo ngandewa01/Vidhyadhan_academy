@@ -94,9 +94,31 @@ data class LibraryMember(
     val leftOn: Long? = null,
     @ColumnInfo(defaultValue = "") val lockerNo: String = "", // empty = no locker; "-" = locker without a number
     @ColumnInfo(defaultValue = "0") val lockerFee: Long = 0, // part of monthlyFee
+    @ColumnInfo(defaultValue = "0") val balance: Long = 0, // still owed for the current period (part payment)
+    @ColumnInfo(defaultValue = "") val planName: String = "", // plan of the last renewal, e.g. "3 months"
 ) {
     val hasLocker: Boolean get() = lockerNo.isNotBlank()
 }
+
+/** A room (floor, lab) of the library and how its seats are laid out. See library/Layout.kt for the [layout] format. */
+@Entity
+data class LibraryRoom(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    @ColumnInfo(defaultValue = "0") val sortOrder: Int = 0,
+    @ColumnInfo(defaultValue = "") val layout: String = "",
+)
+
+/** A renewal package, e.g. "6 months without locker" for ₹5,400. */
+@Entity
+data class MemberPlan(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val months: Int,
+    val price: Long,
+    @ColumnInfo(defaultValue = "0") val withLocker: Boolean = false,
+    @ColumnInfo(defaultValue = "1") val active: Boolean = true,
+)
 
 @Entity(
     foreignKeys = [ForeignKey(LibraryMember::class, ["id"], ["memberId"], onDelete = ForeignKey.CASCADE)],

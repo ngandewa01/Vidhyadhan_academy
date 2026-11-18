@@ -150,7 +150,7 @@ private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit)
             }
             Group("Daily work") {
                 SettingRow(Icons.Rounded.NotificationsActive, Brand.Red600, "Reminders", "Follow up after ${AppSettings.enquiryDays} days · daily at %02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)) { open(Page.Reminders) }
-                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Library seats", "${AppSettings.seatCount} seats · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
+                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Library seats", "Rooms, plans · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
             }
             Group("Security") {
                 SettingRow(Icons.Rounded.Password, Brand.Violet700, "Change PIN", "4-digit PIN to open the app") { pinDialog = true }
@@ -280,9 +280,16 @@ private fun LibraryPage() {
     val scope = rememberCoroutineScope()
     val types by viewModel<LibraryViewModel>().types.collectAsStateWithLifecycle()
     var edit by remember { mutableStateOf<SeatType?>(null) }
-    FormCard("Seats", Icons.Rounded.EventSeat, Brand.Teal700) {
-        Stepper("Total seats", AppSettings.seatCount, 1..300) { AppSettings.seatCount = it }
+    val rooms by viewModel<LibraryViewModel>().rooms.collectAsStateWithLifecycle()
+    var showRooms by remember { mutableStateOf(false) }
+    FormCard("Seats and rooms", Icons.Rounded.EventSeat, Brand.Teal700) {
+        if (rooms.isEmpty()) Stepper("Total seats", AppSettings.seatCount, 1..300) { AppSettings.seatCount = it }
+        else Text("${`in`.vidyadhan.academy.library.allSeats(rooms, AppSettings.seatCount).size} seats in ${rooms.size} room${if (rooms.size == 1) "" else "s"}: " +
+            rooms.joinToString(", ") { it.name }, style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+        SoftButton(if (rooms.isEmpty()) "Set up rooms and seat layout" else "Edit rooms and seat layout", { showRooms = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.MeetingRoom)
     }
+    if (showRooms) `in`.vidyadhan.academy.library.RoomsDialog { showRooms = false }
+    `in`.vidyadhan.academy.library.PlansCard()
     FormCard("Lockers", Icons.Rounded.Lock, Brand.Violet700) {
         Text("Any seat can take a locker. These amounts fill in when you tick “Locker” for a member.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
         Stepper("Number of lockers", AppSettings.lockerCount, 0..300) { AppSettings.lockerCount = it }

@@ -66,6 +66,17 @@ interface LibraryDao {
     @Update suspend fun updateType(t: SeatType)
     @Delete suspend fun deleteType(t: SeatType)
 
+    @Query("SELECT * FROM LibraryRoom ORDER BY sortOrder, id") fun rooms(): Flow<List<LibraryRoom>>
+    @Query("SELECT * FROM LibraryRoom ORDER BY sortOrder, id") suspend fun roomsNow(): List<LibraryRoom>
+    @Insert suspend fun insertRoom(r: LibraryRoom): Long
+    @Update suspend fun updateRoom(r: LibraryRoom)
+    @Delete suspend fun deleteRoom(r: LibraryRoom)
+
+    @Query("SELECT * FROM MemberPlan ORDER BY months, price") fun plans(): Flow<List<MemberPlan>>
+    @Insert suspend fun insertPlan(p: MemberPlan): Long
+    @Update suspend fun updatePlan(p: MemberPlan)
+    @Delete suspend fun deletePlan(p: MemberPlan)
+
     @Query("SELECT * FROM LibraryMember ORDER BY name COLLATE NOCASE") fun members(): Flow<List<LibraryMember>>
     @Query("SELECT * FROM LibraryMember WHERE id = :id") fun member(id: Long): Flow<LibraryMember?>
     @Query("SELECT * FROM LibraryMember WHERE seatNo = :seat ORDER BY joinedOn DESC") fun seatHistory(seat: Int): Flow<List<LibraryMember>>
@@ -126,9 +137,9 @@ class V2toV3 : AutoMigrationSpec {
 }
 
 @Database(
-    entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class],
-    version = 5, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5)],
+    entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class, LibraryRoom::class, MemberPlan::class],
+    version = 6, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6)],
 )
 abstract class AppDb : RoomDatabase() {
     abstract fun students(): StudentDao

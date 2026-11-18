@@ -49,7 +49,8 @@ fun SearchScreen(onClose: () -> Unit, onGo: (Go, Long) -> Unit) {
         }
         members.filter { nameOrPhone(it.name, it.mobile) || (digits.isNotEmpty() && digits == term && it.seatNo.toString() == digits) || (it.hasLocker && it.lockerNo.equals(term, true)) }.forEach {
             add(Hit("Library", it.name, listOf("Seat ${it.seatNo}", lockerLabel(it), it.mobile).filter(String::isNotBlank).joinToString(" · "), it.photo, Icons.Rounded.EventSeat, Go.Member, it.id,
-                if (!it.active) "Left" else if (it.validTill < today()) "Fee due" else null, if (!it.active) Tone.Neutral else Tone.Bad))
+                if (!it.active) "Left" else if (it.validTill < today()) "Fee due" else if (it.balance > 0) "${rupees(it.balance)} left" else null,
+                if (!it.active) Tone.Neutral else if (it.validTill < today()) Tone.Bad else Tone.Accent))
         }
         enquiries.filter { nameOrPhone(it.name, it.mobile) }.forEach {
             add(Hit("Enquiries", it.name, listOf(it.course, it.mobile).filter(String::isNotBlank).joinToString(" · "), "", Icons.Rounded.Forum, Go.Enquiry, it.id,

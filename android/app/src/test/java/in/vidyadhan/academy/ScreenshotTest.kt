@@ -115,6 +115,22 @@ class ScreenshotTest {
         backButton()
         rule.onNodeWithText("Message").performClick(); shot("16-broadcast")
         backButton()
+        // v0.6: rooms with a real layout, plans and part payments
+        runBlocking {
+            val ld = AppDb.get(ApplicationProvider.getApplicationContext()).library()
+            ld.insertRoom(LibraryRoom(name = "Lab 1", sortOrder = 1, layout = "1 2 3 4 5 6 7 8\n9 10 11 12 _ 13 14 15 16"))
+            ld.insertRoom(LibraryRoom(name = "Lab 2", sortOrder = 2, layout = "17 18 19 20 _ 21 22\n23 24 D 25 26 27 28"))
+            ld.insertPlan(MemberPlan(name = "3 months", months = 3, price = 1700))
+            ld.insertPlan(MemberPlan(name = "6 months with locker", months = 6, price = 4200, withLocker = true))
+            ld.allMembers().first { it.name == "Priya Gaikwad" }.let { ld.updateMember(it.copy(balance = 300, planName = "3 months")) }
+        }
+        nav("Library")
+        rule.onNodeWithText("Seat map").performClick(); shot("17-library-rooms")
+        rule.onNodeWithText("Members").performClick(); shot("18-members")
+        rule.onNodeWithText("Akash Shinde").performClick(); settle()
+        rule.onNodeWithText("Renew", substring = true).performScrollTo().performClick(); shot("19-renew-sheet"); back()
+        backButton()
+        nav("Home"); shot("20-home")
         rule.onNodeWithContentDescription("Settings").performClick(); shot("14-settings")
     }
 }

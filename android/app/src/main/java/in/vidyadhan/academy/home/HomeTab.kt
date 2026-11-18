@@ -34,7 +34,10 @@ import java.time.format.DateTimeFormatter
 /** Where a Home shortcut should take the owner. */
 enum class Go { Students, NewStudent, Student, Enquiries, NewEnquiry, Enquiry, Library, NewMember, Member, Money, NewExpense, Settings, Backup, Search, Broadcast }
 
-private data class Agenda(val name: String, val detail: String, val icon: ImageVector, val color: Color, val tone: Tone, val chip: String, val go: Go, val id: Long, val photo: String = "")
+private data class Agenda(
+    val name: String, val detail: String, val icon: ImageVector, val color: Color, val tone: Tone, val chip: String, val go: Go, val id: Long,
+    val photo: String = "", val mobile: String = "", val remind: String = "", val amount: Long = 0,
+)
 private data class Birthday(val name: String, val mobile: String, val photo: String, val what: String, val go: Go, val id: Long)
 
 fun isBirthday(dob: Long?, day: LocalDate): Boolean = dob != null && LocalDate.ofEpochDay(dob).let { it.month == day.month && it.dayOfMonth == day.dayOfMonth }
@@ -56,6 +59,11 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val libMonth by remember(monthStart) { db.library().collectedBetween(monthStart, monthEnd) }.collectAsStateWithLifecycle(0L)
     val recentFees by db.students().recentPaid().collectAsStateWithLifecycle(emptyList())
     val recentLib by db.library().recentPayments().collectAsStateWithLifecycle(emptyList())
+    val rooms by db.library().rooms().collectAsStateWithLifecycle(emptyList())
+    val yearStart = now.withDayOfYear(1).toEpochDay()
+    val feesYear by remember(yearStart) { db.students().paidBetween(yearStart, monthEnd) }.collectAsStateWithLifecycle(0L)
+    val libYear by remember(yearStart) { db.library().collectedBetween(yearStart, monthEnd) }.collectAsStateWithLifecycle(0L)
+    var showAll by remember { mutableStateOf(false) }
 
     val t = today()
     val pending = students.sumOf { (it.totalFee - it.paid).coerceAtLeast(0) }
@@ -63,7 +71,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val overdue = students.filter { it.nextDue != null && it.nextDue < t }
     val openEnq = enquiries.filter { it.status == "NEW" || it.status == "CONTACTED" }
     val active = members.filter { it.active }
-    val seats = AppSettings.seatCount
+    val seats = `in`.vidyadhan.academy.library.allSeats(rooms, AppSettings.seatCount).size
 
     val agenda = buildList {
         openEnq.filter { it.followUpOn <= t }.forEach {
@@ -72,19 +80,26 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
         }
         students.filter { it.nextDue != null && it.nextDue <= t }.forEach {
             add(Agenda(it.name, "${rupees(it.nextDueAmount)} due · ${rupees(it.totalFee - it.paid)} pending", Icons.Rounded.CurrencyRupee, Brand.Red600,
-                if (it.nextDue!! < t) Tone.Bad else Tone.Warn, if (it.nextDue < t) "Fee overdue" else "Fee due", Go.Student, it.id, it.photo))
+                if (it.nextDue!! < t) Tone.Bad else Tone.Warn, if (it.nextDue < t) "Fee overdue" else "Fee due", Go.Student, it.id, it.photo,
+                it.mobile, feeMessage(true, it.name, it.nextDueAmount, it.nextDue)))
         }
         active.filter { it.validTill <= t }.forEach {
-            add(Agenda(it.name, "Seat ${it.seatNo} · fee ${rupees(it.monthlyFee)}", Icons.Rounded.EventSeat,
-                Brand.Teal700, Tone.Bad, "Renewal", Go.Member, it.id, it.photo))
+            add(Agenda(it.name, "Seat ${it.seatNo} · fee ${rupees(it.monthlyFee)}" + if (it.balance > 0) " + ${rupees(it.balance)} balance" else "", Icons.Rounded.EventSeat,
+                Brand.Teal700, Tone.Bad, "Renewal", Go.Member, it.id, it.photo, it.mobile, `in`.vidyadhan.academy.library.libraryReminder(it, t)))
+        }
+        active.filter { it.validTill > t && it.balance > 0 }.forEach {
+            add(Agenda(it.name, "Seat ${it.seatNo} · ${rupees(it.balance)} still to pay", Icons.Rounded.EventSeat,
+                Brand.Violet700, Tone.Accent, "Part paid", Go.Member, it.id, it.photo, it.mobile, `in`.vidyadhan.academy.library.libraryReminder(it, t)))
         }
     }
     val upcoming = buildList {
         students.filter { it.nextDue != null && it.nextDue in (t + 1)..(t + 7) }.forEach {
-            add(Agenda(it.name, "Course fee · ${whenText(it.nextDue!!)}", Icons.Rounded.School, Brand.Blue600, Tone.Info, rupees(it.nextDueAmount), Go.Student, it.id, it.photo) to it.nextDue)
+            add(Agenda(it.name, "Course fee · ${whenText(it.nextDue!!)}", Icons.Rounded.School, Brand.Blue600, Tone.Info, rupees(it.nextDueAmount), Go.Student, it.id, it.photo,
+                it.mobile, feeMessage(true, it.name, it.nextDueAmount, it.nextDue), it.nextDueAmount) to it.nextDue)
         }
         active.filter { it.validTill in (t + 1)..(t + 7) }.forEach {
-            add(Agenda(it.name, "Library · seat ${it.seatNo} · ${whenText(it.validTill)}", Icons.Rounded.EventSeat, Brand.Teal700, Tone.Info, rupees(it.monthlyFee), Go.Member, it.id, it.photo) to it.validTill)
+            add(Agenda(it.name, "Library · seat ${it.seatNo} · ends ${whenText(it.validTill)}", Icons.Rounded.EventSeat, Brand.Teal700, Tone.Info, rupees(it.monthlyFee), Go.Member, it.id, it.photo,
+                it.mobile, `in`.vidyadhan.academy.library.libraryReminder(it, t), it.monthlyFee) to it.validTill)
         }
     }.sortedBy { it.second }.map { it.first }
     val birthdays = students.filter { isBirthday(it.dob, now) }.map { Birthday(it.name, it.mobile, it.photo, "Student · ${it.course}", Go.Student, it.id) } +
@@ -118,6 +133,8 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                 Text("Students ${rupees(feesMonth)} · Library ${rupees(libMonth)}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Brand.Blue200, maxLines = 1)
                 Text("${rupees(pending)} to collect", style = MaterialTheme.typography.labelMedium, color = Brand.Saffron200)
             }
+            Spacer(Modifier.height(4.dp))
+            Text("This year so far: ${rupees(feesYear + libYear)}", style = MaterialTheme.typography.labelMedium, color = Color.White.copy(alpha = 0.85f))
         }
 
         Column(Modifier.offset(y = (-52).dp).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -161,7 +178,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                     sub = "${students.count { it.totalFee > it.paid }} students") { onGo(Go.Students, 0) }
             }
 
-            SectionHeader("Today's to-do", action = if (agenda.size > 6) "${agenda.size} items" else null)
+            SectionHeader("Today's to-do", action = if (agenda.size > 8) (if (showAll) "Show less" else "Show all ${agenda.size}") else null, onAction = { showAll = !showAll })
             if (agenda.isEmpty()) {
                 Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brush.linearGradient(listOf(Brand.Green50, Color.White)))
                     .border(1.dp, Brand.Green100, RoundedCornerShape(24.dp)).padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -172,7 +189,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                         Text("No follow-ups, dues or renewals today.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                     }
                 }
-            } else AgendaList(agenda.take(8)) { onGo(it.go, it.id) }
+            } else AgendaList(if (showAll) agenda else agenda.take(8)) { onGo(it.go, it.id) }
 
             if (recent.isNotEmpty()) {
                 SectionHeader("Recent payments")
@@ -180,7 +197,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                     recent.forEachIndexed { i, p -> if (i > 0) HorizontalDivider(Modifier.padding(start = 72.dp, end = 16.dp), color = Brand.Line); PaymentLine(p) }
                 }
             }
-            SectionHeader("Coming up · next 7 days", action = if (upcoming.isNotEmpty()) rupees(upcoming.sumOf { it.chip.filter(Char::isDigit).toLongOrNull() ?: 0 }) else null)
+            SectionHeader("Coming up · next 7 days", action = if (upcoming.isNotEmpty()) rupees(upcoming.sumOf { it.amount }) else null)
             if (upcoming.isEmpty()) Text("No payments due in the next week.", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500, modifier = Modifier.padding(start = 4.dp))
             else AgendaList(upcoming, amountChip = true) { onGo(it.go, it.id) }
             Spacer(Modifier.height(4.dp))
@@ -190,6 +207,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
 
 @Composable
 private fun AgendaList(items: List<Agenda>, amountChip: Boolean = false, onClick: (Agenda) -> Unit) {
+    val ctx = LocalContext.current
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(vertical = 6.dp)) {
         items.forEachIndexed { i, a ->
             if (i > 0) HorizontalDivider(Modifier.padding(start = 72.dp, end = 16.dp), color = Brand.Line)
@@ -202,6 +220,10 @@ private fun AgendaList(items: List<Agenda>, amountChip: Boolean = false, onClick
                 }
                 if (amountChip) Text(a.chip, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Ink)
                 else StatusChip(a.chip, a.tone)
+                if (a.remind.isNotBlank() && a.mobile.isNotBlank()) {
+                    Spacer(Modifier.width(8.dp))
+                    SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send reminder to ${a.name}", Brand.WhatsAppDark) { Contact.whatsapp(ctx, a.mobile, a.remind) }
+                }
             }
         }
     }
