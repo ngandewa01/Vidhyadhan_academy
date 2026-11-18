@@ -13,11 +13,23 @@ android {
         applicationId = "in.vidyadhan.academy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.5.0"
+        versionCode = 10
+        versionName = "0.6.0"
+    }
+    // Release key: given by the build server through environment variables (never stored in the repo).
+    val keystore = System.getenv("SIGNING_KEYSTORE")?.takeIf { file(it).exists() }
+    signingConfigs {
+        if (keystore != null) create("release") {
+            storeFile = file(keystore)
+            storeType = "pkcs12"
+            storePassword = System.getenv("SIGNING_PASSWORD")
+            keyAlias = System.getenv("SIGNING_ALIAS") ?: "vidhyadhan"
+            keyPassword = System.getenv("SIGNING_PASSWORD")
+        }
     }
     buildTypes {
         release {
+            if (keystore != null) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

@@ -60,4 +60,19 @@ class MigrationTest {
         val db = helper.runMigrationsAndValidate("mig5.db", 5, true)
         db.query("SELECT leftOn, leftReason FROM Student").use { c -> c.moveToFirst(); assertEquals(true, c.isNull(0)); assertEquals("", c.getString(1)) }
     }
+
+    @Test fun v5ToV6AddsRoomsPlansAndBalance() {
+        helper.createDatabase("mig6.db", 5).apply {
+            execSQL("INSERT INTO LibraryMember(name,mobile,aadhaar,seatNo,seatType,monthlyFee,deposit,depositPaid,joinedOn,validTill,active,photo,aadhaarPhoto,lockerNo,lockerFee) VALUES('A','9000000001','',3,'Normal',800,500,1,20000,20030,1,'','','',0)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("mig6.db", 6, true)
+        db.query("SELECT balance, planName, seatNo FROM LibraryMember").use { c ->
+            c.moveToFirst(); assertEquals(0L, c.getLong(0)); assertEquals("", c.getString(1)); assertEquals(3, c.getInt(2))
+        }
+        db.execSQL("INSERT INTO LibraryRoom(name, layout) VALUES('Lab 1', '1 2 3')")
+        db.execSQL("INSERT INTO MemberPlan(name, months, price) VALUES('3 months', 3, 2400)")
+        db.query("SELECT sortOrder FROM LibraryRoom").use { c -> c.moveToFirst(); assertEquals(0, c.getInt(0)) }
+        db.query("SELECT withLocker, active FROM MemberPlan").use { c -> c.moveToFirst(); assertEquals(0, c.getInt(0)); assertEquals(1, c.getInt(1)) }
+    }
 }

@@ -150,7 +150,7 @@ private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit)
             }
             Group("Daily work") {
                 SettingRow(Icons.Rounded.NotificationsActive, Brand.Red600, "Reminders", "Follow up after ${AppSettings.enquiryDays} days · daily at %02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)) { open(Page.Reminders) }
-                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Library seats", "${AppSettings.seatCount} seats · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
+                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Library seats", "Rooms, plans · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
             }
             Group("Security") {
                 SettingRow(Icons.Rounded.Password, Brand.Violet700, "Change PIN", "4-digit PIN to open the app") { pinDialog = true }
@@ -280,8 +280,12 @@ private fun LibraryPage() {
     val scope = rememberCoroutineScope()
     val types by viewModel<LibraryViewModel>().types.collectAsStateWithLifecycle()
     var edit by remember { mutableStateOf<SeatType?>(null) }
+    val rooms by viewModel<LibraryViewModel>().rooms.collectAsStateWithLifecycle()
     FormCard("Seats", Icons.Rounded.EventSeat, Brand.Teal700) {
-        Stepper("Total seats", AppSettings.seatCount, 1..300) { AppSettings.seatCount = it }
+        if (rooms.isEmpty()) Stepper("Total seats", AppSettings.seatCount, 1..300) { AppSettings.seatCount = it }
+        else Text("${`in`.vidyadhan.academy.library.allSeats(rooms, AppSettings.seatCount).size} seats in ${rooms.size} room${if (rooms.size == 1) "" else "s"}: " +
+            rooms.joinToString(", ") { it.name }, style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+        Text("Rooms and the floor plan are drawn on the Seats page. Plans are on the Members page.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
     }
     FormCard("Lockers", Icons.Rounded.Lock, Brand.Violet700) {
         Text("Any seat can take a locker. These amounts fill in when you tick “Locker” for a member.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
@@ -292,7 +296,7 @@ private fun LibraryPage() {
         }
     }
     FormCard("Seat types", Icons.Rounded.Category, Brand.Blue600) {
-        Text("Fees for each type. To choose which seats are Extra leg room, go to Library → Seat map → “Set seat types”.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        Text("Fees for each type. To change one seat, tap it on the Seats page while it is free.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
         types.forEach { t ->
             androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(18.dp))
                 .clickable { edit = t }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -316,7 +320,7 @@ private fun LibraryPage() {
             title = { Text(if (t.id == 0L) "New seat type" else "Edit seat type") },
             text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Field(n, { n = it }, "Name, e.g. Extra leg room")
-                Field(seats, { seats = it }, "Seat numbers (optional)", Icons.Rounded.Tag, supporting = "Easier: Library → Seat map → “Set seat types” and tap seats")
+                Field(seats, { seats = it }, "Seat numbers (optional)", Icons.Rounded.Tag, supporting = "e.g. 9-16, 20. Or tap a free seat on the Seats page")
                 Text("Icon", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
                 androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("CHAIR" to "Normal", "LEGROOM" to "Extra leg room").forEach { (k, lbl) ->

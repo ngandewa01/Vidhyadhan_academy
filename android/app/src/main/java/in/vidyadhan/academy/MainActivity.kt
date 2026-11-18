@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.SystemBarStyle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.*
@@ -13,6 +14,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
@@ -39,6 +42,7 @@ import `in`.vidyadhan.academy.enquiries.EnquiriesTab
 import `in`.vidyadhan.academy.home.Go
 import `in`.vidyadhan.academy.home.HomeTab
 import `in`.vidyadhan.academy.library.LibraryTab
+import `in`.vidyadhan.academy.library.MemberFilter
 import `in`.vidyadhan.academy.lock.LockScreen
 import `in`.vidyadhan.academy.lock.LockStore
 import `in`.vidyadhan.academy.money.MoneyTab
@@ -68,12 +72,15 @@ class MainActivity : FragmentActivity() {
     }
 }
 
-private enum class Tab(val label: String, val on: ImageVector, val off: ImageVector) {
-    Home("Home", Icons.Rounded.Dashboard, Icons.Outlined.Dashboard),
+private enum class Tab(val label: String, val on: ImageVector, val off: ImageVector, val inNav: Boolean = true) {
+    Home("Dashboard", Icons.Rounded.Dashboard, Icons.Outlined.Dashboard),
+    Members("Members", Icons.Rounded.Groups, Icons.Outlined.Groups),
+    Seats("Seats", Icons.Rounded.EventSeat, Icons.Outlined.EventSeat),
     Students("Students", Icons.Rounded.School, Icons.Outlined.School),
-    Enquiries("Enquiries", Icons.Rounded.Forum, Icons.Outlined.Forum),
-    Library("Library", Icons.Rounded.LocalLibrary, Icons.Outlined.LocalLibrary),
-    Money("Money", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet),
+    More("More", Icons.Rounded.GridView, Icons.Outlined.GridView),
+    // opened from "More" (the More tab stays highlighted)
+    Enquiries("Enquiries", Icons.Rounded.Forum, Icons.Outlined.Forum, inNav = false),
+    Money("Money", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, inNav = false),
 }
 
 @Composable
@@ -97,12 +104,14 @@ private fun AppShell(lock: LockStore) {
             Go.Broadcast -> broadcast = true
             Go.Students, Go.NewStudent, Go.Student -> tab = Tab.Students
             Go.Enquiries, Go.NewEnquiry, Go.Enquiry -> tab = Tab.Enquiries
-            Go.Library, Go.NewMember, Go.Member -> tab = Tab.Library
+            Go.Library, Go.NewMember, Go.Member, Go.MemberDues, Go.MemberEnding -> tab = Tab.Members
+            Go.Seats -> tab = Tab.Seats
             Go.Money, Go.NewExpense -> tab = Tab.Money
         }
         pending = g; pendingId = id
     }
     val done = { pending = null; pendingId = 0L }
+    BackHandler(enabled = tab == Tab.Enquiries || tab == Tab.Money) { tab = Tab.More }
     CompositionLocalProvider(LocalNavHider provides hider) {
         Box(Modifier.fillMaxSize().background(Brand.Bg)) {
             Column(Modifier.fillMaxSize()) {
@@ -113,7 +122,10 @@ private fun AppShell(lock: LockStore) {
                             Tab.Students -> StudentsTab(openNew = pending == Go.NewStudent, openId = if (pending == Go.Student) pendingId else 0, onOpened = done)
                             Tab.Enquiries -> EnquiriesTab(openNew = pending == Go.NewEnquiry, openId = if (pending == Go.Enquiry) pendingId else 0, onOpened = done,
                                 onConvert = { Handoff.prefill = it; tab = Tab.Students })
-                            Tab.Library -> LibraryTab(openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0, onOpened = done)
+                            Tab.Members -> LibraryTab(openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0,
+                                startFilter = when (pending) { Go.MemberDues -> MemberFilter.Expired; Go.MemberEnding -> MemberFilter.Ending; else -> MemberFilter.All }, onOpened = done)
+                            Tab.Seats -> LibraryTab(seats = true)
+                            Tab.More -> MoreTab(::go)
                             Tab.Money -> MoneyTab(openNew = pending == Go.NewExpense, onOpened = done)
                         }
                     }
@@ -143,8 +155,8 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
             .navigationBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceAround,
     ) {
-        Tab.entries.forEach { t ->
-            val sel = t == selected
+        Tab.entries.filter { it.inNav }.forEach { t ->
+            val sel = t == selected || (t == Tab.More && !selected.inNav)
             val pill by animateColorAsState(if (sel) Brand.Blue100 else Color.Transparent, label = "nav")
             val fg by animateColorAsState(if (sel) Brand.Blue800 else Brand.Slate400, label = "navfg")
             Column(
@@ -158,6 +170,21 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
                 Spacer(Modifier.height(3.dp))
                 Text(t.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold), color = fg, maxLines = 1)
             }
+        }
+    }
+}
+
+/** Everything that is not on the bottom bar. */
+@Composable
+private fun MoreTab(onGo: (Go, Long) -> Unit) {
+    `in`.vidyadhan.academy.ui.HeroPage("More", "Enquiries, money, messages and settings") {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Spacer(Modifier.height(6.dp))
+            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Forum, Brand.Saffron600, "Enquiries", "Follow-ups and new admissions") { onGo(Go.Enquiries, 0) }
+            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Money", "Income, expenses and reports") { onGo(Go.Money, 0) }
+            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message", "WhatsApp or Telegram to many people") { onGo(Go.Broadcast, 0) }
+            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Search, Brand.Blue600, "Search", "Students, members and enquiries") { onGo(Go.Search, 0) }
+            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Settings, Brand.Slate600, "Settings", "Academy details, fees, seat types, backup, updates") { onGo(Go.Settings, 0) }
         }
     }
 }
