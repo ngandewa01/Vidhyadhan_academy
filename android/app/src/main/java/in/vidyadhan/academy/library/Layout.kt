@@ -21,7 +21,33 @@ data class FloorPlan(
     val front: String = "", // what is at the front: WHITEBOARD, WINDOW, DESK, STAGE
     val door: String = "", // FRONT_LEFT, FRONT_RIGHT, BACK_LEFT, BACK_RIGHT
     val window: String = "", // LEFT, RIGHT or empty
+    /** Seats along the walls, like cubicles facing the wall: [top, right, bottom, left], each in clockwise order; 0 = a gap. */
+    val walls: List<List<Int>> = emptyList(),
+    /** Back-to-back double rows in the middle: first half of each list is the left column (top to bottom), the rest the right column. */
+    val centre: List<List<Int>> = emptyList(),
 )
+
+/** The wall seating of a room: saved walls, or older rows split between the right and left walls (like students sitting back to back). */
+fun wallsOf(p: FloorPlan): Pair<List<List<Int>>, List<List<Int>>> {
+    if (p.walls.isNotEmpty() || p.centre.isNotEmpty()) return List(4) { p.walls.getOrNull(it).orEmpty() } to p.centre
+    val seats = rowsOf(p).flatten().filter { it > 0 }
+    val half = (seats.size + 1) / 2
+    return listOf(emptyList(), seats.take(half), emptyList(), seats.drop(half).reversed()) to emptyList()
+}
+
+/**
+ * New wall seating: [counts] seats on the top, right, bottom and left walls and [islands] middle double rows of [perIsland] seats.
+ * Seats keep the numbers in [numbers] (in order, clockwise from the top left); extra places get numbers from [nextFrom].
+ */
+fun wallRoom(counts: List<Int>, islands: Int, perIsland: Int, numbers: List<Int>, nextFrom: Int): Pair<List<List<Int>>, List<List<Int>>> {
+    var i = 0; var next = nextFrom
+    fun take() = if (i < numbers.size) numbers[i++] else next++
+    val walls = counts.map { c -> List(c.coerceAtLeast(0)) { take() } }
+    val centre = List(islands.coerceAtLeast(0)) { List(perIsland.coerceAtLeast(0)) { take() } }
+    return walls to centre
+}
+
+fun wallSeatList(walls: List<List<Int>>, centre: List<List<Int>>) = (walls.flatten() + centre.flatten()).filter { it > 0 }
 
 /** Seats [numbers] in [rows] rows: [left] seats, an aisle, then [right] seats (no aisle when one side is 0). Extra places get the next numbers after [nextFrom]. */
 fun theatreRows(rows: Int, left: Int, right: Int, numbers: List<Int>, nextFrom: Int): List<List<Int>> {
@@ -139,6 +165,7 @@ fun quickPlan(from: Int, to: Int, perRow: Int): FloorPlan {
 
 fun seatsIn(layout: String): List<Int> = planOf(layout).let { p ->
     when {
+        p.walls.isNotEmpty() || p.centre.isNotEmpty() -> wallSeatList(p.walls, p.centre)
         p.rows.isNotEmpty() -> p.rows.flatten().filter { it > 0 }
         p.grid.isNotEmpty() -> p.grid.filter { it.kind == GridItem.SEAT }.map { it.n }
         else -> p.items.filter { it.type == PlanItem.SEAT }.map { it.n }

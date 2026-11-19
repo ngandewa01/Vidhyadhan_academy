@@ -107,6 +107,11 @@ class ScreenshotTest {
         // Seats: no room yet → create one → edit → view
         nav("Abhyasika"); shot("08-seats-start")
         rule.onNodeWithText("+ Create room").performClick(); shot("08b-room-edit")
+        repeat(4) { rule.onNodeWithContentDescription("Top wall more").performScrollTo().performClick() }
+        repeat(3) { rule.onNodeWithContentDescription("Bottom wall more").performScrollTo().performClick() }
+        rule.onNodeWithContentDescription("Back-to-back double rows more").performScrollTo().performClick()
+        rule.onNodeWithText("Apply layout", substring = true).performScrollTo().performClick(); settle()
+        rule.onNodeWithContentDescription("Seat 1").performScrollTo(); shot("08b2-all-walls")
         rule.onNodeWithText("Live map").performClick(); shot("08c-room-plan")
         rule.onNodeWithContentDescription("Seat 7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
 

@@ -9,6 +9,19 @@ import org.junit.Test
 import java.time.LocalDate
 
 class LayoutTest {
+    @Test fun wallSeating() {
+        val old = FloorPlan(rows = listOf(listOf(1, 2, 0, 3), listOf(4, 5, 0, 6)))
+        val (w, c) = wallsOf(old)
+        assertEquals(listOf(listOf<Int>(), listOf(1, 2, 3), listOf(), listOf(6, 5, 4)), w)
+        assertEquals(emptyList<List<Int>>(), c)
+        val (w2, c2) = wallRoom(listOf(2, 1, 0, 2), 1, 4, listOf(9, 8, 7), 20)
+        assertEquals(listOf(listOf(9, 8), listOf(7), listOf(), listOf(20, 21)), w2)
+        assertEquals(listOf(listOf(22, 23, 24, 25)), c2)
+        val p = FloorPlan(walls = w2, centre = c2)
+        assertEquals(listOf(9, 8, 7, 20, 21, 22, 23, 24, 25), seatsIn(planText(p)))
+        assertEquals(p, planOf(planText(p)))
+    }
+
     @Test fun oldRowLayoutBecomesAPlan() {
         val p = planOf("16 17 _ 18\n30 D 29")
         assertEquals(listOf(16, 17, 18, 30, 29), p.items.filter { it.type == PlanItem.SEAT }.map { it.n })
