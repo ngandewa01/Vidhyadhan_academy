@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Chat
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -71,94 +73,132 @@ fun StudentsTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit
 @Composable
 private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long) -> Unit) {
     val all by vm.list.collectAsStateWithLifecycle()
+    val members by vm.members.collectAsStateWithLifecycle()
     var q by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf("all") }
-    var batch by rememberSaveable { mutableStateOf("") }
+    var filter by rememberSaveable { mutableStateOf("All") }
     val t = today()
     val current = all.filter { it.current }
     val former = all.filter { !it.current }
-    val total = current.sumOf { it.totalFee }
-    val paid = current.sumOf { minOf(it.paid, it.totalFee) }
-    val batches = (AppSettings.batchList + all.map { it.batch }).filter { it.isNotBlank() }.distinct()
-    val shown = (if (filter == "former") former else current).filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) }
-        .filter { batch.isEmpty() || it.batch == batch }
-        .filter { when (filter) { "due" -> it.totalFee > it.paid; "paid" -> it.totalFee <= it.paid; else -> true } }
-    HeroPage("Students", "${current.size} studying now" + if (former.isNotEmpty()) " · ${former.size} former" else "", header = {
-        Spacer(Modifier.height(16.dp))
-        SearchBox(q, { q = it }, "Search by name or mobile")
-        Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassStat("Total fees", rupees(total), Modifier.weight(1f))
-            GlassStat("Collected", rupees(paid), Modifier.weight(1f))
-            GlassStat("Pending", rupees(total - paid), Modifier.weight(1f), valueColor = Brand.Saffron200)
+    val seatOf = members.filter { it.active && it.studentId != null }.associateBy { it.studentId!! }
+    val courses = (AppSettings.courseList + current.map { it.course }).filter { it.isNotBlank() }.distinct()
+    val chips = listOf("All") + courses + listOf("Fees due", "Paid", "Former")
+    val shown = (if (filter == "Former") former else current)
+        .filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) || it.telegram.contains(q.removePrefix("@"), true) }
+        .filter {
+            when (filter) {
+                "All", "Former" -> true
+                "Fees due" -> it.totalFee > it.paid
+                "Paid" -> it.totalFee <= it.paid
+                else -> it.course == filter
+            }
         }
-    }) {
-        Box(Modifier.fillMaxSize()) {
-            Column {
-                Segmented(listOf("all" to "All", "due" to "Fees due", "paid" to "Paid", "former" to "Former"), filter, { filter = it }, Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 4.dp))
-                if (batches.isNotEmpty()) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    (listOf("") + batches).forEach { b ->
-                        val sel = b == batch
-                        Text(if (b.isEmpty()) "All batches" else b,
-                            Modifier.clip(RoundedCornerShape(50)).background(if (sel) Brand.Saffron600 else Color.White).border(1.dp, if (sel) Brand.Saffron600 else Brand.Line, RoundedCornerShape(50))
-                                .clickable { batch = b }.padding(horizontal = 14.dp, vertical = 7.dp),
-                            style = MaterialTheme.typography.labelLarge, color = if (sel) Color.White else Brand.Slate600)
-                    }
-                }
-                if (shown.isEmpty()) EmptyState(Icons.Rounded.School,
-                    if (all.isEmpty()) "No students yet" else if (filter == "former") "No former students" else "No matches",
-                    if (all.isEmpty()) "Add your first MPSC student to start tracking fees." else if (filter == "former") "Students who finish or leave are kept here with their records." else "Try a different name, batch or filter.",
-                    action = if (all.isEmpty()) "Add student" else null, onAction = onAdd)
-                else LazyColumn(contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 110.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(shown, key = { it.id }) { s -> StudentCard(s, t) { onOpen(s.id) } }
+    HeroPage("Students & fee ledger", "Equal / unequal installments, advance & deposits",
+        actions = { PillButton("Admit", onAdd, Brand.Saffron500, Icons.Rounded.Add) },
+        header = {
+            Spacer(Modifier.height(12.dp))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                chips.forEach { c ->
+                    val sel = c == filter
+                    Text(if (c == "Former" && former.isNotEmpty()) "Former (${former.size})" else c,
+                        Modifier.clip(RoundedCornerShape(50)).background(if (sel) Color.White else Color.White.copy(alpha = 0.12f)).clickable { filter = c }
+                            .padding(horizontal = 12.dp, vertical = 7.dp),
+                        style = MaterialTheme.typography.labelMedium, color = if (sel) Brand.Blue700 else Brand.Blue50, maxLines = 1)
                 }
             }
-            if (all.isNotEmpty()) Fab("Add student", Icons.Rounded.PersonAdd, onAdd, Modifier.align(Alignment.BottomEnd).padding(20.dp))
+        }) {
+        Column {
+            SearchBox(q, { q = it }, "Search name, mobile or @telegram", Modifier.padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 4.dp))
+            if (shown.isEmpty()) EmptyState(Icons.Rounded.School,
+                if (all.isEmpty()) "No students yet" else if (filter == "Former") "No former students" else "No matches",
+                if (all.isEmpty()) "Tap “Admit” to add your first student." else if (filter == "Former") "Students who finish or leave are kept here with their records." else "Try a different name or filter.",
+                action = if (all.isEmpty()) "Admit a student" else null, onAction = onAdd)
+            else LazyColumn(contentPadding = PaddingValues(14.dp, 8.dp, 14.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(shown, key = { it.id }) { s -> StudentCard(s, seatOf[s.id], t) { onOpen(s.id) } }
+            }
         }
     }
 }
 
+/** "VA-2026-07": receipt prefix, joining year, student number. */
+fun rollNo(id: Long, joinedOn: Long) = "${AppSettings.receiptPrefix}-${if (joinedOn > 0) LocalDate.ofEpochDay(joinedOn).year else LocalDate.now().year}-${id.toString().padStart(2, '0')}"
+
 @Composable
-private fun StudentCard(s: StudentWithFees, t: Long, onClick: () -> Unit) {
+private fun Pill(text: String, fg: Color, bg: Color) {
+    Text(text, Modifier.clip(RoundedCornerShape(6.dp)).background(bg).border(1.dp, fg.copy(alpha = 0.2f), RoundedCornerShape(6.dp)).padding(horizontal = 7.dp, vertical = 2.dp),
+        style = MaterialTheme.typography.labelSmall, color = fg, maxLines = 1)
+}
+
+@Composable
+private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onClick: () -> Unit) {
     val left = (s.totalFee - s.paid).coerceAtLeast(0)
-    ListCard(onClick = onClick) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Avatar(s.name, photo = s.photo)
-            Spacer(Modifier.width(14.dp))
+    val advance = s.advance
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Brand.Line, RoundedCornerShape(18.dp)).pressable(onClick = onClick)
+        .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.Top) {
+            if (s.photo.isNotBlank()) Avatar(s.name, 42.dp, photo = s.photo)
+            else Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brand.Blue100), Alignment.Center) {
+                Text(initials(s.name), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Blue700)
+            }
+            Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text(s.name, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1)
-                Spacer(Modifier.height(3.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    SmallTag(s.course)
-                    if (s.batch.isNotBlank()) { Spacer(Modifier.width(6.dp)); SmallTag(s.batch, Brand.Saffron700) }
-                    Spacer(Modifier.width(8.dp))
-                    Text(s.mobile, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
+                    Text(s.name, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.width(6.dp))
+                    Text(rollNo(s.id, s.joinedOn), style = MaterialTheme.typography.labelSmall, color = Brand.Slate400, maxLines = 1)
+                }
+                Text(s.course + if (s.batch.isNotBlank()) " · ${s.batch}" else "", style = MaterialTheme.typography.labelMedium, color = Brand.Blue700, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (s.telegram.isNotBlank()) {
+                Spacer(Modifier.width(6.dp))
+                Row(Modifier.clip(RoundedCornerShape(50)).background(Color(0xFFF0F9FF)).border(1.dp, Color(0xFFBAE6FD), RoundedCornerShape(50)).padding(horizontal = 7.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color(0xFF0369A1), modifier = Modifier.size(11.dp)); Spacer(Modifier.width(3.dp))
+                    Text("@${s.telegram}", style = MaterialTheme.typography.labelSmall, color = Color(0xFF0369A1), maxLines = 1)
+                }
+            } else if (!s.current) { Spacer(Modifier.width(6.dp)); StatusChip(s.leftReason.ifBlank { "Former" }, Tone.Neutral) }
+        }
+        val pills = seat != null || advance > 0
+        if (pills) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (seat != null) {
+                val xl = seat.seatType.contains("leg", true) || seat.seatType.contains("xl", true)
+                Pill("Seat ${seat.seatNo}" + if (seat.seatType.isNotBlank()) " (${seat.seatType})" else "", if (xl) Brand.Violet700 else Brand.Slate600, if (xl) Color(0xFFF5F3FF) else Brand.Slate50)
+                if (seat.hasLocker) Pill(if (seat.lockerNo == "-") "Locker" else "Locker ${seat.lockerNo}", Color(0xFF4338CA), Color(0xFFEEF2FF))
+                if (seat.depositPaid && seat.depositReturnedOn == null && seat.deposit > 0) Pill("Deposit ${rupees(seat.deposit)}", Brand.Green700, Brand.Green50)
+            }
+            if (advance > 0) Pill("Advance +${rupees(advance)}", Brand.Amber700, Brand.Amber50)
+        }
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp)).padding(vertical = 7.dp)) {
+            listOf(Triple("Total plan", rupees(s.totalFee), Brand.Ink), Triple("Paid", rupees(minOf(s.paid, s.totalFee)), Brand.Green600),
+                Triple("Balance", rupees(left), if (left > 0) Brand.Saffron500 else Brand.Green600)).forEach { (l, v, c) ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(l, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
+                    Text(v, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = c, maxLines = 1)
                 }
             }
-            if (!s.current) StatusChip(s.leftReason.ifBlank { "Former" }, Tone.Neutral)
-            else if (left > 0) Column(horizontalAlignment = Alignment.End) {
-                Text(rupees(left), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron700)
-                Text("pending", style = MaterialTheme.typography.labelSmall, color = Brand.Slate400)
-            } else StatusChip("Paid", Tone.Good)
         }
-        Spacer(Modifier.height(14.dp))
-        ProgressBar(if (s.totalFee == 0L) 1f else s.paid.toFloat() / s.totalFee, color = Brand.Green500, track = Brand.Line)
-        Spacer(Modifier.height(10.dp))
+        HorizontalDivider(color = Brand.Line)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${rupees(minOf(s.paid, s.totalFee))} of ${rupees(s.totalFee)} paid", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-            if (!s.current) Text("Left ${s.leftOn?.let { shortDate(it) } ?: ""}" + if (left > 0) " · ${rupees(left)} unpaid" else "", style = MaterialTheme.typography.labelMedium, color = if (left > 0) Brand.Red600 else Brand.Slate500)
-            else if (left > 0 && s.nextDue != null) {
-                if (s.nextDue < t) StatusChip("Overdue · ${shortDate(s.nextDue)}", Tone.Bad)
-                else if (s.nextDue == t) StatusChip("${rupees(s.nextDueAmount)} today", Tone.Warn)
-                else StatusChip("${rupees(s.nextDueAmount)} · ${shortDate(s.nextDue)}", Tone.Info)
-            }
+            Text(
+                when {
+                    !s.current && left > 0 -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""} · ${rupees(left)} unpaid"
+                    !s.current -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""}"
+                    left == 0L -> "All installments cleared ✓"
+                    s.nextDue != null && s.nextDue < t -> "Overdue: ${rupees(s.nextDueAmount)} since ${s.nextDue.asDate()}"
+                    s.nextDue != null -> "Next due: ${rupees(s.nextDueAmount)} on ${s.nextDue.asDate()}"
+                    else -> "${rupees(left)} to pay"
+                },
+                Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
+                color = when { left == 0L && s.current -> Brand.Green700; s.nextDue != null && s.nextDue < t -> Brand.Red600; else -> Brand.Slate600 }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Manage plan", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
+            Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
         }
     }
 }
 
 // ───────────────────────── form ─────────────────────────
 
-private data class PlanRow(val amount: String, val due: Long)
+private data class PlanRow(val amount: String, val due: Long, val label: String = "")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -189,6 +229,7 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
     val pre = remember { Handoff.prefill.also { Handoff.prefill = null } }
     var name by remember { mutableStateOf(pre?.name ?: "") }
     var mobile by remember { mutableStateOf(pre?.mobile ?: "") }
+    var telegram by remember { mutableStateOf("") }
     var aadhaar by remember { mutableStateOf("") }
     var course by remember { mutableStateOf(pre?.course?.takeIf { it in AppSettings.courseList } ?: AppSettings.courseList.first()) }
     var batch by remember { mutableStateOf("") }
@@ -206,9 +247,9 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
         val s = existing
         if (!loaded && s != null && existingPlan.isNotEmpty()) {
             name = s.name; mobile = s.mobile; aadhaar = s.aadhaar; course = s.course; fee = s.totalFee.toString(); joined = s.joinedOn
-            batch = s.batch; dob = s.dob; photo = s.photo; aadhaarPhoto = s.aadhaarPhoto
+            batch = s.batch; dob = s.dob; photo = s.photo; aadhaarPhoto = s.aadhaarPhoto; telegram = s.telegram
             count = existingPlan.size; first = existingPlan.first().dueOn
-            rows.clear(); rows.addAll(existingPlan.map { PlanRow(it.amount.toString(), it.dueOn) })
+            rows.clear(); rows.addAll(existingPlan.map { PlanRow(it.amount.toString(), it.dueOn, it.label) })
             customised = true; loaded = true
         }
     }
@@ -230,6 +271,8 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
                 Field(name, { name = it }, "Full name", Icons.Rounded.Person)
                 DigitsField("Mobile number", mobile, 10, { mobile = it }, Icons.Rounded.Phone, prefix = "+91 ", phone = true,
                     supporting = if (mobile.isNotEmpty() && mobile.length < 10) "Enter all 10 digits" else null, isError = mobile.isNotEmpty() && mobile.length < 10)
+                Field(telegram, { telegram = it.trim().removePrefix("@").take(32) }, "Telegram username (optional)", Icons.AutoMirrored.Rounded.Send, prefix = "@",
+                    supporting = "For receipts and reminders on Telegram")
                 DigitsField("Aadhaar number", aadhaar, 12, { aadhaar = it }, Icons.Rounded.CreditCard,
                     supporting = if (aadhaar.isNotEmpty() && aadhaar.length < 12) "Enter all 12 digits" else "Optional · kept only on this phone", isError = aadhaar.isNotEmpty() && aadhaar.length < 12)
                 DocPhoto("Aadhaar card photo", aadhaarPhoto, aadhaarPicker.open) { viewPhoto = aadhaarPhoto }
@@ -249,8 +292,10 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
                 DateField("First installment due", first, { first = it; customised = false })
             }
             if (rows.isNotEmpty()) FormCard("Installment plan", Icons.Rounded.Timeline, Brand.Violet700) {
-                Text("Change any amount or date. Amounts must add up to the total fee.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                Text("Equal split, or change any amount, date or name (unequal plan). Amounts must add up to the total fee.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                 rows.forEachIndexed { i, r ->
+                    Field(r.label, { v -> rows[i] = r.copy(label = v.take(30)); customised = true }, "Name of installment ${i + 1} (optional)",
+                        supporting = "e.g. Admission, Prelims, Mains")
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(30.dp).clip(CircleShape).background(Brand.Blue50), Alignment.Center) {
                             Text("${i + 1}", style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
@@ -283,8 +328,8 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
             PrimaryButton(if (id == 0L) "Add student" else "Save changes", {
                 val s = (existing ?: Student(name = "", mobile = "", totalFee = 0, joinedOn = joined)).copy(
                     id = if (id == 0L) 0 else id, name = name.trim(), mobile = mobile, aadhaar = aadhaar, course = course, totalFee = feeN, joinedOn = joined,
-                    batch = batch, dob = dob, photo = photo, aadhaarPhoto = aadhaarPhoto)
-                val plan = rows.sortedBy { it.due }.mapIndexed { i, r -> Installment(studentId = s.id, number = i + 1, amount = r.amount.toLong(), dueOn = r.due) }
+                    batch = batch, dob = dob, photo = photo, aadhaarPhoto = aadhaarPhoto, telegram = telegram)
+                val plan = rows.sortedBy { it.due }.mapIndexed { i, r -> Installment(studentId = s.id, number = i + 1, amount = r.amount.toLong(), dueOn = r.due, label = r.label.trim()) }
                 vm.save(s, plan, onSaved)
             }, Modifier.weight(1.6f), enabled = valid, icon = Icons.Rounded.Check)
         }
@@ -301,7 +346,12 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     val s by remember(id) { vm.student(id) }.collectAsStateWithLifecycle(null)
     val plan by remember(id) { vm.installments(id) }.collectAsStateWithLifecycle(emptyList())
     val payments by remember(id) { vm.payments(id) }.collectAsStateWithLifecycle(emptyList())
+    val seat by remember(id) { vm.memberFor(id) }.collectAsStateWithLifecycle(null)
+    val members by vm.members.collectAsStateWithLifecycle()
     var payFor by remember { mutableStateOf<Long?>(null) } // suggested amount
+    var linking by remember { mutableStateOf(false) }
+    var refund by remember { mutableStateOf(false) }
+    var resplit by remember { mutableStateOf(false) }
     var remind by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var deletePay by remember { mutableStateOf<StudentPayment?>(null) }
@@ -329,7 +379,12 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     Column(Modifier.fillMaxSize().background(Brand.Bg)) {
         ProfileHero(st.name, onBack,
             badge = { Box(Modifier.clickable(enabled = st.photo.isNotBlank()) { viewPhoto = st.photo }) { Avatar(st.name, 88.dp, ring = true, photo = st.photo) } },
-            chips = { GlassChip(st.course, Icons.Rounded.School); if (st.batch.isNotBlank()) GlassChip(st.batch, Icons.Rounded.Schedule); GlassChip("Joined ${shortDate(st.joinedOn)}", Icons.Rounded.CalendarMonth) },
+            chips = {
+                GlassChip(rollNo(st.id, st.joinedOn), Icons.Rounded.Badge); GlassChip(st.course, Icons.Rounded.School)
+                if (st.batch.isNotBlank()) GlassChip(st.batch, Icons.Rounded.Schedule)
+                if (st.telegram.isNotBlank()) GlassChip("@${st.telegram}", Icons.AutoMirrored.Rounded.Send)
+                GlassChip("Joined ${shortDate(st.joinedOn)}", Icons.Rounded.CalendarMonth)
+            },
             topActions = { GlassIconButton(Icons.Rounded.Edit, "Edit", onEdit); GlassIconButton(Icons.Rounded.DeleteOutline, "Delete", { confirmDelete = true }) },
             actions = {
                 RoundAction(Icons.Rounded.Call, "Call", Brand.Blue600, { Contact.call(ctx, st.mobile) }, glass = true)
@@ -370,6 +425,33 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                         Text("Full fee received. Thank you!", style = MaterialTheme.typography.labelLarge, color = Brand.Green700)
                     }
                 }
+                // what the fee is made of (course + Abhyasika seat + locker)
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(20.dp)).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FeeLine("Course (${st.course})", rupees(st.totalFee))
+                    val m = seat
+                    if (m != null) {
+                        FeeLine("Abhyasika seat ${m.seatNo}" + if (m.seatType.isNotBlank()) " · ${m.seatType}" else "", "${rupees(m.monthlyFee - m.lockerFee)}/month")
+                        if (m.hasLocker) FeeLine("Locker" + if (m.lockerNo != "-") " ${m.lockerNo}" else "", "${rupees(m.lockerFee)}/month")
+                        FeeLine("Seat paid up to", m.validTill.asDate(), if (m.validTill < t) Brand.Red600 else Brand.Slate800)
+                    }
+                    HorizontalDivider(Modifier.padding(vertical = 2.dp), color = Brand.Slate200)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Course fee / balance", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                        Text("${rupees(st.totalFee)} / ${rupees(balance)} due", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron500)
+                    }
+                    if (m == null && st.leftOn == null) SoftButton("Link an Abhyasika seat (Combo)", { linking = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.EventSeat)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    val m = seat
+                    val held = m != null && m.depositPaid && m.depositReturnedOn == null && m.deposit > 0
+                    MoneyBox("REFUNDABLE DEPOSIT", rupees(m?.deposit ?: 0) + " (" + when { m == null || m.deposit == 0L -> "None"; held -> "Held"; m.depositReturnedOn != null -> "Refunded"; else -> "Not paid" } + ")",
+                        Brand.Green700, Brand.Green50, if (held) "Refund deposit" else null, Modifier.weight(1f)) { refund = true }
+                    val advance = advanceOf(paid, plan, t)
+                    MoneyBox("ADVANCE CREDIT", rupees(advance), Brand.Amber700, Brand.Amber50, if (balance > 0) "+ Add advance" else null, Modifier.weight(1f)) {
+                        payFor = minOf(balance, 1000L)
+                    }
+                }
                 Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(horizontal = 16.dp, vertical = 8.dp)) {
                     InfoRow(Icons.Rounded.Phone, "Mobile", "+91 ${st.mobile}")
                     if (st.dob != null) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.Rounded.Cake, "Birthday", LocalDate.ofEpochDay(st.dob).format(java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy"))) }
@@ -379,8 +461,12 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                     }
                     if (st.aadhaarPhoto.isNotBlank()) { DocPhoto("Aadhaar card photo", st.aadhaarPhoto, onEdit) { viewPhoto = st.aadhaarPhoto }; Spacer(Modifier.height(8.dp)) }
                 }
-                SectionHeader("Installments", action = "${statuses.count { it.fullyPaid }} of ${statuses.size} paid")
-                Column { statuses.forEachIndexed { idx, s2 -> TimelineItem(s2, idx == 0, idx == statuses.lastIndex, t, onPay = { payFor = s2.remaining }, onRemind = { remind = true }) } }
+                SectionHeader("Installment schedule", action = if (balance > 0 && statuses.count { !it.fullyPaid } > 1) "Re-split balance equally" else "${statuses.count { it.fullyPaid }} of ${statuses.size} paid",
+                    onAction = { if (balance > 0 && statuses.count { !it.fullyPaid } > 1) resplit = true })
+                val paidOn = paidDates(statuses, payments)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    statuses.forEach { s2 -> ScheduleRow(s2, paidOn[s2.inst.number], t, onCollect = { payFor = s2.remaining }, onRemind = { remind = true }) }
+                }
                 SectionHeader("Payments received", action = if (payments.isNotEmpty()) rupees(paid) else null)
                 if (payments.isEmpty()) Text("No payments yet. Tap “Record a payment” when the student pays.", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
                 else Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(vertical = 6.dp)) {
@@ -481,6 +567,25 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
             }
         }
     }
+    if (linking) {
+        val free = members.filter { it.active && it.studentId == null }.sortedBy { if (it.mobile == st.mobile) 0 else 1 }
+        ModalBottomSheet({ linking = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SheetTitle("Link an Abhyasika seat", "Pick ${st.name.substringBefore(' ')}'s seat. Seat fees stay on the Abhyasika page.")
+                if (free.isEmpty()) Text("No Abhyasika member without a student. Add ${st.name.substringBefore(' ')} on the Abhyasika page first.", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+                free.forEach { m ->
+                    OptionRow(Icons.Rounded.EventSeat, Brand.Teal700, "${m.name} · Seat ${m.seatNo}", "+91 ${m.mobile}" + if (m.mobile == st.mobile) " · same mobile" else "") {
+                        vm.link(m, st.id); linking = false
+                    }
+                }
+            }
+        }
+    }
+    if (refund) seat?.let { m ->
+        ConfirmDialog("Refund ${rupees(m.deposit)} deposit?", "Records the deposit as returned to ${st.name} today.", "Refund", onConfirm = { vm.returnDeposit(m); refund = false }, onDismiss = { refund = false })
+    }
+    if (resplit) ConfirmDialog("Re-split the balance equally?", "Paid installments stay. The ${rupees(balance)} still due is divided equally over the ${statuses.count { !it.fullyPaid }} unpaid installments, on their dates.",
+        "Re-split", onConfirm = { vm.resplit(st, plan, paid); resplit = false }, onDismiss = { resplit = false })
     deletePay?.let { p -> ConfirmDialog("Delete this payment?", "${rupees(p.amount)} received on ${p.paidOn.asDate()} will be removed.", "Delete", danger = true,
         onConfirm = { vm.deletePayment(p); deletePay = null }, onDismiss = { deletePay = null }) }
     if (confirmDelete) ConfirmDialog("Delete ${st.name}?", "This removes the student, their installments and payments. It cannot be undone.", "Delete", danger = true,
@@ -489,48 +594,63 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
 }
 
 @Composable
-private fun TimelineItem(s: InstallmentStatus, first: Boolean, last: Boolean, t: Long, onPay: () -> Unit, onRemind: () -> Unit) {
+private fun FeeLine(label: String, value: String, valueColor: Color = Brand.Slate800) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        Text(value, style = MaterialTheme.typography.labelLarge, color = valueColor)
+    }
+}
+
+@Composable
+private fun MoneyBox(label: String, value: String, fg: Color, bg: Color, action: String?, modifier: Modifier, onAction: () -> Unit) {
+    Column(modifier.clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, fg.copy(alpha = 0.25f), RoundedCornerShape(16.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = fg)
+        Text(value, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Ink)
+        if (action != null) Text(action, Modifier.clip(RoundedCornerShape(10.dp)).background(Color.White).border(1.dp, fg.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .clickable(onClick = onAction).padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, color = fg)
+    }
+}
+
+/** For each fully paid installment: the payment that completed it (payments fill installments in order). */
+private fun paidDates(statuses: List<InstallmentStatus>, payments: List<StudentPayment>): Map<Int, StudentPayment> {
+    val pays = payments.sortedWith(compareBy({ it.paidOn }, { it.id }))
+    val out = mutableMapOf<Int, StudentPayment>()
+    var need = 0L
+    statuses.forEach { st ->
+        need += st.inst.amount
+        if (st.fullyPaid) {
+            var cum = 0L
+            pays.firstOrNull { cum += it.amount; cum >= need }?.let { out[st.inst.number] = it }
+        }
+    }
+    return out
+}
+
+@Composable
+private fun ScheduleRow(s: InstallmentStatus, paidBy: StudentPayment?, t: Long, onCollect: () -> Unit, onRemind: () -> Unit) {
     val i = s.inst
     val late = !s.fullyPaid && i.dueOn < t
-    val color = when { s.fullyPaid -> Brand.Green500; late -> Brand.Red500; s.partlyPaid -> Brand.Amber600; else -> Brand.Blue500 }
-    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-        Column(Modifier.width(30.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Box(Modifier.width(2.dp).height(22.dp).background(if (first) Color.Transparent else Brand.Slate200))
-            Box(Modifier.size(26.dp).clip(CircleShape).background(if (s.fullyPaid || late) color else Color.White).border(2.dp, color, CircleShape), Alignment.Center) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (s.fullyPaid) Brand.Green50.copy(alpha = 0.6f) else Color.White)
+        .border(1.dp, if (s.fullyPaid) Brand.Green100 else if (late) Brand.Red100 else Brand.Line, RoundedCornerShape(14.dp)).padding(start = 12.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("${i.label.ifBlank { "Inst ${i.number}" }} · ${rupees(i.amount)}", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1,
+                overflow = TextOverflow.Ellipsis)
+            val lateFee = if (late && AppSettings.lateFeeOn) (t - i.dueOn) * AppSettings.lateFeePerDay else 0L
+            Text(
                 when {
-                    s.fullyPaid -> Icon(Icons.Rounded.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                    late -> Icon(Icons.Rounded.PriorityHigh, null, tint = Color.White, modifier = Modifier.size(15.dp))
-                    else -> Text("${i.number}", style = MaterialTheme.typography.labelSmall, color = color)
-                }
-            }
-            Box(Modifier.width(2.dp).weight(1f).background(if (last) Color.Transparent else Brand.Slate200))
+                    s.fullyPaid -> "Paid on ${(paidBy?.paidOn ?: i.dueOn).asDate()}" + (paidBy?.mode?.takeIf { it.isNotBlank() }?.let { " ($it)" } ?: "")
+                    s.partlyPaid -> "${rupees(s.covered)} paid · ${rupees(s.remaining)} left · due ${i.dueOn.asDate()}"
+                    late -> "Overdue since ${i.dueOn.asDate()}" + if (lateFee > 0) " · late fee ${rupees(lateFee)}" else ""
+                    else -> "Due date: ${i.dueOn.asDate()}"
+                },
+                style = MaterialTheme.typography.bodySmall, color = when { s.fullyPaid -> Brand.Green700; late -> Brand.Red600; s.partlyPaid -> Brand.Amber700; else -> Brand.Slate500 })
         }
-        Spacer(Modifier.width(10.dp))
-        Column(Modifier.weight(1f).padding(vertical = 6.dp)) {
-            ListCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Installment ${i.number} · due ${shortDate(i.dueOn)}", style = MaterialTheme.typography.labelMedium, color = Brand.Slate400)
-                        Text(rupees(i.amount), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Ink)
-                        val lateFee = if (late && AppSettings.lateFeeOn) (t - i.dueOn) * AppSettings.lateFeePerDay else 0L
-                        Text(
-                            when {
-                                s.fullyPaid -> "Paid in full"
-                                s.partlyPaid -> "${rupees(s.covered)} paid · ${rupees(s.remaining)} left" + if (late) " · overdue" else ""
-                                late -> "Overdue since ${shortDate(i.dueOn)}" + if (lateFee > 0) " · late fee ${rupees(lateFee)}" else ""
-                                else -> "Due ${whenText(i.dueOn)}"
-                            },
-                            style = MaterialTheme.typography.bodySmall, color = when { s.fullyPaid -> Brand.Green700; late -> Brand.Red600; s.partlyPaid -> Brand.Amber700; else -> Brand.Slate500 },
-                        )
-                        if (s.partlyPaid) { Spacer(Modifier.height(6.dp)); ProgressBar(s.covered.toFloat() / i.amount, color = Brand.Amber600, track = Brand.Line, height = 5.dp) }
-                    }
-                    if (!s.fullyPaid) {
-                        SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Remind", Brand.WhatsAppDark, onRemind)
-                        Spacer(Modifier.width(8.dp))
-                        PillButton("Pay", onPay, if (late) Brand.Red600 else Brand.Blue700, Icons.Rounded.Add)
-                    } else StatusChip("Paid", Tone.Good)
-                }
-            }
+        if (s.fullyPaid) StatusChip("Paid ✓", Tone.Good, dot = false)
+        else {
+            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Remind", Brand.WhatsAppDark, onRemind)
+            Spacer(Modifier.width(6.dp))
+            PillButton("Collect", onCollect, if (late) Brand.Red600 else Brand.Blue700)
         }
     }
 }

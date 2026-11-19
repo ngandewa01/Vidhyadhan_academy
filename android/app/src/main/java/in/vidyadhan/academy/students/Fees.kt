@@ -28,9 +28,12 @@ fun summarise(s: Student, plan: List<Installment>, payments: List<StudentPayment
         s.id, s.name, s.mobile, s.aadhaar, s.course, s.batch, s.photo, s.dob, s.totalFee, paid,
         if (paid >= s.totalFee) null else next?.inst?.dueOn,
         if (paid >= s.totalFee) 0 else next?.remaining ?: (s.totalFee - paid),
-        s.leftOn, s.leftReason,
+        s.leftOn, s.leftReason, s.telegram, s.joinedOn, advanceOf(paid, plan, today()),
     )
 }
+
+/** Money paid ahead of the schedule: more than the installments due up to today [t]. */
+fun advanceOf(paid: Long, plan: List<Installment>, t: Long): Long = (paid - plan.filter { it.dueOn <= t }.sumOf { it.amount }).coerceAtLeast(0)
 
 /** Every student with their fee position, kept up to date. */
 fun studentsWithFees(dao: StudentDao): Flow<List<StudentWithFees>> =

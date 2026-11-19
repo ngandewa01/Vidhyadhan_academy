@@ -11,6 +11,27 @@ class StudentsViewModel(app: Application) : AndroidViewModel(app) {
     private val dao = AppDb.get(app).students()
     val list = studentsWithFees(dao).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val lib = AppDb.get(app).library()
+    /** Abhyasika members, to show a student's seat, locker and deposit (Combo). */
+    val members = lib.members().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    fun memberFor(id: Long) = lib.memberFor(id)
+    fun link(m: LibraryMember, studentId: Long?) = viewModelScope.launch { lib.updateMember(m.copy(studentId = studentId)) }
+    fun returnDeposit(m: LibraryMember) = viewModelScope.launch {
+        lib.pay(m.copy(depositReturnedOn = today()), LibraryPayment(memberId = m.id, kind = "DEPOSIT_RETURN", amount = m.deposit, paidOn = today(), mode = "Cash"))
+    }
+    /** Keeps what is paid and divides the rest equally over the installments not yet paid (same due dates). */
+    fun resplit(s: Student, plan: List<Installment>, paid: Long) = viewModelScope.launch {
+        val st = allocate(plan, paid)
+        val done = st.filter { it.fullyPaid }.map { it.inst }
+        val partly = st.filter { it.partlyPaid }.map { it.inst.copy(amount = it.covered) }
+        val open = st.filter { !it.fullyPaid }
+        val rest = s.totalFee - done.sumOf { it.amount } - partly.sumOf { it.amount }
+        if (open.isEmpty() || rest <= 0) return@launch
+        val n = open.size
+        val split = open.mapIndexed { i, o -> o.inst.copy(amount = rest / n + if (i == 0) rest % n else 0, label = "") }
+        val all = (done + partly + split).sortedWith(compareBy({ it.dueOn }, { it.number })).mapIndexed { i, x -> x.copy(id = 0, number = i + 1) }
+        dao.replacePlan(s, all)
+    }
     fun student(id: Long) = dao.student(id)
     fun installments(id: Long) = dao.installments(id)
     fun payments(id: Long) = dao.payments(id)

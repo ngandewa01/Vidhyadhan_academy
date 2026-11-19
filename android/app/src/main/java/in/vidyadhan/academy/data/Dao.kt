@@ -85,6 +85,8 @@ interface LibraryDao {
     @Query("SELECT COUNT(*) FROM LibraryMember WHERE active = 1 AND validTill <= :day") suspend fun expiringCount(day: Long): Int
     @Query("SELECT * FROM LibraryMember ORDER BY name COLLATE NOCASE") suspend fun allMembers(): List<LibraryMember>
     @Query("SELECT * FROM LibraryMember WHERE id = :id") suspend fun memberNow(id: Long): LibraryMember?
+    /** The Abhyasika seat of an academy student (Combo), if any. */
+    @Query("SELECT * FROM LibraryMember WHERE studentId = :id AND active = 1 ORDER BY joinedOn DESC LIMIT 1") fun memberFor(id: Long): Flow<LibraryMember?>
     @Query("SELECT COALESCE(SUM(amount), 0) FROM LibraryPayment WHERE kind IN ('FEE','REGISTRATION') AND paidOn BETWEEN :from AND :to") fun collectedBetween(from: Long, to: Long): Flow<Long>
     @Query("SELECT m.name AS name, p.amount AS amount, p.paidOn AS paidOn, p.kind AS kind, p.mode AS mode, 'Seat ' || m.seatNo || CASE WHEN m.seatType != '' THEN ' ' || m.seatType ELSE '' END || CASE WHEN m.lockerNo != '' THEN ' + Locker' || CASE WHEN m.lockerNo != '-' THEN ' ' || m.lockerNo ELSE '' END ELSE '' END AS detail FROM LibraryPayment p JOIN LibraryMember m ON m.id = p.memberId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
     fun recentPayments(): Flow<List<PaymentRow>>
@@ -119,6 +121,13 @@ interface ExpenseDao {
     @Delete suspend fun delete(e: Expense)
 }
 
+/** Version 6 → 7: library members whose mobile matches an academy student become that student's seat (Combo). */
+class V6toV7 : AutoMigrationSpec {
+    override fun onPostMigrate(db: SupportSQLiteDatabase) {
+        db.execSQL("UPDATE LibraryMember SET studentId = (SELECT s.id FROM Student s WHERE s.mobile = LibraryMember.mobile ORDER BY s.id LIMIT 1) WHERE studentId IS NULL")
+    }
+}
+
 /** Version 3 → 4: lockers become an add-on any seat can have, instead of a seat type. */
 class V3toV4 : AutoMigrationSpec {
     override fun onPostMigrate(db: SupportSQLiteDatabase) {
@@ -138,8 +147,8 @@ class V2toV3 : AutoMigrationSpec {
 
 @Database(
     entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class, LibraryRoom::class, MemberPlan::class],
-    version = 6, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6)],
+    version = 7, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = V6toV7::class)],
 )
 abstract class AppDb : RoomDatabase() {
     abstract fun students(): StudentDao
