@@ -13,7 +13,7 @@ android {
         applicationId = "in.vidyadhan.academy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 20
+        versionCode = 21
         versionName = "0.6.0"
     }
     // Release key: given by the build server through environment variables (never stored in the repo).

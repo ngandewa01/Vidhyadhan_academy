@@ -1,5 +1,6 @@
 package `in`.vidyadhan.academy.library
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,14 +18,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.vidyadhan.academy.AppSettings
 import `in`.vidyadhan.academy.data.LibraryMember
@@ -35,21 +44,24 @@ import `in`.vidyadhan.academy.students.rupees
 import `in`.vidyadhan.academy.students.today
 import `in`.vidyadhan.academy.ui.*
 
-private val SkyBg = Color(0xFFF0F9FF); private val Sky = Color(0xFF38BDF8); private val SkyInk = Color(0xFF082F49)
-private val Emerald = Color(0xFF34D399); private val EmeraldInk = Color(0xFF022C22)
-private val Purple50 = Color(0xFFFAF5FF); private val Purple100 = Color(0xFFF3E8FF); private val Purple300 = Color(0xFFD8B4FE); private val Purple600 = Color(0xFF9333EA); private val Purple900 = Color(0xFF581C87)
-
 fun isXl(n: Int, types: List<SeatType>) = typeForSeat(n, types)?.icon == "LEGROOM"
 
-/** A new room laid out like the prototype: window and AC on top, seats, then the entrance and water. */
-fun defaultGrid(seats: List<Int>): List<GridItem> {
-    var id = 1
-    return listOf(GridItem(id++, GridItem.FIXTURE, span = 4, label = "Window light", icon = "WINDOW"), GridItem(id++, GridItem.FIXTURE, span = 2, label = "Split AC", icon = "AC")) +
-        seats.map { GridItem(id++, GridItem.SEAT, n = it) } +
-        listOf(GridItem(id++, GridItem.FIXTURE, span = 3, label = "Main entrance", icon = "DOOR"), GridItem(id, GridItem.FIXTURE, span = 3, label = "RO water & Wi-Fi", icon = "WATER"))
+/** The four seat colours of the room plan. */
+private enum class Look(val label: String, val color: Color) {
+    Free("Available", Brand.Green500), Taken("Occupied", Brand.Blue600), Soon("Renewal / due soon", Brand.Saffron500), Due("Fee due", Brand.Red600)
+}
+private val XlEdge = Color(0xFF9333EA)
+
+private fun lookOf(m: LibraryMember?, t: Long): Look = when (m?.let { memberStatus(it, t) }) {
+    null -> Look.Free
+    SeatStatus.Expired -> Look.Due
+    SeatStatus.Ending, SeatStatus.Partly -> Look.Soon
+    else -> Look.Taken
 }
 
-/** "Abhyasika Room Plan": live map of the seats, and Edit Room to lay the room out. */
+private fun frontLabel(f: String) = when (f) { "WINDOW" -> "Window"; "DESK" -> "Teacher's desk"; "STAGE" -> "Stage"; else -> "Whiteboard" }
+
+/** "Abhyasika room plan": seats in rows facing the front, like a classroom or theatre. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Long) -> Unit, onMembers: () -> Unit) {
@@ -58,16 +70,17 @@ internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (L
     val rooms by vm.rooms.collectAsStateWithLifecycle()
     var roomId by rememberSaveable { mutableLongStateOf(0L) }
     var editing by rememberSaveable { mutableStateOf(false) }
-    var selected by remember { mutableStateOf<Int?>(null) }
+    var names by rememberSaveable { mutableStateOf(false) }
     var seatSheet by remember { mutableStateOf<Int?>(null) }
+    var editPlace by remember { mutableStateOf<Pair<Int, Int>?>(null) } // row, place
     var rename by remember { mutableStateOf<LibraryRoom?>(null) }
     var deleteRoom by remember { mutableStateOf<LibraryRoom?>(null) }
     val t = today()
     val active = members.filter { it.active }
     val bySeat = active.associateBy { it.seatNo }
     val seats = allSeats(rooms, AppSettings.seatCount)
-    val free = seats.count { it !in bySeat }
-    val potential = seats.sumOf { typeForSeat(it, types)?.fee ?: 0L } + active.sumOf { it.lockerFee }
+    val looks = seats.groupingBy { lookOf(bySeat[it], t) }.eachCount()
+    val potential = seats.sumOf { typeForSeat(it, types)?.fee ?: 0L }
     val room = rooms.firstOrNull { it.id == roomId } ?: rooms.firstOrNull()
     LaunchedEffect(rooms.size) { if (rooms.none { it.id == roomId }) roomId = rooms.firstOrNull()?.id ?: 0L }
     val xlType = types.firstOrNull { it.icon == "LEGROOM" }
@@ -75,178 +88,93 @@ internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (L
 
     fun newRoom() {
         val first = rooms.isEmpty()
-        val next = nextSeatNumber(rooms)
-        val nums = if (first) (1..AppSettings.seatCount.coerceAtLeast(1)).toList() else (next until next + 12).toList()
+        val count = if (first) AppSettings.seatCount.coerceAtLeast(1) else 16
+        val numbers = if (first) (1..count).toList() else (nextSeatNumber(rooms) until nextSeatNumber(rooms) + count).toList()
+        val rowsN = (count + 7) / 8
         vm.addRoom(LibraryRoom(name = if (first) "Hall A" else "Hall ${'A' + rooms.size}", sortOrder = (rooms.maxOfOrNull { it.sortOrder } ?: 0) + 1,
-            layout = planText(FloorPlan(cols = GRID_COLS, grid = defaultGrid(nums))))) { roomId = it; editing = true }
+            layout = planText(FloorPlan(rows = theatreRows(rowsN, 4, 4, numbers, numbers.last() + 1).map { r -> r.map { if (it > numbers.last()) 0 else it } },
+                front = "WHITEBOARD", door = "BACK_RIGHT")))) { roomId = it; editing = true }
     }
 
-    HeroPage("Abhyasika room plan", "${seats.size} seats · $free free · Potential ${rupees(potential)}/mo",
+    HeroPage("Abhyasika room plan", "${seats.size} seats · ${looks[Look.Free] ?: 0} free · Potential ${rupees(potential)}/mo",
         actions = {
             Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.25f)).border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)).padding(2.dp)) {
-                ModeChip("Live map", !editing, Color.White, Brand.Blue700) { editing = false; selected = null }
+                ModeChip("Live map", !editing, Color.White, Brand.Blue700) { editing = false }
                 ModeChip("Edit room", editing, Brand.Saffron500, Color.White) { editing = true }
             }
         },
         header = {
             Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.10f)).border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Legend(Emerald, "Free"); Legend(Sky, "Occupied"); Legend(Brand.Saffron500, "Expiring")
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("XL", Modifier.clip(RoundedCornerShape(3.dp)).background(Color(0xFFA855F7)).padding(horizontal = 3.dp), style = MaterialTheme.typography.labelSmall, color = Color.White)
-                    Spacer(Modifier.width(4.dp)); Text("Legroom", style = MaterialTheme.typography.labelSmall, color = Color.White)
-                }
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.10f)).padding(horizontal = 8.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween) {
+                Look.entries.forEach { l -> HeaderCount("${looks[l] ?: 0}", l.label.substringBefore(" /"), l.color) }
             }
         }) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            // rooms
             Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 rooms.forEach { r ->
                     val sel = r.id == room?.id
-                    Text("${r.name} · ${seatsIn(r.layout).size}", Modifier.clip(RoundedCornerShape(50)).background(if (sel) Brand.Blue700 else Color.White)
-                        .border(1.dp, if (sel) Brand.Blue700 else Brand.Line, RoundedCornerShape(50)).clickable { roomId = r.id; selected = null }.padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium, color = if (sel) Color.White else Brand.Slate600, maxLines = 1)
+                    Chip("${r.name} · ${seatsIn(r.layout).size}", sel) { roomId = r.id }
                 }
-                Text(if (rooms.isEmpty()) "+ Create room" else "+ New room", Modifier.clip(RoundedCornerShape(50)).border(1.dp, Brand.Blue700.copy(alpha = 0.4f), RoundedCornerShape(50))
-                    .clickable(onClick = ::newRoom).padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, color = Brand.Blue700)
-                Text("Members", Modifier.clip(RoundedCornerShape(50)).border(1.dp, Brand.Line, RoundedCornerShape(50)).clickable(onClick = onMembers)
-                    .padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, color = Brand.Slate600)
+                Chip(if (rooms.isEmpty()) "+ Create room" else "+ New room", false, outline = Brand.Blue700, onClick = ::newRoom)
+                Chip("Members", false, onClick = onMembers)
+                if (!editing && room != null) Chip(if (names) "Hide names" else "Show names", names) { names = !names }
             }
 
-            if (room == null) {
-                Text("No room drawn yet. Tap “+ Create room”: your ${AppSettings.seatCount} seats are placed in a hall with window, AC, entrance and water, ready to rearrange.",
-                    style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
-            } else {
+            if (room == null) Text("No room yet. Tap “+ Create room”: your ${AppSettings.seatCount} seats are set out in rows of 8 with a centre aisle, facing the whiteboard. Then change it in Edit room.",
+                style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+            else {
                 val plan = planOf(room.layout)
-                val grid = gridOf(plan)
-                val cols = plan.cols.takeIf { it > 0 } ?: GRID_COLS
-                fun save(g: List<GridItem>, c: Int = cols) = vm.saveRoom(room.copy(layout = planText(FloorPlan(cols = c, grid = g))))
-                fun nextId() = (grid.maxOfOrNull { it.id } ?: 0) + 1
+                val rows = rowsOf(plan)
+                fun save(newRows: List<List<Int>> = rows, front: String = plan.front, door: String = plan.door, window: String = plan.window) =
+                    vm.saveRoom(room.copy(layout = planText(FloorPlan(rows = newRows, front = front, door = door, window = window))))
 
-                if (editing) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Amber50).border(1.dp, Brand.Saffron500.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                    .padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("ROOM & SEAT DESIGNER MODE", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron600)
-                        Text("Tap an item to change it", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        DesignButton("+ Normal seat", Color.White, Brand.Slate800, Modifier.weight(1f)) {
-                            val n = nextSeatNumber(rooms); val id = nextId()
-                            normalType?.let { vm.setSeatType(n, it) }; save(grid + GridItem(id, GridItem.SEAT, n = n)); selected = id
-                        }
-                        DesignButton("+ XL legroom", Purple600, Color.White, Modifier.weight(1f)) {
-                            val n = nextSeatNumber(rooms); val id = nextId()
-                            xlType?.let { vm.setSeatType(n, it) }; save(grid + GridItem(id, GridItem.SEAT, n = n)); selected = id
-                        }
-                        var fixMenu by remember { mutableStateOf(false) }
-                        Box(Modifier.weight(1f)) {
-                            DesignButton("+ AC / Window", Color.White, Brand.Slate800, Modifier.fillMaxWidth()) { fixMenu = true }
-                            DropdownMenu(fixMenu, { fixMenu = false }, containerColor = Color.White) {
-                                listOf("WINDOW", "AC", "FAN", "DOOR", "WATER", "LOCKERS", "WIFI").forEach { ic ->
-                                    DropdownMenuItem({ Text(fixtureLabel(ic)) }, {
-                                        val id = nextId(); save(grid + GridItem(id, GridItem.FIXTURE, span = if (ic == "LOCKERS" || ic == "WINDOW") 4 else 2, label = fixtureLabel(ic), icon = ic))
-                                        selected = id; fixMenu = false
-                                    }, leadingIcon = { Icon(fixtureIcon(ic), null) })
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White).border(1.dp, Brand.Line, RoundedCornerShape(22.dp)).padding(12.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally) {
+                    Theatre(rows, plan, bySeat, types, t, editing, names, editPlace,
+                        onSeat = { r, c, n -> if (editing) editPlace = r to c else seatSheet = n },
+                        onGap = { r, c -> if (editing) editPlace = r to c })
+                    Spacer(Modifier.height(10.dp))
+                    Legend()
+                }
+
+                if (editing) Designer(rows, plan, rooms.filter { it.id != room.id }, bySeat, onApply = { save(it) },
+                    onFront = { save(front = it) }, onDoor = { save(door = it) }, onWindow = { save(window = it) },
+                    onRename = { rename = room }, onDelete = { deleteRoom = room })
+
+                // the selected seat or empty place (edit mode)
+                editPlace?.let { (ri, ci) ->
+                    val n = rows.getOrNull(ri)?.getOrNull(ci)
+                    if (n == null) editPlace = null
+                    else ModalBottomSheet({ editPlace = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+                        Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            fun setPlace(v: Int) = save(rows.mapIndexed { i, r -> if (i == ri) r.mapIndexed { j, x -> if (j == ci) v else x } else r })
+                            if (n == 0) {
+                                SheetTitle("Empty place · row ${rowLetter(ri)}", "An aisle or a gap between seats")
+                                PrimaryButton("Add a seat here (no. ${nextSeatNumber(rooms)})", { setPlace(nextSeatNumber(rooms)); editPlace = null }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
+                            } else {
+                                val m = bySeat[n]
+                                val xl = isXl(n, types)
+                                SheetTitle("Seat $n · row ${rowLetter(ri)}", (if (xl) "Extra legroom (XL)" else "Normal seat") + (m?.let { " · ${it.name}" } ?: " · free"))
+                                SoftButton(if (xl) "Make it a normal seat" else "Make it an XL legroom seat", { (if (xl) normalType else xlType)?.let { vm.setSeatType(n, it) } },
+                                    Modifier.fillMaxWidth(), color = XlEdge, icon = Icons.Rounded.Chair)
+                                var number by remember(n) { mutableStateOf("$n") }
+                                val newN = number.toIntOrNull() ?: 0
+                                val clash = newN != n && newN in allSeats(rooms, 0)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    DigitsField("Seat number", number, 3, { number = it }, modifier = Modifier.weight(1f), isError = clash,
+                                        supporting = if (clash) "Seat $newN already exists" else if (m != null && newN != n) "${m.name} moves with the seat" else null)
+                                    PillButton("Save", { if (newN > 0 && !clash) { setPlace(newN); m?.let { vm.update(it.copy(seatNo = newN)) }; editPlace = null } }, Brand.Blue700)
                                 }
+                                SoftButton("Remove this seat", { setPlace(0); editPlace = null }, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.Rounded.DeleteOutline)
+                                if (m != null) Text("${m.name} keeps seat $n and shows under “Not in any room” until it is placed again.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                             }
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Columns", style = MaterialTheme.typography.labelMedium, color = Brand.Slate600)
-                        SmallStep("−") { if (cols > 3) save(grid, cols - 1) }
-                        Text("$cols", style = MaterialTheme.typography.labelLarge, color = Brand.Ink)
-                        SmallStep("+") { if (cols < 10) save(grid, cols + 1) }
-                        Spacer(Modifier.weight(1f))
-                        Text("Rename", Modifier.clickable { rename = room }.padding(4.dp), style = MaterialTheme.typography.labelMedium, color = Brand.Blue700)
-                        Text("Delete room", Modifier.clickable { deleteRoom = room }.padding(4.dp), style = MaterialTheme.typography.labelMedium, color = Brand.Red600)
-                    }
-                }
-
-                // the blueprint canvas
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Brand.Slate50).drawBehind {
-                    val step = 16.dp.toPx(); var x = 0f
-                    while (x < size.width) { var y = 0f; while (y < size.height) { drawCircle(Brand.Slate300, 1.dp.toPx() / 2, Offset(x, y)); y += step }; x += step }
-                }.border(2.dp, Brand.Slate300, RoundedCornerShape(24.dp)).padding(10.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)) {
-                        Text("${room.name} — study room".uppercase(), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Slate400, maxLines = 1)
-                        Text("${seatsIn(room.layout).count { it !in bySeat }} FREE", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Slate400)
-                    }
-                    Spacer(Modifier.height(6.dp))
-                    // pack items into rows of [cols] columns, in order (like a CSS grid)
-                    val rowsList = mutableListOf<MutableList<Pair<GridItem, Int>>>()
-                    var cur = mutableListOf<Pair<GridItem, Int>>(); var used = 0
-                    grid.forEach { g ->
-                        val sp = (if (g.kind == GridItem.SEAT) (if (isXl(g.n, types)) 2 else 1) else g.span).coerceIn(1, cols)
-                        if (used + sp > cols) { rowsList += cur; cur = mutableListOf(); used = 0 }
-                        cur += g to sp; used += sp
-                    }
-                    if (cur.isNotEmpty()) rowsList += cur
-                    rowsList.forEach { row ->
-                        Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
-                            row.forEach { (g, sp) ->
-                                Box(Modifier.weight(sp.toFloat()).fillMaxHeight().padding(3.dp)) {
-                                    val sel = editing && selected == g.id
-                                    if (g.kind == GridItem.SEAT) SeatCell(g.n, bySeat[g.n], isXl(g.n, types), typeForSeat(g.n, types)?.fee ?: 0, t, sel) {
-                                        if (editing) selected = g.id else seatSheet = g.n
-                                    } else FixtureCell(g, active, sel) { if (editing) selected = g.id }
-                                }
-                            }
-                            val left = cols - row.sumOf { it.second }
-                            if (left > 0) Spacer(Modifier.weight(left.toFloat()))
                         }
                     }
                 }
 
-                // the selected item (edit mode)
-                val item = grid.firstOrNull { it.id == selected }
-                if (editing && item != null) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    val seatItem = item.kind == GridItem.SEAT
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text("SELECTED ELEMENT", style = MaterialTheme.typography.labelSmall, color = Brand.Slate400)
-                            Text(if (seatItem) "${seatCode(item.n, isXl(item.n, types))} (${if (isXl(item.n, types)) "XL" else "NORMAL"})" else "${item.label} (FIXTURE)",
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
-                        }
-                        Text("Remove", Modifier.clip(RoundedCornerShape(10.dp)).background(Brand.Red50).clickable { save(grid.filter { it.id != item.id }); selected = null }
-                            .padding(horizontal = 10.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Red600)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
-                        if (seatItem) {
-                            var number by remember(item.id) { mutableStateOf("${item.n}") }
-                            DigitsField("Seat number", number, 3, { v -> number = v; v.toIntOrNull()?.takeIf { it > 0 }?.let { n -> save(grid.map { if (it.id == item.id) it.copy(n = n) else it }) } },
-                                modifier = Modifier.weight(1f))
-                            val xl = isXl(item.n, types)
-                            Text(if (xl) "XL pod (2-col) ⇄" else "Normal (1-col) ⇄", Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Purple50).border(1.dp, Purple300, RoundedCornerShape(12.dp))
-                                .clickable { (if (xl) normalType else xlType)?.let { vm.setSeatType(item.n, it) } }.padding(vertical = 14.dp),
-                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Purple900, textAlign = TextAlign.Center)
-                        } else {
-                            var label by remember(item.id) { mutableStateOf(item.label) }
-                            Field(label, { v -> label = v.take(30); save(grid.map { if (it.id == item.id) it.copy(label = v.take(30)) else it }) }, "Label", modifier = Modifier.weight(1.4f))
-                            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                SmallStep("−") { save(grid.map { if (it.id == item.id) it.copy(span = (it.span - 1).coerceAtLeast(1)) else it }) }
-                                Text("${item.span} col", style = MaterialTheme.typography.labelLarge, color = Brand.Ink)
-                                SmallStep("+") { save(grid.map { if (it.id == item.id) it.copy(span = (it.span + 1).coerceAtMost(cols)) else it }) }
-                            }
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("Reorder position:", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Brand.Slate600)
-                        DesignButton("← Earlier", Brand.Slate50, Brand.Slate800) {
-                            val i = grid.indexOfFirst { it.id == item.id }
-                            if (i > 0) save(grid.toMutableList().also { java.util.Collections.swap(it, i, i - 1) })
-                        }
-                        DesignButton("Later →", Brand.Slate50, Brand.Slate800) {
-                            val i = grid.indexOfFirst { it.id == item.id }
-                            if (i in 0 until grid.lastIndex) save(grid.toMutableList().also { java.util.Collections.swap(it, i, i + 1) })
-                        }
-                    }
-                }
-
-                // members whose seat is not drawn in any room
                 val placed = seats.toSet()
-                val stray = active.filter { rooms.isNotEmpty() && it.seatNo !in placed }
+                val stray = active.filter { it.seatNo !in placed }
                 if (stray.isNotEmpty()) Text("Not in any room: " + stray.joinToString(", ") { "${it.name} (seat ${it.seatNo})" },
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Amber50).padding(10.dp), style = MaterialTheme.typography.bodySmall, color = Brand.Amber700)
             }
@@ -257,26 +185,26 @@ internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (L
     seatSheet?.let { n ->
         val m = bySeat[n]
         val xl = isXl(n, types)
-        val fee = typeForSeat(n, types)?.fee ?: 0L
+        val ty = typeForSeat(n, types)
         ModalBottomSheet({ seatSheet = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
             Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("${if (xl) "Extra legroom XL pod" else "Normal cubicle seat"} · ${rupees(fee)}/mo".uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = if (xl) Purple600 else Brand.Blue700)
-                Text("Seat ${seatCode(n, xl)}", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
+                Text("${if (xl) "Extra legroom XL seat" else "Normal seat"} · ${rupees(ty?.fee ?: 0)}/mo".uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = if (xl) XlEdge else Brand.Blue700)
+                Text("Seat $n", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
                 if (m == null) {
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Green50).border(1.dp, Brand.Green100, RoundedCornerShape(16.dp)).padding(12.dp)) {
                         Text("This seat is vacant & ready for allotment.", style = MaterialTheme.typography.titleSmall, color = Brand.Green700)
-                        Text("Optional locker ${rupees(AppSettings.lockerFee.toLong())}/mo · Refundable deposit ${rupees(typeForSeat(n, types)?.deposit ?: 0)}",
-                            style = MaterialTheme.typography.bodySmall, color = Brand.Green700)
+                        Text("Optional locker ${rupees(AppSettings.lockerFee.toLong())}/mo · Refundable deposit ${rupees(ty?.deposit ?: 0)}", style = MaterialTheme.typography.bodySmall, color = Brand.Green700)
                     }
-                    PrimaryButton("Assign student / walk-in to ${seatCode(n, xl)} →", { seatSheet = null; onAdd(n) }, Modifier.fillMaxWidth())
+                    PrimaryButton("Assign student / walk-in to seat $n →", { seatSheet = null; onAdd(n) }, Modifier.fillMaxWidth())
                 } else {
+                    val look = lookOf(m, t)
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(12.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         SheetLine("Occupant", m.name)
                         SheetLine("Plan", m.planName.ifBlank { "Monthly" } + if (m.balance > 0) " · ${rupees(m.balance)} to pay" else "")
-                        SheetLine("Assigned locker", if (m.hasLocker) lockerLabel(m) else "None", Purple600)
-                        SheetLine("Valid until", m.validTill.asDate(), when { m.validTill < t -> Brand.Red600; m.validTill - t <= ENDING_DAYS -> Brand.Saffron500; else -> Brand.Green700 })
+                        SheetLine("Assigned locker", if (m.hasLocker) lockerLabel(m) else "None", XlEdge)
+                        SheetLine("Valid until", m.validTill.asDate(), look.color)
                     }
                     var vacate by remember { mutableStateOf(false) }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -287,7 +215,7 @@ internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (L
                             .padding(vertical = 11.dp), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Red700, textAlign = TextAlign.Center)
                     }
                     Text("Open member page ›", Modifier.clickable { seatSheet = null; onOpen(m.id) }.padding(4.dp), style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
-                    if (vacate) ConfirmDialog("Vacate seat ${seatCode(n, xl)}?", "${m.name} moves to past members. Records are kept." +
+                    if (vacate) ConfirmDialog("Vacate seat $n?", "${m.name} moves to past members. Records are kept." +
                         if (m.depositPaid && m.depositReturnedOn == null && m.deposit > 0) " Return the ${rupees(m.deposit)} deposit on the member page." else "",
                         "Vacate", danger = true, onConfirm = { vm.update(m.copy(active = false, leftOn = t)); vacate = false; seatSheet = null }, onDismiss = { vacate = false })
                 }
@@ -308,55 +236,217 @@ internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (L
     }
 }
 
-fun seatCode(n: Int, xl: Boolean) = (if (xl) "XL-" else "N-") + n.toString().padStart(2, '0')
-
+/** The room: the front board on top, rows of chairs with a letter at each end, the aisle, the entrance and the window wall. */
 @Composable
-private fun SeatCell(n: Int, m: LibraryMember?, xl: Boolean, fee: Long, t: Long, selected: Boolean, onClick: () -> Unit) {
-    val st = m?.let { memberStatus(it, t) }
-    val (bg, edge, ink) = when (st) {
-        null -> Triple(Brand.Green50, Emerald, EmeraldInk)
-        SeatStatus.Expired -> Triple(Brand.Red50, Brand.Red500, Brand.Red700)
-        SeatStatus.Ending, SeatStatus.Partly -> Triple(Brand.Amber50, Brand.Saffron500, Color(0xFF451A03))
-        else -> Triple(SkyBg, Sky, SkyInk)
-    }
-    Column(Modifier.fillMaxSize().heightIn(min = 60.dp).clip(RoundedCornerShape(12.dp)).background(bg)
-        .border(if (selected) 3.dp else 2.dp, if (selected) Brand.Saffron500 else edge, RoundedCornerShape(12.dp)).pressable(onClick = onClick).padding(5.dp),
-        verticalArrangement = Arrangement.SpaceBetween) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(seatCode(n, xl), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold), color = ink, maxLines = 1)
-            if (xl) Text("XL", Modifier.clip(RoundedCornerShape(3.dp)).background(Purple600).padding(horizontal = 3.dp), style = MaterialTheme.typography.labelSmall, color = Color.White)
+private fun Theatre(rows: List<List<Int>>, plan: FloorPlan, bySeat: Map<Int, LibraryMember>, types: List<SeatType>, t: Long, editing: Boolean, names: Boolean,
+                    picked: Pair<Int, Int>?, onSeat: (Int, Int, Int) -> Unit, onGap: (Int, Int) -> Unit) {
+    if (rows.isEmpty()) { Text("This room has no seats yet. Use “Layout” below.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500); return }
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val places = rows.maxOf { it.size }.coerceAtLeast(1)
+        val label = 16.dp
+        val windowW = if (plan.window.isNotBlank()) 12.dp else 0.dp
+        val seatW = ((maxWidth - label * 2 - windowW - 4.dp) / places).coerceIn(26.dp, 46.dp)
+        val width = seatW * places + label * 2
+        Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
+            Row(Modifier.height(IntrinsicSize.Min)) {
+                if (plan.window == "LEFT") WindowWall()
+                Column(Modifier.width(width), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Door(plan.door, front = true)
+                    FrontBoard(frontLabel(plan.front), width - label * 2)
+                    Spacer(Modifier.height(12.dp))
+                    rows.forEachIndexed { ri, row ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RowTag(rowLetter(ri), label)
+                            row.forEachIndexed { ci, n ->
+                                val sel = editing && picked == ri to ci
+                                if (n > 0) Chair(n, bySeat[n], isXl(n, types), t, seatW, sel, names && !editing) { onSeat(ri, ci, n) }
+                                else Box(Modifier.size(seatW, seatW * 0.95f).padding(3.dp).let { m ->
+                                    if (editing) m.clip(RoundedCornerShape(8.dp)).border(1.dp, if (sel) Brand.Saffron500 else Brand.Slate200, RoundedCornerShape(8.dp)).clickable { onGap(ri, ci) } else m
+                                })
+                            }
+                            repeat(places - row.size) { Spacer(Modifier.width(seatW)) }
+                            RowTag(rowLetter(ri), label)
+                        }
+                        Spacer(Modifier.height(if (names && !editing) 2.dp else 6.dp))
+                    }
+                    Door(plan.door, front = false)
+                }
+                if (plan.window == "RIGHT") WindowWall()
+            }
         }
-        Text(m?.name?.substringBefore(' ') ?: "Free", style = MaterialTheme.typography.labelSmall, color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(rupees(fee), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = ink.copy(alpha = 0.7f), maxLines = 1)
-            if (m?.hasLocker == true) Text(if (m.lockerNo == "-") "L" else "L-${m.lockerNo}", Modifier.clip(RoundedCornerShape(3.dp)).background(Purple100).padding(horizontal = 2.dp),
-                style = MaterialTheme.typography.labelSmall, color = Color(0xFF7E22CE), maxLines = 1)
+    }
+}
+
+/** One chair: backrest, armrests and cushion, coloured by who sits there; seat number on the backrest. */
+@Composable
+private fun Chair(n: Int, m: LibraryMember?, xl: Boolean, t: Long, w: Dp, selected: Boolean, showName: Boolean, onClick: () -> Unit) {
+    val look = lookOf(m, t)
+    val free = look == Look.Free
+    val body = look.color
+    val shade = lerp(body, Color.Black, 0.22f)
+    Column(Modifier.width(w).semantics { contentDescription = "Seat $n" }.clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick)
+        .let { if (selected) it.border(2.dp, Brand.Saffron500, RoundedCornerShape(8.dp)) else it }.padding(horizontal = 2.dp, vertical = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(Modifier.size(w - 4.dp, (w - 4.dp) * 0.9f), Alignment.TopCenter) {
+            Canvas(Modifier.matchParentSize()) {
+                val cw = size.width; val ch = size.height
+                fun part(x: Float, y: Float, pw: Float, ph: Float, r: Float, fill: Color) {
+                    if (free) {
+                        drawRoundRect(Color.White, Offset(x, y), Size(pw, ph), CornerRadius(r))
+                        drawRoundRect(body, Offset(x, y), Size(pw, ph), CornerRadius(r), style = Stroke(1.6.dp.toPx()))
+                    } else drawRoundRect(fill, Offset(x, y), Size(pw, ph), CornerRadius(r))
+                }
+                part(cw * 0.14f, 0f, cw * 0.72f, ch * 0.64f, cw * 0.2f, body) // backrest
+                part(0f, ch * 0.40f, cw * 0.15f, ch * 0.52f, cw * 0.07f, shade) // arms
+                part(cw * 0.85f, ch * 0.40f, cw * 0.15f, ch * 0.52f, cw * 0.07f, shade)
+                part(cw * 0.12f, ch * 0.62f, cw * 0.76f, ch * 0.3f, cw * 0.1f, shade) // cushion
+                if (xl) drawRoundRect(XlEdge, Offset(cw * 0.14f, 0f), Size(cw * 0.72f, ch * 0.64f), CornerRadius(cw * 0.2f), style = Stroke(2.2.dp.toPx()))
+                if (m?.hasLocker == true) drawCircle(Color(0xFF7E22CE), cw * 0.08f, Offset(cw * 0.9f, ch * 0.12f))
+            }
+            Text("$n", Modifier.padding(top = (w - 4.dp) * 0.1f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold,
+                fontSize = (w.value * 0.3f).coerceIn(9f, 14f).sp), color = if (free) Brand.Green700 else Color.White, maxLines = 1)
+        }
+        if (showName) Text(m?.name?.substringBefore(' ') ?: "", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), color = Brand.Slate600, maxLines = 1)
+    }
+}
+
+/** The front of the room: a curved board, like a theatre screen. */
+@Composable
+private fun FrontBoard(label: String, width: Dp) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(Modifier.width(width).height(16.dp)) {
+            val p = Path().apply { moveTo(0f, size.height); quadraticTo(size.width / 2, -size.height * 0.6f, size.width, size.height) }
+            drawPath(p, Brand.Slate300, style = Stroke(5.dp.toPx(), cap = StrokeCap.Round))
+        }
+        Text("${label.uppercase()} · FRONT", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.5.sp), color = Brand.Slate400)
+    }
+}
+
+@Composable
+private fun RowTag(letter: String, w: Dp) {
+    Text(letter, Modifier.width(w), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Slate400, textAlign = TextAlign.Center)
+}
+
+@Composable
+private fun Door(door: String, front: Boolean) {
+    val here = if (front) door.startsWith("FRONT") else door.startsWith("BACK") || door.isBlank()
+    if (!here) return
+    val left = door.endsWith("LEFT")
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), horizontalArrangement = if (left) Arrangement.Start else Arrangement.End) {
+        Row(Modifier.clip(RoundedCornerShape(8.dp)).background(Brand.Saffron50).border(1.dp, Brand.Saffron200, RoundedCornerShape(8.dp)).padding(horizontal = 8.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.DoorFront, null, tint = Brand.Saffron600, modifier = Modifier.size(14.dp)); Spacer(Modifier.width(4.dp))
+            Text("Entrance", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Saffron700)
         }
     }
 }
 
-fun fixtureIcon(icon: String): ImageVector = when (icon) {
-    "WINDOW" -> Icons.Rounded.WbSunny; "AC" -> Icons.Rounded.AcUnit; "FAN" -> Icons.Rounded.Air; "DOOR" -> Icons.Rounded.DoorFront
-    "WATER" -> Icons.Rounded.WaterDrop; "LOCKERS" -> Icons.Rounded.Lock; "WIFI" -> Icons.Rounded.Wifi; else -> Icons.Rounded.CropSquare
-}
-
 @Composable
-private fun FixtureCell(g: GridItem, active: List<LibraryMember>, selected: Boolean, onClick: () -> Unit) {
-    val lockers = g.icon == "LOCKERS"
-    val label = if (lockers) "Lockers L1–L${AppSettings.lockerCount} (${active.count { it.hasLocker }} used)" else g.label.ifBlank { fixtureLabel(g.icon) }
-    Row(Modifier.fillMaxSize().heightIn(min = 40.dp).clip(RoundedCornerShape(12.dp)).background(if (lockers) Purple100 else Brand.Slate200.copy(alpha = 0.8f))
-        .border(if (selected) 3.dp else 1.dp, if (selected) Brand.Saffron500 else if (lockers) Purple300 else Brand.Slate300, RoundedCornerShape(12.dp)).clickable(onClick = onClick)
-        .padding(horizontal = 6.dp, vertical = 6.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        Icon(fixtureIcon(g.icon), null, tint = if (lockers) Purple900 else Brand.Slate600, modifier = Modifier.size(13.dp))
-        Spacer(Modifier.width(4.dp))
-        Text(label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = if (lockers) Purple900 else Brand.Slate600, maxLines = 1, overflow = TextOverflow.Ellipsis)
+private fun WindowWall() {
+    Box(Modifier.width(10.dp).fillMaxHeight().padding(vertical = 20.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFBAE6FD)), Alignment.Center) {
+        Icon(Icons.Rounded.WbSunny, "Window", tint = Color(0xFF0284C7), modifier = Modifier.size(8.dp))
     }
 }
 
 @Composable
-private fun Legend(color: Color, label: String) = Row(verticalAlignment = Alignment.CenterVertically) {
-    Box(Modifier.size(9.dp).clip(RoundedCornerShape(2.dp)).background(color)); Spacer(Modifier.width(4.dp))
-    Text(label, style = MaterialTheme.typography.labelSmall, color = Color.White)
+private fun Legend() {
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically) {
+        Look.entries.forEach { l ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Canvas(Modifier.size(14.dp, 12.dp)) {
+                    if (l == Look.Free) {
+                        drawRoundRect(l.color, Offset(size.width * 0.1f, 0f), Size(size.width * 0.8f, size.height * 0.7f), CornerRadius(4f), style = Stroke(1.5.dp.toPx()))
+                    } else drawRoundRect(l.color, Offset(size.width * 0.1f, 0f), Size(size.width * 0.8f, size.height * 0.7f), CornerRadius(4f))
+                    drawRoundRect(if (l == Look.Free) l.color else lerp(l.color, Color.Black, 0.22f), Offset(0f, size.height * 0.65f), Size(size.width, size.height * 0.3f), CornerRadius(3f))
+                }
+                Spacer(Modifier.width(4.dp)); Text(l.label, style = MaterialTheme.typography.labelSmall, color = Brand.Slate600)
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(12.dp).clip(RoundedCornerShape(3.dp)).border(2.dp, XlEdge, RoundedCornerShape(3.dp))); Spacer(Modifier.width(4.dp))
+            Text("XL legroom", style = MaterialTheme.typography.labelSmall, color = Brand.Slate600)
+        }
+    }
+}
+
+/** Edit room: the layout (rows × seats with a centre aisle), front, entrance and window. */
+@Composable
+private fun Designer(rows: List<List<Int>>, plan: FloorPlan, others: List<LibraryRoom>, bySeat: Map<Int, LibraryMember>, onApply: (List<List<Int>>) -> Unit,
+                     onFront: (String) -> Unit, onDoor: (String) -> Unit, onWindow: (String) -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
+    val first = rows.firstOrNull().orEmpty()
+    val gapAt = first.indexOf(0)
+    var nRows by remember(rows) { mutableIntStateOf(rows.size.coerceAtLeast(1)) }
+    var left by remember(rows) { mutableIntStateOf(if (gapAt >= 0) gapAt else first.size.coerceAtLeast(4)) }
+    var right by remember(rows) { mutableIntStateOf(if (gapAt >= 0) first.size - gapAt - 1 else 0) }
+    val current = rows.flatten().filter { it > 0 }
+    val capacity = nRows * (left + right)
+    val dropped = current.drop(capacity).filter { it in bySeat }
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Amber50).border(1.dp, Brand.Saffron500.copy(alpha = 0.4f), RoundedCornerShape(16.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("ROOM & SEAT DESIGNER", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron600)
+        Text("Tap a seat to make it XL, renumber or remove it. Tap an empty place to add a seat.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
+        Text("Layout", style = MaterialTheme.typography.labelLarge, color = Brand.Ink)
+        Counter("Rows", nRows, 1..26) { nRows = it }
+        Counter("Seats left of the aisle", left, 0..12) { left = it }
+        Counter("Seats right of the aisle", right, 0..12) { right = it }
+        if (dropped.isNotEmpty()) Text("Seat ${dropped.joinToString(", ")} is taken and would leave the plan.", style = MaterialTheme.typography.bodySmall, color = Brand.Red600)
+        PrimaryButton("Apply layout ($capacity seats)", {
+            onApply(theatreRows(nRows, left, right, current, nextSeatNumber(others, current)))
+        }, Modifier.fillMaxWidth(), enabled = capacity > 0, icon = Icons.Rounded.Check)
+        Text("Front of the room", style = MaterialTheme.typography.labelLarge, color = Brand.Ink)
+        Choice(listOf("WHITEBOARD" to "Whiteboard", "WINDOW" to "Window", "DESK" to "Teacher's desk", "STAGE" to "Stage"), plan.front.ifBlank { "WHITEBOARD" }, onFront)
+        Text("Entrance", style = MaterialTheme.typography.labelLarge, color = Brand.Ink)
+        Choice(listOf("FRONT_LEFT" to "Front left", "FRONT_RIGHT" to "Front right", "BACK_LEFT" to "Back left", "BACK_RIGHT" to "Back right"), plan.door.ifBlank { "BACK_RIGHT" }, onDoor)
+        Text("Window wall", style = MaterialTheme.typography.labelLarge, color = Brand.Ink)
+        Choice(listOf("" to "None", "LEFT" to "Left", "RIGHT" to "Right"), plan.window, onWindow)
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text("Rename room", Modifier.clickable(onClick = onRename).padding(4.dp), style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
+            Text("Delete room", Modifier.clickable(onClick = onDelete).padding(4.dp), style = MaterialTheme.typography.labelLarge, color = Brand.Red600)
+        }
+    }
+}
+
+@Composable
+private fun Counter(label: String, value: Int, range: IntRange, onChange: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate800)
+        Step("−") { if (value > range.first) onChange(value - 1) }
+        Text("$value", Modifier.width(36.dp), style = MaterialTheme.typography.titleSmall, color = Brand.Ink, textAlign = TextAlign.Center)
+        Step("+") { if (value < range.last) onChange(value + 1) }
+    }
+}
+
+@Composable
+private fun Step(text: String, onClick: () -> Unit) {
+    Box(Modifier.size(32.dp).clip(CircleShape).background(Color.White).border(1.dp, Brand.Slate200, CircleShape).clickable(onClick = onClick), Alignment.Center) {
+        Text(text, style = MaterialTheme.typography.titleSmall, color = Brand.Blue700)
+    }
+}
+
+@Composable
+private fun Choice(options: List<Pair<String, String>>, selected: String, onPick: (String) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        options.forEach { (k, l) -> Chip(l, k == selected) { onPick(k) } }
+    }
+}
+
+@Composable
+private fun Chip(text: String, selected: Boolean, outline: Color = Brand.Line, onClick: () -> Unit) {
+    Text(text, Modifier.clip(RoundedCornerShape(50)).background(if (selected) Brand.Blue700 else Color.White)
+        .border(1.dp, if (selected) Brand.Blue700 else outline.copy(alpha = if (outline == Brand.Line) 1f else 0.5f), RoundedCornerShape(50)).clickable(onClick = onClick)
+        .padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, color = if (selected) Color.White else if (outline == Brand.Line) Brand.Slate600 else outline, maxLines = 1)
+}
+
+@Composable
+private fun HeaderCount(value: String, label: String, dot: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Color.White)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(7.dp).clip(CircleShape).background(dot)); Spacer(Modifier.width(4.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = Brand.Blue100, maxLines = 1)
+        }
+    }
 }
 
 @Composable
@@ -366,23 +456,9 @@ private fun ModeChip(text: String, selected: Boolean, bg: Color, fg: Color, onCl
 }
 
 @Composable
-private fun DesignButton(text: String, bg: Color, fg: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Text(text, modifier.clip(RoundedCornerShape(12.dp)).background(bg).border(1.dp, if (bg == Color.White || bg == Brand.Slate50) Brand.Slate200 else bg, RoundedCornerShape(12.dp))
-        .clickable(onClick = onClick).padding(horizontal = 8.dp, vertical = 8.dp), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = fg,
-        textAlign = TextAlign.Center, maxLines = 1)
-}
-
-@Composable
-private fun SmallStep(text: String, onClick: () -> Unit) {
-    Box(Modifier.size(30.dp).clip(CircleShape).background(Color.White).border(1.dp, Brand.Slate200, CircleShape).clickable(onClick = onClick), Alignment.Center) {
-        Text(text, style = MaterialTheme.typography.titleSmall, color = Brand.Blue700)
-    }
-}
-
-@Composable
 private fun SheetLine(label: String, value: String, color: Color = Brand.Ink) {
     Row {
-        Text(label + ":", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        Text("$label:", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
         Text(value, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = color)
     }
 }

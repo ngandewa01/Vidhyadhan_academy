@@ -304,15 +304,10 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
                     Field(r.label, { v -> rows[i] = r.copy(label = v.take(30)); customised = true }, "Name of installment ${i + 1} (optional)",
                         supporting = "e.g. Admission, Prelims, Mains")
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(30.dp).clip(CircleShape).background(Brand.Blue50), Alignment.Center) {
-                            Text("${i + 1}", style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        DigitsField("Amount", r.amount, 7, { v -> rows[i] = r.copy(amount = v); customised = true }, prefix = "₹ ", modifier = Modifier.weight(1f))
-                        Spacer(Modifier.width(8.dp))
-                        DatePill(r.due) { d -> rows[i] = r.copy(due = d); customised = true }
+                        DigitsField("Amount ${i + 1}", r.amount, 7, { v -> rows[i] = r.copy(amount = v); customised = true }, prefix = "₹ ", modifier = Modifier.weight(1f))
                         if (rows.size > 1) IconButton({ rows.removeAt(i); customised = true }, Modifier.size(36.dp)) { Icon(Icons.Rounded.Close, "Remove", tint = Brand.Slate400) }
                     }
+                    DatePill(r.due) { d -> rows[i] = r.copy(due = d); customised = true }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     SoftButton("Add installment", {
@@ -558,7 +553,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PrimaryButton("WhatsApp", { Contact.whatsapp(ctx, st.mobile, text); remind = false }, Modifier.weight(1.4f), icon = Icons.AutoMirrored.Rounded.Chat,
                         custom = Brush.linearGradient(listOf(Brand.WhatsApp, Brand.WhatsAppDark)))
-                    SoftButton("Telegram", { Contact.telegram(ctx, text); remind = false }, Modifier.weight(1f), color = Color(0xFF0284C7), icon = Icons.AutoMirrored.Rounded.Send)
+                    SoftButton("Telegram", { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, st.telegram, `in`.vidyadhan.academy.telegram.TelegramBot.esc(text)); remind = false }, Modifier.weight(1f), color = Color(0xFF0284C7), icon = Icons.AutoMirrored.Rounded.Send)
                 }
                 SoftButton("SMS", { Contact.sms(ctx, st.mobile, text); remind = false }, Modifier.fillMaxWidth(), color = Brand.Slate600, icon = Icons.Rounded.Sms)
                 Text("The app opens with the message typed. You press send.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate400)

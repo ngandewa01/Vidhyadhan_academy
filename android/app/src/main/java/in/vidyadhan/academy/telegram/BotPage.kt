@@ -97,7 +97,8 @@ fun BotPage(onGo: (Go, Long) -> Unit) {
                 val name = s?.name ?: "Rohan Deshmukh"
                 val first = name.substringBefore(' ')
                 val texts = mapOf(
-                    "receipt" to TelegramBot.receiptText(name, 15000, "UPI", s?.course ?: "MPSC", java.time.LocalDate.now().plusMonths(1).toEpochDay(), 10000),
+                    "receipt" to TelegramBot.receiptText("${AppSettings.receiptPrefix}-S00904", name, 15000, "UPI", s?.course ?: "MPSC", 45000, 35000,
+                        java.time.LocalDate.now().plusMonths(1).toEpochDay(), 10000),
                     "reminder" to "Installment reminder ⏰\nNamaskar $name, your ${s?.course ?: "MPSC"} installment of ${rupees(9000)} is due on 22 Nov. Please pay on time. — ${AppSettings.academyName}",
                     "birthday" to `in`.vidyadhan.academy.home.birthdayWish(name) + "\n\n" + `in`.vidyadhan.academy.Templates.fill("birthday", false, mapOf("name" to first)),
                     "expiry" to "Abhyasika renewal alert 📚\nHi $name, seat 6 + locker 7 expires on 21 Nov (${rupees(1000)}/mo). Reply YES to renew.",
@@ -115,7 +116,8 @@ fun BotPage(onGo: (Go, Long) -> Unit) {
                     Column(Modifier.clip(RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp)).background(Color.White).padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("${AppSettings.academyName} Bot 🤖", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
-                        Text(texts.getValue(preview), style = MaterialTheme.typography.bodySmall, color = Brand.Slate800)
+                        Text(texts.getValue(preview).replace(Regex("<[^>]+>"), "").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&"),
+                            style = MaterialTheme.typography.bodySmall, color = Brand.Slate800)
                         Text("${LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))} ✓✓", Modifier.align(Alignment.End), style = MaterialTheme.typography.labelSmall, color = Brand.Slate400)
                     }
                 }

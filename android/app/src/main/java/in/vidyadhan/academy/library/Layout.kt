@@ -14,7 +14,38 @@ import java.time.LocalDate
  * (one cell holds one seat). [w] × [h] is the size of the room inside its walls.
  */
 @Serializable
-data class FloorPlan(val w: Float = 10f, val h: Float = 6f, val items: List<PlanItem> = emptyList(), val cols: Int = 0, val grid: List<GridItem> = emptyList())
+data class FloorPlan(
+    val w: Float = 10f, val h: Float = 6f, val items: List<PlanItem> = emptyList(), val cols: Int = 0, val grid: List<GridItem> = emptyList(),
+    /** Theatre / classroom seating: rows from the front, each a list of seat numbers; 0 = aisle or empty place. */
+    val rows: List<List<Int>> = emptyList(),
+    val front: String = "", // what is at the front: WHITEBOARD, WINDOW, DESK, STAGE
+    val door: String = "", // FRONT_LEFT, FRONT_RIGHT, BACK_LEFT, BACK_RIGHT
+    val window: String = "", // LEFT, RIGHT or empty
+)
+
+/** Seats [numbers] in [rows] rows: [left] seats, an aisle, then [right] seats (no aisle when one side is 0). Extra places get the next numbers after [nextFrom]. */
+fun theatreRows(rows: Int, left: Int, right: Int, numbers: List<Int>, nextFrom: Int): List<List<Int>> {
+    var i = 0; var next = nextFrom
+    fun take() = if (i < numbers.size) numbers[i++] else next++
+    return (0 until rows.coerceAtLeast(1)).map {
+        (0 until left).map { take() } + (if (left > 0 && right > 0) listOf(0) else emptyList()) + (0 until right).map { take() }
+    }
+}
+
+/** The theatre rows of a room: saved ones, or made from an older grid/drawing (seats in reading order). */
+fun rowsOf(p: FloorPlan): List<List<Int>> {
+    if (p.rows.isNotEmpty()) return p.rows
+    val seats: List<Int> = when {
+        p.grid.isNotEmpty() -> p.grid.filter { it.kind == GridItem.SEAT }.map { it.n }
+        else -> p.items.filter { it.type == PlanItem.SEAT }.sortedWith(compareBy({ (it.y * 2).toInt() }, { it.x })).map { it.n }
+    }
+    if (seats.isEmpty()) return emptyList()
+    val per = (p.cols.takeIf { it > 0 } ?: 8).coerceIn(2, 12)
+    val left = (per + 1) / 2
+    return seats.chunked(per).map { r -> if (r.size > left) r.take(left) + 0 + r.drop(left) else r }
+}
+
+fun rowLetter(i: Int): String = if (i < 26) ('A' + i).toString() else "R${i + 1}"
 
 /**
  * The room as a grid (like the owner's prototype): items fill rows of [FloorPlan.cols] columns in order.
@@ -107,7 +138,11 @@ fun quickPlan(from: Int, to: Int, perRow: Int): FloorPlan {
 }
 
 fun seatsIn(layout: String): List<Int> = planOf(layout).let { p ->
-    if (p.grid.isNotEmpty()) p.grid.filter { it.kind == GridItem.SEAT }.map { it.n } else p.items.filter { it.type == PlanItem.SEAT }.map { it.n }
+    when {
+        p.rows.isNotEmpty() -> p.rows.flatten().filter { it > 0 }
+        p.grid.isNotEmpty() -> p.grid.filter { it.kind == GridItem.SEAT }.map { it.n }
+        else -> p.items.filter { it.type == PlanItem.SEAT }.map { it.n }
+    }
 }
 
 /** Every seat number in the library: the seats placed in rooms, or 1..[count] while no rooms are set up. */

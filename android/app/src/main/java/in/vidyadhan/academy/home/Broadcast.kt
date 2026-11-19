@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.automirrored.rounded.Send
+import kotlinx.coroutines.launch
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -66,6 +67,7 @@ fun BroadcastScreen(onClose: () -> Unit) {
     var preset by remember { mutableStateOf(presets.first().first) }
     val excluded = remember { mutableStateListOf<String>() }
     var queue by remember { mutableIntStateOf(-1) }
+    val tgScope = rememberCoroutineScope()
     BackHandler { if (queue >= 0) queue = -1 else onClose() }
     HideBottomNav()
     val t = today()
@@ -144,8 +146,25 @@ fun BroadcastScreen(onClose: () -> Unit) {
                 MessageBubble(text.replace("{name}", chosen.firstOrNull()?.name?.substringBefore(' ') ?: "Name"), marathi)
             }
             FormCard("3. Send", Icons.AutoMirrored.Rounded.Send, Brand.Green600) {
-                OptionRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Post on Telegram", "One message to your group or channel. Pick it in Telegram.") {
-                    shareTelegram(ctx, forEveryone(text, marathi))
+                if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) {
+                    val tgOf = students.associate { "s${it.id}" to it.telegram } + members.associate { m -> "m${m.id}" to (m.studentId?.let { id -> students.firstOrNull { it.id == id }?.telegram }.orEmpty()) } +
+                        enquiries.associate { "e${it.id}" to it.telegram }
+                    val withTg = chosen.filter { tgOf[it.key].orEmpty().isNotBlank() }
+                    OptionRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Send with our Telegram bot", "${withTg.size} of ${chosen.size} have a Telegram username · each gets their own message") {
+                        tgScope.launch {
+                            var sent = 0
+                            withTg.forEach { p -> if (`in`.vidyadhan.academy.telegram.TelegramBot.sendTo(tgOf.getValue(p.key), `in`.vidyadhan.academy.telegram.TelegramBot.esc(text.replace("{name}", p.name.substringBefore(' '))))) sent++ }
+                            android.widget.Toast.makeText(ctx, "Sent to $sent on Telegram" + if (sent < withTg.size) " · ${withTg.size - sent} haven't pressed Start yet" else " ✓", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    if (AppSettings.botStaffChat != 0L) OptionRow(Icons.Rounded.Groups, Color(0xFF229ED9), "Post in the Telegram group", "The bot posts it in your group") {
+                        tgScope.launch {
+                            val ok = `in`.vidyadhan.academy.telegram.TelegramBot.send(AppSettings.botStaffChat, `in`.vidyadhan.academy.telegram.TelegramBot.esc(forEveryone(text, marathi)))
+                            android.widget.Toast.makeText(ctx, if (ok) "Posted in the group ✓" else "Could not post", android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                } else OptionRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Telegram", "Connect your Telegram bot first (Bot & More)") {
+                    android.widget.Toast.makeText(ctx, "Connect your Telegram bot first: Bot & More → Connect", android.widget.Toast.LENGTH_LONG).show()
                 }
                 if (AppSettings.telegramLink.startsWith("https://")) SoftButton("Open our Telegram group", {
                     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AppSettings.telegramLink))) }

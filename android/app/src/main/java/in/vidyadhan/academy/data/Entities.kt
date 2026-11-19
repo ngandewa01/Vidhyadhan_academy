@@ -62,6 +62,7 @@ data class Enquiry(
     val followUpOn: Long,
     val status: String = "NEW", // NEW, CONTACTED, JOINED, CLOSED
     @ColumnInfo(defaultValue = "") val source: String = "",
+    @ColumnInfo(defaultValue = "") val telegram: String = "", // Telegram username, without @
 )
 
 @Entity

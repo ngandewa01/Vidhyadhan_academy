@@ -47,7 +47,7 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
 
     var name by remember(from) { mutableStateOf(from?.name ?: "") }
     var mobile by remember(from) { mutableStateOf(from?.mobile ?: "") }
-    var telegram by remember(from) { mutableStateOf("") }
+    var telegram by remember(from) { mutableStateOf(from?.telegram ?: "") }
     var type by remember(from) { mutableStateOf("Combo") } // Academy, Abhyasika, Combo
     var course by remember(from) { mutableStateOf(from?.course?.takeIf { it in AppSettings.courseList } ?: AppSettings.courseList.first()) }
     var batch by remember { mutableStateOf("") }
@@ -156,12 +156,19 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
                 else -> {
                     Text("Change the names, amounts and dates:", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
                     rows.forEachIndexed { i, r ->
-                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp)).padding(6.dp),
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            SmallInput(r.label, { v -> rows[i] = r.copy(label = v.take(24)); edited = true }, Modifier.weight(1.2f))
-                            SmallInput(r.amount, { v -> if (v.all(Char::isDigit) && v.length <= 7) { rows[i] = r.copy(amount = v); edited = true } }, Modifier.weight(1f), number = true)
-                            DateChip(r.due, Modifier.weight(1f)) { d -> rows[i] = r.copy(due = d); edited = true }
-                            if (rows.size > 1) Icon(Icons.Rounded.Close, "Remove", tint = Brand.Slate400, modifier = Modifier.size(20.dp).clickable { rows.removeAt(i); edited = true })
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp)).padding(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                SmallInput(r.label, { v -> rows[i] = r.copy(label = v.take(24)); edited = true }, Modifier.weight(1f))
+                                if (rows.size > 1) Box(Modifier.size(32.dp).clip(CircleShape).clickable { rows.removeAt(i); edited = true }, Alignment.Center) {
+                                    Icon(Icons.Rounded.Close, "Remove", tint = Brand.Slate400, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("₹", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                                SmallInput(r.amount, { v -> if (v.all(Char::isDigit) && v.length <= 7) { rows[i] = r.copy(amount = v); edited = true } }, Modifier.weight(1f), number = true)
+                                DateChip(r.due, Modifier.weight(1f)) { d -> rows[i] = r.copy(due = d); edited = true }
+                            }
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -224,8 +231,7 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
                     append("Thank you! 🙏")
                 }
                 // through the academy bot when the student is linked, otherwise the Telegram app opens with it
-                val sent = telegram.isNotBlank() && `in`.vidyadhan.academy.telegram.TelegramBot.sendTo(telegram, receipt)
-                if (!sent) Contact.telegram(ctx, receipt)
+                `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, telegram, `in`.vidyadhan.academy.telegram.TelegramBot.esc(receipt))
                 if (studentId > 0) onDone("student", studentId) else onDone("member", memberId)
             }
         }, Modifier.fillMaxWidth(), enabled = valid, icon = Icons.Rounded.Check)

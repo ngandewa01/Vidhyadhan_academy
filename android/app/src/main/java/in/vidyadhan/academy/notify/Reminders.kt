@@ -82,24 +82,24 @@ class DailyWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
         val rupees = { v: Long -> `in`.vidyadhan.academy.students.rupees(v) }
         if (AppSettings.tgDue) {
             all.filter { it.telegram.isNotBlank() && it.nextDue != null && (it.nextDue == today || it.nextDue == today + 3) }.forEach {
-                bot.sendTo(it.telegram, "Installment reminder ⏰\nNamaskar ${it.name}, your ${it.course} installment of ${rupees(it.nextDueAmount)} is due on " +
+                bot.sendTo(it.telegram, "Installment reminder ⏰\nNamaskar ${bot.esc(it.name)}, your ${it.course} installment of ${rupees(it.nextDueAmount)} is due on " +
                     "${`in`.vidyadhan.academy.students.shortDate(it.nextDue!!)}. Please pay on time. — ${AppSettings.academyName}")
             }
             val byStudent = all.associateBy { it.id }
             db.library().allMembers().filter { it.active && (it.validTill == today || it.validTill == today + 3) }.forEach { m ->
                 val tg = m.studentId?.let { byStudent[it]?.telegram }.orEmpty()
-                if (tg.isNotBlank()) bot.sendTo(tg, "Abhyasika renewal alert 📚\nHi ${m.name}, seat ${m.seatNo}" + (if (m.hasLocker) " + locker" else "") +
+                if (tg.isNotBlank()) bot.sendTo(tg, "Abhyasika renewal alert 📚\nHi ${bot.esc(m.name)}, seat ${m.seatNo}" + (if (m.hasLocker) " + locker" else "") +
                     " expires on ${`in`.vidyadhan.academy.students.shortDate(m.validTill)} (${rupees(m.monthlyFee)}/mo). Reply YES to renew.")
             }
         }
         if (AppSettings.tgBirthday) all.filter { it.telegram.isNotBlank() && `in`.vidyadhan.academy.home.isBirthday(it.dob, now) }.forEach {
-            bot.sendTo(it.telegram, `in`.vidyadhan.academy.home.birthdayWish(it.name) + "\n\n" +
+            bot.sendTo(it.telegram, bot.esc(`in`.vidyadhan.academy.home.birthdayWish(it.name)) + "\n\n" +
                 `in`.vidyadhan.academy.Templates.fill("birthday", false, mapOf("name" to it.name.substringBefore(' '))))
         }
         if (AppSettings.tgEnquiry && AppSettings.botStaffChat != 0L) {
             val due = db.enquiries().all().first().filter { (it.status == "NEW" || it.status == "CONTACTED") && it.followUpOn <= today }
             if (due.isNotEmpty()) bot.send(AppSettings.botStaffChat, "Enquiry follow-ups today (${due.size}):\n" +
-                due.joinToString("\n") { "• ${it.name} (${it.mobile})" + if (it.course.isNotBlank()) " — ${it.course}" else "" })
+                due.joinToString("\n") { "• ${bot.esc(it.name)} (${it.mobile})" + if (it.course.isNotBlank()) " — ${it.course}" else "" })
         }
     }
 }

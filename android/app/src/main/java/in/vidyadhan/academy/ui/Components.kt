@@ -54,7 +54,12 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 
 /** Deep academy teal with a warm marigold glow top-right and a green glow bottom-left: behind every page header. */
 fun Modifier.heroBackground(): Modifier = drawBehind {
-    drawRect(Brush.linearGradient(listOf(Color(0xFF093541), Brand.Blue700, Color(0xFF145E70)), Offset.Zero, Offset(size.width, size.height * 1.3f)))
+    val a = Math.toRadians(155.0)
+    val dx = Math.sin(a).toFloat(); val dy = -Math.cos(a).toFloat()
+    val half = (kotlin.math.abs(size.width * dx) + kotlin.math.abs(size.height * dy)) / 2
+    val c = Offset(size.width / 2, size.height / 2)
+    drawRect(Brush.linearGradient(0f to Color(0xFF093541), 0.6f to Brand.Blue700, 1f to Color(0xFF145E70),
+        start = Offset(c.x - dx * half, c.y - dy * half), end = Offset(c.x + dx * half, c.y + dy * half)))
     drawRect(Brush.radialGradient(listOf(Color(0x3DE07A2B), Color.Transparent), Offset(size.width * 0.92f, size.height * 0.08f), size.width * 0.6f))
     drawRect(Brush.radialGradient(listOf(Color(0x2E16A34A), Color.Transparent), Offset(size.width * 0.08f, size.height * 0.85f), size.width * 0.6f))
 }
@@ -120,26 +125,24 @@ fun HeroPage(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(Brand.Bg)) {
-        Column(Modifier.fillMaxWidth().heroBackground().statusBarsPadding().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 40.dp)) {
+        Column(Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)).heroBackground().statusBarsPadding()
+            .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onBack != null) {
                     GlassIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", onBack)
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(10.dp))
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.headlineMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Brand.Blue200, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Brand.Blue100.copy(alpha = 0.8f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), content = actions)
                 Spacer(Modifier.width(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
             }
-            Column(Modifier.padding(end = 8.dp)) { header() }
+            Column { header() }
         }
-        Column(
-            Modifier.fillMaxSize().overlapUp(26.dp)
-                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).background(Brand.Bg),
-            content = content,
-        )
+        Column(Modifier.fillMaxSize(), content = content)
     }
 }
 
@@ -554,17 +557,22 @@ fun Modifier.overlapUp(by: Dp): Modifier = this.layout { measurable, constraints
 
 @Composable
 fun SearchBox(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
-    OutlinedTextField(
-        value, onChange, modifier.fillMaxWidth(), singleLine = true,
-        placeholder = { Text(placeholder, color = Brand.Slate400) },
-        leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Brand.Blue600) },
-        trailingIcon = { if (value.isNotEmpty()) IconButton({ onChange("") }) { Icon(Icons.Rounded.Close, "Clear", tint = Brand.Slate400) } },
-        shape = RoundedCornerShape(50),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
-            focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent,
-        ),
-    )
+    androidx.compose.foundation.text.BasicTextField(value, onChange, modifier.fillMaxWidth(), singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = Brand.Ink),
+        decorationBox = { inner ->
+            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(14.dp)).background(Color.White).border(1.dp, Brand.Line, RoundedCornerShape(14.dp))
+                .padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Search, null, tint = Brand.Slate400, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.weight(1f)) {
+                    if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyMedium, color = Brand.Slate400, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    inner()
+                }
+                if (value.isNotEmpty()) Box(Modifier.size(36.dp).clip(CircleShape).clickable { onChange("") }, Alignment.Center) {
+                    Icon(Icons.Rounded.Close, "Clear", tint = Brand.Slate400, modifier = Modifier.size(18.dp))
+                }
+            }
+        })
 }
 
 @Composable

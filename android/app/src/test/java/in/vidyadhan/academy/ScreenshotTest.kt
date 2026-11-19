@@ -108,7 +108,7 @@ class ScreenshotTest {
         nav("Abhyasika"); shot("08-seats-start")
         rule.onNodeWithText("+ Create room").performClick(); shot("08b-room-edit")
         rule.onNodeWithText("Live map").performClick(); shot("08c-room-plan")
-        rule.onNodeWithText("N-07").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
+        rule.onNodeWithContentDescription("Seat 7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
 
         nav("Abhyasika"); rule.onNodeWithText("Members").performScrollTo().performClick(); shot("09-members")
         rule.onNode(hasSetTextAction()).performTextReplacement("Snehal"); settle()
@@ -135,5 +135,19 @@ class ScreenshotTest {
         rule.onNodeWithText("Name, mobile, seat or locker no.").performTextInput("sh"); shot("16-search")
         backButton()
         nav("Bot & More"); rule.onNodeWithText("Settings").performScrollTo().performClick(); shot("17-settings")
+        back()
+
+        // the same main screens with large text, as on the owner's phone (catches cut-off and overflowing text)
+        org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
+        rule.activityRule.scenario.recreate(); settle()
+        nav("Dashboard"); shot("L1-dashboard")
+        nav("Students"); shot("L2-students")
+        rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("L3-student-sheet"); back()
+        nav("Enquiries"); shot("L4-enquiries")
+        rule.onNodeWithText("+ New Admission").performClick(); settle()
+        rule.onNodeWithText("Course fee").performTextInput("45000"); settle()
+        rule.onNodeWithText("Unequal plan").performScrollTo(); shot("L5-admission-plan")
+        nav("Abhyasika"); shot("L6-room")
+        nav("Bot & More"); shot("L7-bot")
     }
 }

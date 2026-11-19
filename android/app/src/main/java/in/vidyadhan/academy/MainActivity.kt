@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -77,11 +78,11 @@ class MainActivity : FragmentActivity() {
 }
 
 private enum class Tab(val label: String, val on: ImageVector, val off: ImageVector, val inNav: Boolean = true) {
-    Home("Dashboard", Icons.Rounded.Dashboard, Icons.Outlined.Dashboard),
-    Students("Students", Icons.Rounded.School, Icons.Outlined.School),
-    Enquiries("Enquiries", Icons.Rounded.Forum, Icons.Outlined.Forum),
-    Library("Abhyasika", Icons.Rounded.EventSeat, Icons.Outlined.EventSeat),
-    More("Bot & More", Icons.AutoMirrored.Rounded.Send, Icons.AutoMirrored.Outlined.Send),
+    Home("Dashboard", Icons.Outlined.GridView, Icons.Outlined.GridView),
+    Students("Students", Icons.Outlined.School, Icons.Outlined.School),
+    Enquiries("Enquiries", Icons.Outlined.PersonAddAlt, Icons.Outlined.PersonAddAlt),
+    Library("Abhyasika", Icons.Outlined.Chair, Icons.Outlined.Chair),
+    More("Bot & More", Icons.AutoMirrored.Outlined.Send, Icons.AutoMirrored.Outlined.Send),
     // opened from "More" (the More tab stays highlighted)
     Money("Money", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, inNav = false),
 }
@@ -163,32 +164,33 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
     val ctx = LocalContext.current
     val enquiries by remember { `in`.vidyadhan.academy.data.AppDb.get(ctx).enquiries().all() }.collectAsStateWithLifecycle(emptyList())
     val openEnquiries = enquiries.count { it.status == "NEW" || it.status == "CONTACTED" }
+    Column(Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.97f))) {
+    HorizontalDivider(color = Brand.Slate200)
     Row(
-        Modifier.fillMaxWidth().shadow(20.dp, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp), spotColor = Brand.Blue900.copy(alpha = 0.25f))
-            .background(Color.White, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
-            .navigationBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.SpaceAround,
     ) {
         Tab.entries.filter { it.inNav }.forEach { t ->
             val sel = t == selected || (t == Tab.More && !selected.inNav)
             val pill by animateColorAsState(if (sel) Brand.Blue100 else Color.Transparent, label = "nav")
-            val fg by animateColorAsState(if (sel) Brand.Blue800 else Brand.Slate400, label = "navfg")
+            val fg by animateColorAsState(if (sel) Brand.Blue700 else Brand.Slate500, label = "navfg")
             Column(
                 Modifier.weight(1f).clip(RoundedCornerShape(18.dp))
                     .clickable(remember { MutableInteractionSource() }, null) { onSelect(t) }.padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Box {
-                    Box(Modifier.clip(RoundedCornerShape(50)).background(pill).padding(horizontal = 18.dp, vertical = 5.dp), Alignment.Center) {
-                        Icon(if (sel) t.on else t.off, t.label, tint = fg, modifier = Modifier.size(23.dp))
+                    Box(Modifier.clip(RoundedCornerShape(50)).background(pill).padding(horizontal = 14.dp, vertical = 4.dp), Alignment.Center) {
+                        Icon(t.off, t.label, tint = fg, modifier = Modifier.size(20.dp))
                     }
                     if (t == Tab.Enquiries && openEnquiries > 0) Text(if (openEnquiries > 99) "99+" else "$openEnquiries",
                         Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).clip(RoundedCornerShape(50)).background(Brand.Saffron500)
                             .padding(horizontal = 5.dp), style = MaterialTheme.typography.labelSmall, color = Color.White)
                 }
                 Spacer(Modifier.height(3.dp))
-                Text(t.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold), color = fg, maxLines = 1)
+                Text(t.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium), color = fg, maxLines = 1)
             }
         }
+    }
     }
 }

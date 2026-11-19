@@ -13,6 +13,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 import okhttp3.FormBody
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
@@ -28,8 +30,12 @@ object TelegramBot {
     val connected: Boolean get() = AppSettings.botToken.isNotBlank() && AppSettings.botName.isNotBlank()
     val link: String get() = "https://t.me/${AppSettings.botName}"
 
-    private fun call(method: String, form: Map<String, String> = emptyMap()): JsonObject {
-        val body = FormBody.Builder().apply { form.forEach { (k, v) -> add(k, v) } }.build()
+    private fun call(method: String, form: Map<String, String> = emptyMap(), file: java.io.File? = null): JsonObject {
+        val body = if (file == null) FormBody.Builder().apply { form.forEach { (k, v) -> add(k, v) } }.build()
+        else okhttp3.MultipartBody.Builder().setType(okhttp3.MultipartBody.FORM).apply {
+            form.forEach { (k, v) -> addFormDataPart(k, v) }
+            addFormDataPart("document", file.name, file.asRequestBody("application/pdf".toMediaType()))
+        }.build()
         val req = Request.Builder().url("https://api.telegram.org/bot${AppSettings.botToken}/$method").post(body).build()
         client.newCall(req).execute().use { r ->
             val o = Json.parseToJsonElement(r.body.string()).jsonObject
@@ -77,8 +83,33 @@ object TelegramBot {
         AppSettings.telegramChats().size
     }
 
+    /** [text] may use <b>bold</b> (Telegram HTML); anything typed by people must go through [esc]. */
     suspend fun send(chat: Long, text: String): Boolean = withContext(Dispatchers.IO) {
-        connected && chat != 0L && runCatching { call("sendMessage", mapOf("chat_id" to "$chat", "text" to text)) }.isSuccess
+        connected && chat != 0L && runCatching { call("sendMessage", mapOf("chat_id" to "$chat", "text" to text, "parse_mode" to "HTML")) }.isSuccess
+    }
+
+    suspend fun sendDocument(chat: Long, file: java.io.File, caption: String): Boolean = withContext(Dispatchers.IO) {
+        connected && chat != 0L && runCatching { call("sendDocument", mapOf("chat_id" to "$chat", "caption" to caption, "parse_mode" to "HTML"), file) }.isSuccess
+    }
+
+    fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+    /**
+     * Every Telegram button in the app: sends through the bot, or says why it can't
+     * (bot not connected, no @username saved, or the person hasn't pressed Start yet).
+     */
+    fun sendOrExplain(ctx: Context, username: String, text: String) {
+        fun toast(m: String) = android.widget.Toast.makeText(ctx, m, android.widget.Toast.LENGTH_LONG).show()
+        when {
+            !connected -> toast("Connect your Telegram bot first: Bot & More → Connect")
+            username.isBlank() -> toast("Add their Telegram @username first (edit their details)")
+            else -> scope.launch {
+                val ok = sendTo(username, text)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    toast(if (ok) "Sent on Telegram to @$username ✓" else "@$username hasn't pressed Start in @${AppSettings.botName} yet. Send them the bot link.")
+                }
+            }
+        }
     }
 
     /** Sends to a student by @username; false if they have not pressed Start yet. */
@@ -89,22 +120,38 @@ object TelegramBot {
     }
 
     /** After a student pays: the receipt, if receipts are switched on and the student is linked. Runs in the background. */
-    fun studentPaid(ctx: Context, studentId: Long, amount: Long, mode: String) {
+    fun studentPaid(ctx: Context, studentId: Long, amount: Long, mode: String, paymentId: Long = 0) {
         if (!connected || !AppSettings.tgReceipt) return
         scope.launch {
             val dao = AppDb.get(ctx).students()
             val st = dao.allStudents().firstOrNull { it.id == studentId } ?: return@launch
             if (st.telegram.isBlank()) return@launch
-            val pos = studentsWithFeesNow(dao).firstOrNull { it.id == studentId }
-            sendTo(st.telegram, receiptText(st.name, amount, mode, st.course, pos?.nextDue, pos?.nextDueAmount ?: 0))
+            val chat = AppSettings.telegramChat(st.telegram) ?: run { refresh(); AppSettings.telegramChat(st.telegram) } ?: return@launch
+            val pos = studentsWithFeesNow(dao).firstOrNull { it.id == studentId } ?: return@launch
+            val no = "${AppSettings.receiptPrefix}-S${paymentId.toString().padStart(5, '0')}"
+            val text = receiptText(no, st.name, amount, mode, st.course + if (st.batch.isNotBlank()) " · ${st.batch}" else "",
+                pos.totalFee, pos.paid, pos.nextDue, pos.nextDueAmount)
+            val pdf = runCatching {
+                `in`.vidyadhan.academy.ui.receiptPdf(ctx, `in`.vidyadhan.academy.ui.ReceiptData(no, `in`.vidyadhan.academy.students.today(), "FEE RECEIPT  /  फी पावती", st.name,
+                    listOf("Mobile" to "+91 ${st.mobile}", "Course" to (st.course + if (st.batch.isNotBlank()) " · ${st.batch}" else ""), "Payment mode" to mode.ifBlank { "—" }),
+                    amount, listOf("Total fee" to rupees(pos.totalFee), "Paid so far" to rupees(pos.paid), "Balance" to rupees((pos.totalFee - pos.paid).coerceAtLeast(0)))))
+            }.getOrNull()
+            if (pdf == null || !sendDocument(chat, pdf, text)) send(chat, text)
         }
     }
 
-    fun receiptText(name: String, amount: Long, mode: String, what: String, nextDue: Long?, nextAmount: Long) = buildString {
-        append("Fee receipt — ${AppSettings.academyName}\n")
-        append("Student: $name\n")
-        append("Paid: ${rupees(amount)}" + (if (mode.isNotBlank()) " ($mode)" else "") + (if (what.isNotBlank()) " · $what" else "") + "\n")
-        if (nextDue != null && nextAmount > 0) append("Next due: ${rupees(nextAmount)} on ${nextDue.asDate()}. ")
-        append("Thank you! 🙏")
+    /** The receipt as a Telegram message (bold labels, one fact per line). */
+    fun receiptText(no: String, name: String, amount: Long, mode: String, course: String, total: Long, paid: Long, nextDue: Long?, nextAmount: Long) = buildString {
+        append("🧾 <b>FEE RECEIPT</b>\n<b>${esc(AppSettings.academyName)}</b>\n")
+        append("━━━━━━━━━━━━━━\n")
+        append("Receipt no: <b>$no</b>\n")
+        append("Date: ${`in`.vidyadhan.academy.students.today().asDate()}\n")
+        append("Student: <b>${esc(name)}</b>\n")
+        if (course.isNotBlank()) append("Course: ${esc(course)}\n")
+        append("━━━━━━━━━━━━━━\n")
+        append("Amount paid: <b>${rupees(amount)}</b>" + (if (mode.isNotBlank()) " (${esc(mode)})" else "") + "\n")
+        if (total > 0) append("Total fee: ${rupees(total)}\nPaid so far: ${rupees(paid)}\nBalance: <b>${rupees((total - paid).coerceAtLeast(0))}</b>\n")
+        if (nextDue != null && nextAmount > 0) append("Next due: <b>${rupees(nextAmount)}</b> on ${nextDue.asDate()}\n")
+        append("━━━━━━━━━━━━━━\nThank you! 🙏 धन्यवाद!")
     }
 }

@@ -147,8 +147,8 @@ class V2toV3 : AutoMigrationSpec {
 
 @Database(
     entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class, LibraryRoom::class, MemberPlan::class],
-    version = 7, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = V6toV7::class)],
+    version = 8, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = V6toV7::class), AutoMigration(from = 7, to = 8)],
 )
 abstract class AppDb : RoomDatabase() {
     abstract fun students(): StudentDao

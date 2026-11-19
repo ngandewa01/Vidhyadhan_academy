@@ -119,7 +119,11 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Active leads (${open.size})", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Slate600)
-                    PillButton("Add enquiry", onAdd, Brand.Blue700, Icons.Rounded.Add)
+                    Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Brand.Blue700).clickable(onClick = onAdd).padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Add, null, tint = Color.White, modifier = Modifier.size(15.dp)); Spacer(Modifier.width(4.dp))
+                        Text("Add Enquiry", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                    }
                 }
             }
             if (open.isEmpty()) item { EmptyState(Icons.Rounded.Forum, "No active leads", "Note every call or walk-in with “Add enquiry”. The app reminds you to follow up.") }
@@ -149,7 +153,7 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF0F9FF)).border(1.dp, Color(0xFFBAE6FD), RoundedCornerShape(12.dp))
-                            .clickable { Contact.telegram(ctx, `in`.vidyadhan.academy.Templates.fill("enquiry", false, mapOf("name" to e.name))) }.padding(vertical = 9.dp),
+                            .clickable { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, e.telegram, `in`.vidyadhan.academy.telegram.TelegramBot.esc(`in`.vidyadhan.academy.Templates.fill("enquiry", false, mapOf("name" to e.name)))) }.padding(vertical = 9.dp),
                             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color(0xFF0369A1), modifier = Modifier.size(15.dp)); Spacer(Modifier.width(6.dp))
                             Text("Telegram info", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color(0xFF0369A1))
@@ -172,13 +176,14 @@ private fun EnquiryForm(vm: EnquiriesViewModel, id: Long, onDone: () -> Unit) {
     var loaded by remember { mutableStateOf(id == 0L) }
     var name by remember { mutableStateOf("") }
     var mobile by remember { mutableStateOf("") }
+    var telegram by remember { mutableStateOf("") }
     var course by remember { mutableStateOf("") }
     var details by remember { mutableStateOf("") }
     var source by remember { mutableStateOf("") }
     var follow by remember { mutableLongStateOf(today() + AppSettings.enquiryDays) }
     LaunchedEffect(existing) {
         val e = existing
-        if (!loaded && e != null) { name = e.name; mobile = e.mobile; course = e.course; details = e.details; source = e.source; follow = e.followUpOn; loaded = true }
+        if (!loaded && e != null) { name = e.name; mobile = e.mobile; telegram = e.telegram; course = e.course; details = e.details; source = e.source; follow = e.followUpOn; loaded = true }
     }
     HideBottomNav()
     HeroPage(if (id == 0L) "New enquiry" else "Edit enquiry", "Who called or walked in?", onBack = onDone) {
@@ -188,6 +193,7 @@ private fun EnquiryForm(vm: EnquiriesViewModel, id: Long, onDone: () -> Unit) {
                 Field(name, { name = it }, "Name", Icons.Rounded.Person)
                 DigitsField("Mobile number", mobile, 10, { mobile = it }, Icons.Rounded.Phone, prefix = "+91 ", phone = true,
                     supporting = if (mobile.isNotEmpty() && mobile.length < 10) "Enter all 10 digits" else null, isError = mobile.isNotEmpty() && mobile.length < 10)
+                Field(telegram, { telegram = it.trim().removePrefix("@").take(32) }, "Telegram username (optional)", Icons.AutoMirrored.Rounded.Send, prefix = "@")
             }
             FormCard("Interested in", Icons.Rounded.School) {
                 ChoicePills(AppSettings.courseList, course, { course = if (course == it) "" else it })
@@ -211,7 +217,7 @@ private fun EnquiryForm(vm: EnquiriesViewModel, id: Long, onDone: () -> Unit) {
             SoftButton("Cancel", onDone, Modifier.weight(1f), color = Brand.Slate600)
             PrimaryButton("Save enquiry", {
                 val old = existing
-                vm.save(Enquiry(if (id == 0L) 0 else id, name.trim(), mobile, course, details.trim(), old?.createdOn ?: today(), follow, old?.status ?: "NEW", source)); onDone()
+                vm.save(Enquiry(if (id == 0L) 0 else id, name.trim(), mobile, course, details.trim(), old?.createdOn ?: today(), follow, old?.status ?: "NEW", source, telegram)); onDone()
             }, Modifier.weight(1.6f), enabled = name.isNotBlank() && mobile.length == 10, accent = true, icon = Icons.Rounded.Check)
         }
     }
