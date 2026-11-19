@@ -67,7 +67,7 @@ object AppSettings {
     fun setTemplate(key: String, marathi: Boolean, text: String) = put("tpl_${key}_${if (marathi) "mr" else "en"}", text)
     var telegramLink: String get() = get("tgLink", ""); set(v) = put("tgLink", v.trim())
     var updateUrl: String get() = get("updUrl", "").ifBlank { DEFAULT_UPDATE_URL }; set(v) = put("updUrl", v)
-    const val DEFAULT_UPDATE_URL = "https://github.com/ngandewa01/Vidhyadhan_academy/releases/download/app-latest/update.json"
+    const val DEFAULT_UPDATE_URL = "https://vidhyadhan-academy.web.app/update.json"
     /** Day the app last looked for an update, and the version the owner chose "Later" for. */
     var updateCheckedOn: Long get() = get("updDay", "0").toLongOrNull() ?: 0; set(v) = put("updDay", v.toString())
     var updateSkipped: Int get() = get("updSkip", "0").toIntOrNull() ?: 0; set(v) = put("updSkip", v.toString())

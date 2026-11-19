@@ -12,6 +12,8 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      HAS_FIREBASE: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
     defaults:
       run:
         working-directory: android
@@ -91,3 +93,21 @@ jobs:
           jq -n --argjson c "$CODE" --arg n "$VERSION (build $CODE)" --arg u "https://github.com/$GITHUB_REPOSITORY/releases/download/app-latest/Vidhyadhan.apk" \
             --arg notes "$(git log -1 --pretty=%s)" '{versionCode: $c, versionName: $n, apkUrl: $u, notes: $notes}' > "$RUNNER_TEMP/update.json"
           gh release upload app-latest "$RUNNER_TEMP/update.json" --clobber
+
+      # App updates: the APK and update.json on the academy's Firebase site, so phones can download them without a GitHub login.
+      - name: Publish update on Firebase Hosting
+        if: env.HAS_FIREBASE == 'true'
+        working-directory: firebase
+        env:
+          FIREBASE_SA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          mkdir -p public
+          cp "$RUNNER_TEMP/Vidhyadhan.apk" public/Vidhyadhan.apk
+          CODE=$(grep -oP 'versionCode = \K[0-9]+' ../android/app/build.gradle.kts)
+          jq -n --argjson c "$CODE" --arg n "$VERSION (build $CODE)" --arg u "https://vidhyadhan-academy.web.app/Vidhyadhan.apk" \
+            --arg notes "$(git log -1 --pretty=%s)" '{versionCode: $c, versionName: $n, apkUrl: $u, notes: $notes}' > public/update.json
+          echo '<!doctype html><meta name=viewport content="width=device-width"><h2>Vidyadhan Academy app</h2><p><a href="Vidhyadhan.apk">Download the latest app</a></p>' > public/index.html
+          echo "$FIREBASE_SA" > "$RUNNER_TEMP/sa.json"
+          export GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/sa.json"
+          npx -y firebase-tools@latest deploy --only hosting --project vidhyadhan-academy --non-interactive
+          rm -f "$RUNNER_TEMP/sa.json"
