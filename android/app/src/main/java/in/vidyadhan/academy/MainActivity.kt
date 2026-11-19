@@ -113,7 +113,13 @@ private fun AppShell(lock: LockStore) {
         pending = g; pendingId = id
     }
     val done = { pending = null; pendingId = 0L }
-    BackHandler(enabled = tab == Tab.Money) { tab = Tab.More }
+    BackHandler(enabled = tab != Tab.Home) { tab = if (tab == Tab.Money) Tab.More else Tab.Home; done() }
+    var lastBack by remember { mutableLongStateOf(0L) }
+    BackHandler(enabled = tab == Tab.Home) {
+        val now = System.currentTimeMillis()
+        if (now - lastBack < 2000) activity.finish()
+        else { lastBack = now; android.widget.Toast.makeText(activity, "Press back again to exit", android.widget.Toast.LENGTH_SHORT).show() }
+    }
     CompositionLocalProvider(LocalNavHider provides hider) {
         Box(Modifier.fillMaxSize().background(Brand.Bg)) {
             Column(Modifier.fillMaxSize()) {

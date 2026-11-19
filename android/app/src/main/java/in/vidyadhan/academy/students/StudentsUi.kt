@@ -132,7 +132,7 @@ private fun Pill(text: String, fg: Color, bg: Color) {
 private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onClick: () -> Unit) {
     val left = (s.totalFee - s.paid).coerceAtLeast(0)
     val advance = s.advance
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Brand.Line, RoundedCornerShape(18.dp)).pressable(onClick = onClick)
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
         .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.Top) {
             if (s.photo.isNotBlank()) Avatar(s.name, 42.dp, photo = s.photo)
@@ -376,97 +376,91 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
             p.amount, listOf("Total fee" to rupees(st.totalFee), "Paid so far" to rupees(upTo), "Balance" to rupees((st.totalFee - upTo).coerceAtLeast(0)))))
     }
 
-    Column(Modifier.fillMaxSize().background(Brand.Bg)) {
-        ProfileHero(st.name, onBack,
-            badge = { Box(Modifier.clickable(enabled = st.photo.isNotBlank()) { viewPhoto = st.photo }) { Avatar(st.name, 88.dp, ring = true, photo = st.photo) } },
-            chips = {
-                GlassChip(rollNo(st.id, st.joinedOn), Icons.Rounded.Badge); GlassChip(st.course, Icons.Rounded.School)
-                if (st.batch.isNotBlank()) GlassChip(st.batch, Icons.Rounded.Schedule)
-                if (st.telegram.isNotBlank()) GlassChip("@${st.telegram}", Icons.AutoMirrored.Rounded.Send)
-                GlassChip("Joined ${shortDate(st.joinedOn)}", Icons.Rounded.CalendarMonth)
-            },
-            topActions = { GlassIconButton(Icons.Rounded.Edit, "Edit", onEdit); GlassIconButton(Icons.Rounded.DeleteOutline, "Delete", { confirmDelete = true }) },
-            actions = {
-                RoundAction(Icons.Rounded.Call, "Call", Brand.Blue600, { Contact.call(ctx, st.mobile) }, glass = true)
-                RoundAction(Icons.AutoMirrored.Rounded.Chat, "WhatsApp", Brand.WhatsApp, { Contact.whatsapp(ctx, st.mobile) }, glass = true)
-                RoundAction(Icons.Rounded.Sms, "SMS", Brand.Blue600, { Contact.sms(ctx, st.mobile) }, glass = true)
-                RoundAction(Icons.Rounded.NotificationsActive, "Remind", Brand.Saffron600, { if (next != null) remind = true }, glass = true)
-            })
-        Sheet {
-            Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Spacer(Modifier.height(4.dp))
-                if (st.leftOn != null) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Brand.Slate50).border(1.dp, Brand.Slate200, RoundedCornerShape(20.dp)).padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    IconTile(Icons.Rounded.History, Brand.Slate600, 40.dp); Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Former student", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
-                        Text("${st.leftReason.ifBlank { "Left" }} · ${st.leftOn.asDate()}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                    }
-                    PillButton("Make current", { vm.update(st.copy(leftOn = null, leftReason = "")) }, Brand.Blue700)
+    val m = seat
+    val planType = when {
+        plan.size <= 1 -> "Full"
+        plan.maxOf { it.amount } - plan.minOf { it.amount } <= plan.size -> "Equal"
+        else -> "Unequal"
+    }
+    val seatDue = m?.let { it.balance + if (it.validTill < t) it.monthlyFee else 0L } ?: 0L
+    Column(Modifier.fillMaxSize().background(Color.White)) {
+        // header like the prototype's student sheet
+        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("${rollNo(st.id, st.joinedOn)} · $planType plan".uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700, maxLines = 1)
+                Text(st.name, style = MaterialTheme.typography.titleLarge, color = Brand.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            HeaderButton(Icons.Rounded.Call, "Call", Brand.Blue700) { Contact.call(ctx, st.mobile) }
+            HeaderButton(Icons.Rounded.NotificationsActive, "Remind", Brand.Saffron500) { if (next != null) remind = true else Contact.whatsapp(ctx, st.mobile) }
+            HeaderButton(Icons.Rounded.Edit, "Edit", Brand.Slate600, onEdit)
+            HeaderButton(Icons.Rounded.Close, "Back", Brand.Slate600, onBack)
+        }
+        HorizontalDivider(color = Brand.Line)
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            if (st.leftOn != null) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Slate50).border(1.dp, Brand.Slate200, RoundedCornerShape(16.dp)).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.History, null, tint = Brand.Slate600); Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Former student", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                    Text("${st.leftReason.ifBlank { "Left" }} · ${st.leftOn.asDate()}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                 }
-                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ProgressRing(frac, 108.dp, 12.dp, Brand.Green500, Brand.Line) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("${(frac * 100).toInt().coerceAtMost(100)}%", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Ink)
-                                Text("paid", style = MaterialTheme.typography.labelMedium, color = Brand.Slate400)
-                            }
-                        }
-                        Spacer(Modifier.width(18.dp))
-                        Column(Modifier.weight(1f)) {
-                            LegendLine(Brand.Blue600, "Total fee", rupees(st.totalFee))
-                            LegendLine(Brand.Green500, "Paid", rupees(paid))
-                            LegendLine(Brand.Saffron500, "Pending", rupees(balance))
-                        }
-                    }
-                    if (balance > 0) PrimaryButton("Record a payment", { payFor = next?.remaining ?: balance }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Add)
-                    else Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brand.Green50).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Verified, null, tint = Brand.Green600); Spacer(Modifier.width(8.dp))
-                        Text("Full fee received. Thank you!", style = MaterialTheme.typography.labelLarge, color = Brand.Green700)
-                    }
+                PillButton("Make current", { vm.update(st.copy(leftOn = null, leftReason = "")) }, Brand.Blue700)
+            }
+
+            // fee components (course + Abhyasika seat + locker)
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Slate50).border(1.dp, Brand.Slate200.copy(alpha = 0.7f), RoundedCornerShape(16.dp)).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FeeLine("Course (${st.course}):", rupees(st.totalFee))
+                if (m != null) {
+                    FeeLine("Library seat (${m.seatNo}" + (if (m.seatType.isNotBlank()) " · ${m.seatType}" else "") + "):", rupees(m.monthlyFee - m.lockerFee))
+                    if (m.hasLocker) FeeLine("Separate locker" + (if (m.lockerNo != "-") " (${m.lockerNo})" else "") + ":", rupees(m.lockerFee))
                 }
-                // what the fee is made of (course + Abhyasika seat + locker)
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(20.dp)).padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    FeeLine("Course (${st.course})", rupees(st.totalFee))
-                    val m = seat
-                    if (m != null) {
-                        FeeLine("Abhyasika seat ${m.seatNo}" + if (m.seatType.isNotBlank()) " · ${m.seatType}" else "", "${rupees(m.monthlyFee - m.lockerFee)}/month")
-                        if (m.hasLocker) FeeLine("Locker" + if (m.lockerNo != "-") " ${m.lockerNo}" else "", "${rupees(m.lockerFee)}/month")
-                        FeeLine("Seat paid up to", m.validTill.asDate(), if (m.validTill < t) Brand.Red600 else Brand.Slate800)
-                    }
-                    HorizontalDivider(Modifier.padding(vertical = 2.dp), color = Brand.Slate200)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Course fee / balance", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
-                        Text("${rupees(st.totalFee)} / ${rupees(balance)} due", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron500)
-                    }
-                    if (m == null && st.leftOn == null) SoftButton("Link an Abhyasika seat (Combo)", { linking = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.EventSeat)
+                HorizontalDivider(Modifier.padding(top = 2.dp), color = Brand.Slate200)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Total fee / balance:", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Slate800)
+                    Text("${rupees(st.totalFee + (m?.monthlyFee ?: 0))} / ${rupees(balance + seatDue)} Due", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
+                        color = Brand.Saffron500)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    val m = seat
-                    val held = m != null && m.depositPaid && m.depositReturnedOn == null && m.deposit > 0
-                    MoneyBox("REFUNDABLE DEPOSIT", rupees(m?.deposit ?: 0) + " (" + when { m == null || m.deposit == 0L -> "None"; held -> "Held"; m.depositReturnedOn != null -> "Refunded"; else -> "Not paid" } + ")",
-                        Brand.Green700, Brand.Green50, if (held) "Refund deposit" else null, Modifier.weight(1f)) { refund = true }
-                    val advance = advanceOf(paid, plan, t)
-                    MoneyBox("ADVANCE CREDIT", rupees(advance), Brand.Amber700, Brand.Amber50, if (balance > 0) "+ Add advance" else null, Modifier.weight(1f)) {
-                        payFor = minOf(balance, 1000L)
-                    }
+                if (m != null) Text("Seat and locker are monthly · paid up to ${m.validTill.asDate()}", style = MaterialTheme.typography.labelSmall,
+                    color = if (m.validTill < t) Brand.Red600 else Brand.Slate500)
+                else if (st.leftOn == null) Text("+ Link an Abhyasika seat (Combo)", Modifier.clip(RoundedCornerShape(8.dp)).clickable { linking = true }.padding(vertical = 4.dp),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
+            }
+
+            // refundable deposit and advance credit
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val held = m != null && m.depositPaid && m.depositReturnedOn == null && m.deposit > 0
+                MoneyBox("REFUNDABLE DEPOSIT", rupees(m?.deposit ?: 0) + " (" + when { m == null || m.deposit == 0L -> "None"; held -> "Held"; m.depositReturnedOn != null -> "Refunded"; else -> "Not paid" } + ")",
+                    Brand.Green700, Brand.Green50, if (held) "Refund deposit" else null, Modifier.weight(1f).fillMaxHeight()) { refund = true }
+                MoneyBox("ADVANCE CREDIT", rupees(advanceOf(paid, plan, t)), Brand.Amber700, Brand.Amber50, if (balance > 0) "+ Add ${rupees(minOf(balance, 1000L))} advance" else null,
+                    Modifier.weight(1f).fillMaxHeight()) { payFor = minOf(balance, 1000L) }
+            }
+
+            // installment schedule
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("INSTALLMENT SCHEDULE", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Slate600)
+                if (balance > 0 && statuses.count { !it.fullyPaid } > 1) Text("Re-split balance equally", Modifier.clickable { resplit = true },
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline), color = Brand.Blue700)
+            }
+            val paidOn = paidDates(statuses, payments)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                statuses.forEach { s2 -> ScheduleRow(s2, paidOn[s2.inst.number], t, onCollect = { payFor = s2.remaining }) }
+            }
+            if (balance > 0) SoftButton("Record a payment", { payFor = next?.remaining ?: balance }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
+            else Text("All installments cleared ✓", style = MaterialTheme.typography.labelLarge, color = Brand.Green700)
+
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 4.dp)) {
+                InfoRow(Icons.Rounded.Phone, "Mobile", "+91 ${st.mobile}")
+                if (st.telegram.isNotBlank()) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.AutoMirrored.Rounded.Send, "Telegram", "@${st.telegram}") }
+                HorizontalDivider(color = Brand.Line)
+                InfoRow(Icons.Rounded.School, "Course", st.course + (if (st.batch.isNotBlank()) " · ${st.batch}" else "") + " · joined ${st.joinedOn.asDate()}")
+                if (st.dob != null) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.Rounded.Cake, "Birthday", LocalDate.ofEpochDay(st.dob).format(java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy"))) }
+                HorizontalDivider(color = Brand.Line)
+                InfoRow(Icons.Rounded.CreditCard, "Aadhaar", if (st.aadhaar.isBlank()) "Not added" else if (showAadhaar) st.aadhaar.chunked(4).joinToString(" ") else maskAadhaar(st.aadhaar)) {
+                    if (st.aadhaar.isNotBlank()) SmallIconButton(if (showAadhaar) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, "Show", Brand.Slate500) { showAadhaar = !showAadhaar }
                 }
-                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(horizontal = 16.dp, vertical = 8.dp)) {
-                    InfoRow(Icons.Rounded.Phone, "Mobile", "+91 ${st.mobile}")
-                    if (st.dob != null) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.Rounded.Cake, "Birthday", LocalDate.ofEpochDay(st.dob).format(java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy"))) }
-                    HorizontalDivider(color = Brand.Line)
-                    InfoRow(Icons.Rounded.CreditCard, "Aadhaar", if (st.aadhaar.isBlank()) "Not added" else if (showAadhaar) st.aadhaar.chunked(4).joinToString(" ") else maskAadhaar(st.aadhaar)) {
-                        if (st.aadhaar.isNotBlank()) SmallIconButton(if (showAadhaar) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, "Show", Brand.Slate500) { showAadhaar = !showAadhaar }
-                    }
-                    if (st.aadhaarPhoto.isNotBlank()) { DocPhoto("Aadhaar card photo", st.aadhaarPhoto, onEdit) { viewPhoto = st.aadhaarPhoto }; Spacer(Modifier.height(8.dp)) }
-                }
-                SectionHeader("Installment schedule", action = if (balance > 0 && statuses.count { !it.fullyPaid } > 1) "Re-split balance equally" else "${statuses.count { it.fullyPaid }} of ${statuses.size} paid",
-                    onAction = { if (balance > 0 && statuses.count { !it.fullyPaid } > 1) resplit = true })
-                val paidOn = paidDates(statuses, payments)
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    statuses.forEach { s2 -> ScheduleRow(s2, paidOn[s2.inst.number], t, onCollect = { payFor = s2.remaining }, onRemind = { remind = true }) }
-                }
+                if (st.aadhaarPhoto.isNotBlank()) { DocPhoto("Aadhaar card photo", st.aadhaarPhoto, onEdit) { viewPhoto = st.aadhaarPhoto }; Spacer(Modifier.height(8.dp)) }
+            }
                 SectionHeader("Payments received", action = if (payments.isNotEmpty()) rupees(paid) else null)
                 if (payments.isEmpty()) Text("No payments yet. Tap “Record a payment” when the student pays.", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
                 else Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(vertical = 6.dp)) {
@@ -498,8 +492,9 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                     }, Modifier.weight(1f), icon = Icons.Rounded.Description)
                     if (st.leftOn == null) SoftButton("Former student", { leaving = true }, Modifier.weight(1f), color = Brand.Slate600, icon = Icons.Rounded.History)
                 }
+                Text("Delete student", Modifier.align(Alignment.CenterHorizontally).clip(RoundedCornerShape(8.dp)).clickable { confirmDelete = true }.padding(8.dp),
+                    style = MaterialTheme.typography.labelLarge, color = Brand.Red600)
                 Spacer(Modifier.height(20.dp))
-            }
         }
     }
 
@@ -548,8 +543,9 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PrimaryButton("WhatsApp", { Contact.whatsapp(ctx, st.mobile, text); remind = false }, Modifier.weight(1.4f), icon = Icons.AutoMirrored.Rounded.Chat,
                         custom = Brush.linearGradient(listOf(Brand.WhatsApp, Brand.WhatsAppDark)))
-                    SoftButton("SMS", { Contact.sms(ctx, st.mobile, text); remind = false }, Modifier.weight(1f), icon = Icons.Rounded.Sms)
+                    SoftButton("Telegram", { Contact.telegram(ctx, text); remind = false }, Modifier.weight(1f), color = Color(0xFF0284C7), icon = Icons.AutoMirrored.Rounded.Send)
                 }
+                SoftButton("SMS", { Contact.sms(ctx, st.mobile, text); remind = false }, Modifier.fillMaxWidth(), color = Brand.Slate600, icon = Icons.Rounded.Sms)
                 Text("The app opens with the message typed. You press send.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate400)
             }
         }
@@ -606,8 +602,10 @@ private fun MoneyBox(label: String, value: String, fg: Color, bg: Color, action:
     Column(modifier.clip(RoundedCornerShape(16.dp)).background(bg).border(1.dp, fg.copy(alpha = 0.25f), RoundedCornerShape(16.dp)).padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, style = MaterialTheme.typography.labelSmall, color = fg)
         Text(value, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Ink)
-        if (action != null) Text(action, Modifier.clip(RoundedCornerShape(10.dp)).background(Color.White).border(1.dp, fg.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-            .clickable(onClick = onAction).padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, color = fg)
+        Spacer(Modifier.weight(1f))
+        if (action != null) Text(action, Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Color.White).border(1.dp, fg.copy(alpha = 0.4f), RoundedCornerShape(10.dp))
+            .clickable(onClick = onAction).padding(horizontal = 6.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = fg,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2)
     }
 }
 
@@ -627,7 +625,7 @@ private fun paidDates(statuses: List<InstallmentStatus>, payments: List<StudentP
 }
 
 @Composable
-private fun ScheduleRow(s: InstallmentStatus, paidBy: StudentPayment?, t: Long, onCollect: () -> Unit, onRemind: () -> Unit) {
+private fun ScheduleRow(s: InstallmentStatus, paidBy: StudentPayment?, t: Long, onCollect: () -> Unit) {
     val i = s.inst
     val late = !s.fullyPaid && i.dueOn < t
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(if (s.fullyPaid) Brand.Green50.copy(alpha = 0.6f) else Color.White)
@@ -647,10 +645,13 @@ private fun ScheduleRow(s: InstallmentStatus, paidBy: StudentPayment?, t: Long, 
                 style = MaterialTheme.typography.bodySmall, color = when { s.fullyPaid -> Brand.Green700; late -> Brand.Red600; s.partlyPaid -> Brand.Amber700; else -> Brand.Slate500 })
         }
         if (s.fullyPaid) StatusChip("Paid ✓", Tone.Good, dot = false)
-        else {
-            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Remind", Brand.WhatsAppDark, onRemind)
-            Spacer(Modifier.width(6.dp))
-            PillButton("Collect", onCollect, if (late) Brand.Red600 else Brand.Blue700)
-        }
+        else PillButton("Collect", onCollect, if (late) Brand.Red600 else Brand.Blue700)
+    }
+}
+
+@Composable
+private fun HeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, color: Color, onClick: () -> Unit) {
+    Box(Modifier.padding(start = 6.dp).size(36.dp).clip(CircleShape).background(Brand.Slate50).border(1.dp, Brand.Line, CircleShape).clickable(onClick = onClick), Alignment.Center) {
+        Icon(icon, desc, tint = color, modifier = Modifier.size(18.dp))
     }
 }

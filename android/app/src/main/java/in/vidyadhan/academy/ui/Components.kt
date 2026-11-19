@@ -85,7 +85,18 @@ fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier {
     val pressed by src.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, tween(120), label = "press")
     return this.graphicsLayer { scaleX = scale; scaleY = scale }
-        .clickable(interactionSource = src, indication = ripple(), enabled = enabled, onClick = onClick)
+        .clickable(interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
+}
+
+/** Tappable card: a thin border that turns teal while pressed (no dark ripple), and a small press-down. */
+@Composable
+fun Modifier.pressCard(shape: Shape, onClick: () -> Unit, normal: Color = Brand.Line, active: Color = Brand.Blue700): Modifier {
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.98f else 1f, tween(120), label = "press")
+    val edge by animateColorAsState(if (pressed) active else normal, tween(120), label = "edge")
+    return this.graphicsLayer { scaleX = scale; scaleY = scale }.border(if (pressed) 1.5.dp else 1.dp, edge, shape)
+        .clickable(interactionSource = src, indication = null, onClick = onClick)
 }
 
 /** White card with a soft blue-tinted shadow. */

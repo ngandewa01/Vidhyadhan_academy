@@ -459,7 +459,7 @@ private fun PeriodChip(text: String, selected: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun Quick(label: String, icon: ImageVector, color: Color, bg: Color, modifier: Modifier, onClick: () -> Unit) {
-    Column(modifier.clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Brand.Line, RoundedCornerShape(18.dp)).pressable(onClick = onClick)
+    Column(modifier.clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
         .padding(vertical = 10.dp, horizontal = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(bg), Alignment.Center) { Icon(icon, null, tint = color, modifier = Modifier.size(16.dp)) }
         Spacer(Modifier.height(4.dp))

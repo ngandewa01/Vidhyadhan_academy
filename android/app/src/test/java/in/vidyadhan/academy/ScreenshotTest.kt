@@ -95,7 +95,7 @@ class ScreenshotTest {
         shot("02-home")
         nav("Students"); shot("04-students")
         rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("05-student-detail")
-        rule.onNodeWithText("Record a payment").performClick(); shot("05b-payment-sheet"); back()
+        rule.onNodeWithText("Record a payment").performScrollTo().performClick(); shot("05b-payment-sheet"); back()
         backButton()
         rule.onNodeWithText("Admit").performClick(); shot("06-student-form")
         rule.onNodeWithText("Total course fee").performTextInput("25000"); settle()

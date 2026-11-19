@@ -143,7 +143,7 @@ internal fun MemberCard(m: LibraryMember, rooms: List<LibraryRoom>, t: Long, onC
     val st = memberStatus(m, t)
     val edge = when { !m.active -> Color.Transparent; st == SeatStatus.Expired -> Brand.Red500; st == SeatStatus.Ending -> Brand.Saffron500; else -> Color.Transparent }
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 5.dp).clip(RoundedCornerShape(22.dp))
-        .border(1.5.dp, edge, RoundedCornerShape(22.dp)).pressable(onClick = onClick).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        .pressCard(RoundedCornerShape(22.dp), onClick, normal = if (edge == Color.Transparent) Brand.Line else edge).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Avatar(m.name, 48.dp, photo = m.photo)
             Spacer(Modifier.width(12.dp))
