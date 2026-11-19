@@ -106,7 +106,7 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
         }
 
         Step("2. Course, seat & locker") {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("Academy" to "Academy only", "Abhyasika" to "Abhyasika only", "Combo" to "Combo").forEach { (k, l) ->
                     Toggle(l, type == k, Brand.Blue700, Modifier.weight(1f)) { type = k }
                 }
@@ -141,7 +141,7 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
         }
 
         if (academy) Step("3. Installment schedule", trailing = "Fee: ${rupees(total)}") {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("Full", "Equal", "Unequal").forEach { p -> Toggle("$p plan", planType == p, Brand.Saffron500, Modifier.weight(1f)) { planType = p } }
             }
             when (planType) {
@@ -183,7 +183,7 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
             SwitchRow("First installment paid today", plan.firstOrNull()?.let { rupees(it.amount) }, paidFirst) { paidFirst = it }
         }
         if (payingNow > 0) Step("Paid today", trailing = rupees(payingNow)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("Cash", "UPI", "Bank").forEach { m -> Toggle(m, mode == m, Brand.Green600, Modifier.weight(1f)) { mode = m } }
             }
             Text(listOfNotNull(
@@ -255,9 +255,11 @@ private fun Step(title: String, trailing: String? = null, content: @Composable C
 
 @Composable
 private fun Toggle(text: String, selected: Boolean, color: Color, modifier: Modifier, onClick: () -> Unit) {
-    Text(text, modifier.clip(RoundedCornerShape(12.dp)).background(if (selected) color else Brand.Slate50).border(1.dp, if (selected) color else Brand.Line, RoundedCornerShape(12.dp))
-        .clickable(onClick = onClick).padding(vertical = 9.dp, horizontal = 4.dp), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-        color = if (selected) Color.White else Brand.Slate600, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2)
+    Box(modifier.fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(if (selected) color else Brand.Slate50).border(1.dp, if (selected) color else Brand.Line, RoundedCornerShape(12.dp))
+        .clickable(onClick = onClick).padding(vertical = 9.dp, horizontal = 4.dp), Alignment.Center) {
+        Text(text, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = if (selected) Color.White else Brand.Slate600, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2)
+    }
 }
 
 @Composable

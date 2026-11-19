@@ -86,6 +86,14 @@ object AppSettings {
     var lastBackup: Long get() = get("lastBackup", "0").toLong(); set(v) = put("lastBackup", v.toString())
 
     /** "Reminded today ✓": [key] is e.g. "s12" (student) or "m7" (library member). */
+    /** Forgets who is linked on Telegram and which reminders were sent (used when starting fresh: record numbers start again). */
+    fun forgetPeople() {
+        val gone = s.keys.filter { it.startsWith("tg_k_") || it.startsWith("rem_") }
+        val e = prefs?.edit()
+        gone.forEach { s.remove(it); e?.remove(it) }
+        e?.apply()
+    }
+
     fun remindedOn(key: String, day: Long): Boolean = s["rem_$key"] == day.toString()
     fun markReminded(key: String, day: Long) = put("rem_$key", day.toString())
 

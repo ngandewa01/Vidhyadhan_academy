@@ -421,6 +421,29 @@ private fun BackupPage() {
     status?.let { StatusChip(it, if (it.contains("fail")) Tone.Bad else Tone.Good) }
     OptionRow(Icons.Rounded.SettingsBackupRestore, Brand.Saffron700, "Restore from a backup", "Replaces everything in the app") { restoreLauncher.launch(arrayOf("*/*")) }
     OptionRow(Icons.Rounded.TableChart, Brand.Green600, "Export students to Excel", "Saves a CSV file Excel can open") { csvLauncher.launch("students-${java.time.LocalDate.now()}.csv") }
+    var fresh by remember { mutableStateOf(false) }
+    OptionRow(Icons.Rounded.DeleteForever, Brand.Red600, "Start fresh", "Deletes all students, enquiries, Abhyasika members, rooms, payments and expenses") { fresh = true }
+    if (fresh) {
+        var typed by remember { mutableStateOf("") }
+        val cloudOn = `in`.vidyadhan.academy.cloud.Cloud.state == `in`.vidyadhan.academy.cloud.Cloud.State.On
+        AlertDialog(onDismissRequest = { fresh = false }, containerColor = Color.White, shape = RoundedCornerShape(28.dp),
+            title = { Text("Delete all records?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("All students, fees, enquiries, Abhyasika members, rooms, payments, expenses and photos are deleted from this phone" +
+                        (if (cloudOn) " and from your cloud (and so from your other phones)." else ".") +
+                        " Your settings, courses, fees, seat types, PIN and Telegram bot stay. Make a backup first if you may need them.")
+                    Field(typed, { typed = it }, "Type DELETE to confirm")
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = typed.trim().equals("DELETE", true), onClick = {
+                    fresh = false
+                    scope.launch { status = runCatching { eraseAll(ctx) }.fold({ "All records deleted. You can start fresh ✓" }, { "Could not delete: ${it.message}" }) }
+                }) { Text("Delete everything", color = Brand.Red600, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton({ fresh = false }) { Text("Cancel") } })
+    }
     restoreUri?.let { uri ->
         ConfirmDialog("Restore this backup?", "Everything in the app now will be replaced by the backup, and the app will restart.", "Restore", danger = true,
             onConfirm = { scope.launch { runCatching { restore(ctx, uri) }.onFailure { status = "Restore failed: ${it.message}" } }; restoreUri = null },
@@ -488,6 +511,18 @@ private suspend fun backup(ctx: Context, dest: Uri) = withContext(Dispatchers.IO
             }
         }
     }
+}
+
+/** Deletes every record (children first) and the photos; settings stay. With cloud sync on, the deletions go to the cloud too. */
+private suspend fun eraseAll(ctx: Context) = withContext(Dispatchers.IO) {
+    val db = AppDb.get(ctx)
+    db.runInTransaction(Runnable {
+        listOf("Installment", "StudentPayment", "LibraryPayment", "Note", "LibraryMember", "Student", "Enquiry", "Expense", "LibraryRoom", "MemberPlan")
+            .forEach { db.openHelper.writableDatabase.execSQL("DELETE FROM `$it`") }
+    })
+    `in`.vidyadhan.academy.ui.Photos.dir(ctx).listFiles()?.forEach { it.delete() }
+    `in`.vidyadhan.academy.data.Ids.forget()
+    withContext(Dispatchers.Main) { AppSettings.forgetPeople() }
 }
 
 /** Accepts the new .zip backups (records + photos) and older .db backups. */
