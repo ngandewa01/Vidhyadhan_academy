@@ -128,7 +128,6 @@ private fun AppShell(lock: LockStore) {
         if (now - lastBack < 2000) activity.finish()
         else { lastBack = now; android.widget.Toast.makeText(activity, "Press back again to exit", android.widget.Toast.LENGTH_SHORT).show() }
     }
-    `in`.vidyadhan.academy.update.UpdatePrompt()
     CompositionLocalProvider(LocalNavHider provides hider) {
         Box(Modifier.fillMaxSize().background(Brand.Bg)) {
             Column(Modifier.fillMaxSize()) {

@@ -484,7 +484,7 @@ private fun UpdatesPage() {
         }
     }
     FormCard("Where updates come from", Icons.Rounded.Link) {
-        Text("The app looks for a new version once a day and asks before installing.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        Text("Install new versions from the GitHub download link. Add an update link here only if you host one yourself.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
         Field(AppSettings.updateUrl, { AppSettings.updateUrl = it.trim() }, "Update link (starts with https://)", Icons.Rounded.Link, keyboard = KeyboardType.Uri)
         PrimaryButton("Check for updates", {
             status = "Checking…"; info = null
