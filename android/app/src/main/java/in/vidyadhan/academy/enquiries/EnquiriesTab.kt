@@ -193,7 +193,7 @@ private fun EnquiryForm(vm: EnquiriesViewModel, id: Long, onDone: () -> Unit) {
             Spacer(Modifier.height(4.dp))
             FormCard("Contact", Icons.Rounded.Person, Brand.Saffron600) {
                 Field(name, { name = it }, "Name", Icons.Rounded.Person)
-                DigitsField("Mobile number", mobile, 10, { mobile = it }, Icons.Rounded.Phone, prefix = "+91 ", phone = true,
+                PhoneField(mobile, { mobile = it }, onName = { if (name.isBlank()) name = it },
                     supporting = if (mobile.isNotEmpty() && mobile.length < 10) "Enter all 10 digits" else null, isError = mobile.isNotEmpty() && mobile.length < 10)
             }
             FormCard("Interested in", Icons.Rounded.School) {

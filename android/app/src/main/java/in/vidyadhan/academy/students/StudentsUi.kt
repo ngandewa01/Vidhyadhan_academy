@@ -276,7 +276,7 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
             PhotoAvatarEdit(name, photo, photoPicker.open)
             FormCard("Student details", Icons.Rounded.Person) {
                 Field(name, { name = it }, "Full name", Icons.Rounded.Person)
-                DigitsField("Mobile number", mobile, 10, { mobile = it }, Icons.Rounded.Phone, prefix = "+91 ", phone = true,
+                PhoneField(mobile, { mobile = it }, onName = { if (name.isBlank()) name = it },
                     supporting = if (mobile.isNotEmpty() && mobile.length < 10) "Enter all 10 digits" else null, isError = mobile.isNotEmpty() && mobile.length < 10)
                 DigitsField("Aadhaar number", aadhaar, 12, { aadhaar = it }, Icons.Rounded.CreditCard,
                     supporting = if (aadhaar.isNotEmpty() && aadhaar.length < 12) "Enter all 12 digits" else "Optional · kept only on this phone", isError = aadhaar.isNotEmpty() && aadhaar.length < 12)

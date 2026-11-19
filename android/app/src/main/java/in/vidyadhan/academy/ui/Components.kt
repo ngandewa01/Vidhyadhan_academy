@@ -470,9 +470,47 @@ fun Field(
 
 @Composable
 fun DigitsField(label: String, value: String, maxDigits: Int, onChange: (String) -> Unit, icon: ImageVector? = null, prefix: String? = null,
-                phone: Boolean = false, supporting: String? = null, isError: Boolean = false, modifier: Modifier = Modifier) =
-    Field(value, { if (it.length <= maxDigits && it.all(Char::isDigit)) onChange(it) }, label, icon, modifier,
-        if (phone) KeyboardType.Phone else KeyboardType.Number, prefix = prefix, supporting = supporting, isError = isError)
+                phone: Boolean = false, supporting: String? = null, isError: Boolean = false, modifier: Modifier = Modifier,
+                trailing: @Composable (() -> Unit)? = null) =
+    Field(value, { onDigits(it, value, maxDigits, phone)?.let(onChange) }, label, icon, modifier,
+        if (phone) KeyboardType.Phone else KeyboardType.Number, prefix = prefix, supporting = supporting, isError = isError, trailing = trailing)
+
+/**
+ * Keeps only the digits, so pasted text like "+91 98765 43210" or "1234 5678 9012" works.
+ * A pasted phone number that is too long keeps its last digits (drops +91 or a leading 0). Null = ignore the change.
+ */
+fun onDigits(typed: String, old: String, max: Int, phone: Boolean): String? {
+    val d = typed.filter(Char::isDigit)
+    return when {
+        d.length <= max -> d
+        phone && typed.length - old.length > 1 -> d.takeLast(max) // pasted
+        else -> null
+    }
+}
+
+/** Mobile number with a button to pick it from the phone's contacts (fills the name too, through [onName]). */
+@Composable
+fun PhoneField(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, onName: ((String) -> Unit)? = null,
+               supporting: String? = null, isError: Boolean = false, icon: ImageVector? = Icons.Rounded.Phone) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { r ->
+        val uri = r.data?.data ?: return@rememberLauncherForActivityResult
+        runCatching {
+            ctx.contentResolver.query(uri, arrayOf(android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER, android.provider.ContactsContract.Contacts.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    onChange(c.getString(0).orEmpty().filter(Char::isDigit).takeLast(10))
+                    c.getString(1)?.takeIf { it.isNotBlank() }?.let { onName?.invoke(it) }
+                }
+            }
+        }
+    }
+    DigitsField("Mobile number", value, 10, onChange, icon, prefix = "+91 ", phone = true, supporting = supporting, isError = isError, modifier = modifier,
+        trailing = {
+            IconButton({
+                runCatching { pick.launch(android.content.Intent(android.content.Intent.ACTION_PICK, android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI)) }
+            }) { Icon(Icons.Rounded.Contacts, "Pick from contacts", tint = Brand.Blue600) }
+        })
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

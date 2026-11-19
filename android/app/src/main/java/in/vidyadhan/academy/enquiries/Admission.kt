@@ -101,8 +101,8 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Step("1. Student & Telegram details") {
             Field(name, { name = it }, "Full name *", Icons.Rounded.Person)
-            DigitsField("Mobile number", mobile, 10, { mobile = it }, prefix = "+91 ", phone = true, isError = mobile.isNotEmpty() && mobile.length < 10,
-                supporting = "Telegram is linked later through your bot (no username needed)")
+            PhoneField(mobile, { mobile = it }, onName = { if (name.isBlank()) name = it }, icon = null, isError = mobile.isNotEmpty() && mobile.length < 10,
+                supporting = "Tap the contacts button to pick a number. Telegram is linked later through your bot.")
         }
 
         Step("2. Course, seat & locker") {
