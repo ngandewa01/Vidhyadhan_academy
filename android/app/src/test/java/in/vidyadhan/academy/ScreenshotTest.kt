@@ -110,7 +110,7 @@ class ScreenshotTest {
         rule.onNodeWithText("Done").performClick(); shot("08c-room-plan")
         rule.onNodeWithText("7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
 
-        rule.onNodeWithText("Members").performClick(); shot("09-members")
+        nav("Abhyasika"); rule.onNodeWithText("Members").performClick(); shot("09-members")
         rule.onNode(hasSetTextAction()).performTextReplacement("Snehal"); settle()
         rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Snehal Mane"))
         rule.onNodeWithText("Snehal Mane").performClick(); shot("10-member-detail")
