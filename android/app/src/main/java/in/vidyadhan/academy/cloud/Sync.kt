@@ -153,7 +153,6 @@ object Sync {
         } finally { pulling = false }
         // make sure every open screen shows what just came from the other phone
         runCatching { d.invalidationTracker.refreshVersionsAsync() }
-        runCatching { d.invalidationTracker.notifyObserversByTableNames(setOf(t)) }
         Cloud.synced(0)
     }
 
