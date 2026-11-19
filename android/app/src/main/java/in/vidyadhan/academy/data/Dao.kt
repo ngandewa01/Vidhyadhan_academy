@@ -24,12 +24,15 @@ interface StudentDao {
     @Query("SELECT s.name AS name, p.amount AS amount, p.paidOn AS paidOn, 'STUDENT_FEE' AS kind, p.mode AS mode, s.course || CASE WHEN s.batch != '' THEN ' ' || s.batch ELSE '' END || CASE WHEN p.note != '' THEN ' · ' || p.note ELSE '' END AS detail FROM StudentPayment p JOIN Student s ON s.id = p.studentId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
     fun recentPaid(): Flow<List<PaymentRow>>
 
-    @Insert suspend fun insert(s: Student): Long
+    @Insert suspend fun insertRow(s: Student): Long
+    suspend fun insert(s: Student): Long = insertRow(if (s.id == 0L) s.copy(id = Ids.next("Student")) else s)
     @Update suspend fun update(s: Student)
     @Delete suspend fun delete(s: Student)
-    @Insert suspend fun insertInstallments(list: List<Installment>)
+    @Insert suspend fun insertInstallmentRows(list: List<Installment>)
+    suspend fun insertInstallments(list: List<Installment>) = insertInstallmentRows(list.map { if (it.id == 0L) it.copy(id = Ids.next("Installment")) else it })
     @Query("DELETE FROM Installment WHERE studentId = :id") suspend fun clearInstallments(id: Long)
-    @Insert suspend fun insertPayment(p: StudentPayment): Long
+    @Insert suspend fun insertPaymentRow(p: StudentPayment): Long
+    suspend fun insertPayment(p: StudentPayment): Long = insertPaymentRow(if (p.id == 0L) p.copy(id = Ids.next("StudentPayment")) else p)
     @Delete suspend fun deletePayment(p: StudentPayment)
 
     @Transaction
@@ -53,7 +56,8 @@ interface EnquiryDao {
     @Query("SELECT * FROM Enquiry ORDER BY followUpOn, id DESC") fun all(): Flow<List<Enquiry>>
     @Query("SELECT * FROM Enquiry WHERE id = :id") fun get(id: Long): Flow<Enquiry?>
     @Query("SELECT COUNT(*) FROM Enquiry WHERE status IN ('NEW','CONTACTED') AND followUpOn <= :day") suspend fun dueCount(day: Long): Int
-    @Insert suspend fun insert(e: Enquiry): Long
+    @Insert suspend fun insertRow(e: Enquiry): Long
+    suspend fun insert(e: Enquiry): Long = insertRow(if (e.id == 0L) e.copy(id = Ids.next("Enquiry")) else e)
     @Update suspend fun update(e: Enquiry)
     @Delete suspend fun delete(e: Enquiry)
 }
@@ -62,18 +66,21 @@ interface EnquiryDao {
 interface LibraryDao {
     @Query("SELECT * FROM SeatType ORDER BY id") fun seatTypes(): Flow<List<SeatType>>
     @Query("SELECT * FROM SeatType ORDER BY id") suspend fun seatTypesNow(): List<SeatType>
-    @Insert suspend fun insertType(t: SeatType)
+    @Insert suspend fun insertTypeRow(t: SeatType)
+    suspend fun insertType(t: SeatType) = insertTypeRow(if (t.id == 0L) t.copy(id = Ids.next("SeatType")) else t)
     @Update suspend fun updateType(t: SeatType)
     @Delete suspend fun deleteType(t: SeatType)
 
     @Query("SELECT * FROM LibraryRoom ORDER BY sortOrder, id") fun rooms(): Flow<List<LibraryRoom>>
     @Query("SELECT * FROM LibraryRoom ORDER BY sortOrder, id") suspend fun roomsNow(): List<LibraryRoom>
-    @Insert suspend fun insertRoom(r: LibraryRoom): Long
+    @Insert suspend fun insertRoomRow(r: LibraryRoom): Long
+    suspend fun insertRoom(r: LibraryRoom): Long = insertRoomRow(if (r.id == 0L) r.copy(id = Ids.next("LibraryRoom")) else r)
     @Update suspend fun updateRoom(r: LibraryRoom)
     @Delete suspend fun deleteRoom(r: LibraryRoom)
 
     @Query("SELECT * FROM MemberPlan ORDER BY months, price") fun plans(): Flow<List<MemberPlan>>
-    @Insert suspend fun insertPlan(p: MemberPlan): Long
+    @Insert suspend fun insertPlanRow(p: MemberPlan): Long
+    suspend fun insertPlan(p: MemberPlan): Long = insertPlanRow(if (p.id == 0L) p.copy(id = Ids.next("MemberPlan")) else p)
     @Update suspend fun updatePlan(p: MemberPlan)
     @Delete suspend fun deletePlan(p: MemberPlan)
 
@@ -91,10 +98,12 @@ interface LibraryDao {
     @Query("SELECT m.name AS name, p.amount AS amount, p.paidOn AS paidOn, p.kind AS kind, p.mode AS mode, 'Seat ' || m.seatNo || CASE WHEN m.seatType != '' THEN ' ' || m.seatType ELSE '' END || CASE WHEN m.lockerNo != '' THEN ' + Locker' || CASE WHEN m.lockerNo != '-' THEN ' ' || m.lockerNo ELSE '' END ELSE '' END AS detail FROM LibraryPayment p JOIN LibraryMember m ON m.id = p.memberId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
     fun recentPayments(): Flow<List<PaymentRow>>
 
-    @Insert suspend fun insertMember(m: LibraryMember): Long
+    @Insert suspend fun insertMemberRow(m: LibraryMember): Long
+    suspend fun insertMember(m: LibraryMember): Long = insertMemberRow(if (m.id == 0L) m.copy(id = Ids.next("LibraryMember")) else m)
     @Update suspend fun updateMember(m: LibraryMember)
     @Delete suspend fun deleteMember(m: LibraryMember)
-    @Insert suspend fun insertPayment(p: LibraryPayment): Long
+    @Insert suspend fun insertPaymentRow(p: LibraryPayment): Long
+    suspend fun insertPayment(p: LibraryPayment): Long = insertPaymentRow(if (p.id == 0L) p.copy(id = Ids.next("LibraryPayment")) else p)
 
     @Transaction
     suspend fun addMember(m: LibraryMember, pays: List<LibraryPayment>): Long {
@@ -110,14 +119,16 @@ interface LibraryDao {
 interface NoteDao {
     @Query("SELECT * FROM Note WHERE kind = :kind AND ownerId = :id ORDER BY createdAt DESC") fun notes(kind: String, id: Long): Flow<List<Note>>
     @Query("SELECT * FROM Note WHERE kind = :kind ORDER BY createdAt DESC") fun allOf(kind: String): Flow<List<Note>>
-    @Insert suspend fun insert(n: Note)
+    @Insert suspend fun insertRow(n: Note)
+    suspend fun insert(n: Note) = insertRow(if (n.id == 0L) n.copy(id = Ids.next("Note")) else n)
     @Delete suspend fun delete(n: Note)
 }
 
 @Dao
 interface ExpenseDao {
     @Query("SELECT * FROM Expense ORDER BY spentOn DESC, id DESC") fun all(): Flow<List<Expense>>
-    @Insert suspend fun insert(e: Expense)
+    @Insert suspend fun insertRow(e: Expense)
+    suspend fun insert(e: Expense) = insertRow(if (e.id == 0L) e.copy(id = Ids.next("Expense")) else e)
     @Update suspend fun update(e: Expense)
     @Delete suspend fun delete(e: Expense)
 }
@@ -152,6 +163,7 @@ class V2toV3 : AutoMigrationSpec {
     autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = V6toV7::class), AutoMigration(from = 7, to = 8)],
 )
 abstract class AppDb : RoomDatabase() {
+    init { Ids.db = this; Ids.forget() }
     abstract fun students(): StudentDao
     abstract fun enquiries(): EnquiryDao
     abstract fun library(): LibraryDao

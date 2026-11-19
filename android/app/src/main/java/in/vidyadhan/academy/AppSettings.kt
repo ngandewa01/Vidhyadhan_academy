@@ -15,7 +15,25 @@ object AppSettings {
         p.all.forEach { (k, v) -> s[k] = v.toString() }
     }
     private fun get(k: String, def: String) = s[k] ?: def
-    private fun put(k: String, v: String) { s[k] = v; prefs?.edit()?.putString(k, v)?.apply() }
+    private fun put(k: String, v: String) { val old = s[k]; s[k] = v; prefs?.edit()?.putString(k, v)?.apply(); if (old != v) onChange?.invoke(k) }
+
+    // ── shared with the academy's other phones through the cloud ──
+    /** Called after a setting changes (cloud sync listens). */
+    var onChange: ((String) -> Unit)? = null
+    private val sharedKeys = setOf("name", "phone", "address", "rprefix", "courses", "batches", "inst", "lateFee", "lateOn", "enqDays", "seats", "lockerCount", "lockerDep", "lockerFee", "tgLink")
+    /** Settings every phone of the academy uses (not phone-only things like the bot, reminders already sent or the dashboard order). */
+    fun isShared(k: String) = k in sharedKeys || k.startsWith("cf_") || k.startsWith("tpl_")
+    fun sharedValues(): Map<String, String> = s.filterKeys(::isShared).toMap()
+    fun applyShared(m: Map<String, String>) {
+        val e = prefs?.edit()
+        m.filterKeys(::isShared).forEach { (k, v) -> if (s[k] != v) { s[k] = v; e?.putString(k, v) } }
+        e?.apply()
+    }
+
+    // ── cloud sync state (this phone only) ──
+    var cloudAcademy: String get() = get("cloudAcademy", ""); set(v) = put("cloudAcademy", v)
+    var cloudDevice: Long get() = get("cloudDevice", "0").toLongOrNull() ?: 0; set(v) = put("cloudDevice", v.toString())
+    var cloudLast: Long get() = get("cloudLast", "0").toLongOrNull() ?: 0; set(v) = put("cloudLast", v.toString())
 
     var academyName: String get() = get("name", "Vidyadhan Academy"); set(v) = put("name", v)
     var academyPhone: String get() = get("phone", ""); set(v) = put("phone", v)

@@ -16,6 +16,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.Login
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -50,7 +52,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Library seats"), Backup("Backup & export"), Updates("App updates") }
+private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Library seats"), Backup("Backup & export"), Updates("App updates"), Cloud("Cloud sync") }
 
 @Composable
 fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}, onClose: () -> Unit = {}) {
@@ -75,6 +77,7 @@ fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Un
                         Page.Library -> LibraryPage()
                         Page.Backup -> BackupPage()
                         Page.Updates -> UpdatesPage()
+                        Page.Cloud -> CloudPage()
                         Page.Main -> {}
                     }
                     Spacer(Modifier.height(20.dp))
@@ -158,13 +161,20 @@ private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit)
                     trailing = { Switch(bio, { bio = it; lock.biometricOn = it }, colors = SwitchDefaults.colors(checkedTrackColor = Brand.Blue600)) }) { bio = !bio; lock.biometricOn = bio }
             }
             Group("Data") {
+                val c = `in`.vidyadhan.academy.cloud.Cloud
+                SettingRow(Icons.Rounded.CloudSync, Brand.Teal700, "Cloud sync", when (c.state) {
+                    `in`.vidyadhan.academy.cloud.Cloud.State.On -> "On · ${c.email}"
+                    `in`.vidyadhan.academy.cloud.Cloud.State.Error -> "Problem: ${c.message}"
+                    `in`.vidyadhan.academy.cloud.Cloud.State.NotSetUp -> "Not set up in this version"
+                    else -> "Off · sign in with Google to use on more phones"
+                }) { open(Page.Cloud) }
                 SettingRow(Icons.Rounded.CloudUpload, Brand.Blue600, "Backup & export", "Save a copy to Google Drive, restore, Excel export", divider = false) { open(Page.Backup) }
             }
             Group("App") {
                 SettingRow(Icons.Rounded.SystemUpdate, Brand.Saffron700, "App updates", "Version $version") { open(Page.Updates) }
                 SettingRow(Icons.Rounded.Info, Brand.Slate600, "About", "Vidyadhan Academy · build $code", divider = false)
             }
-            Text("Made for ${AppSettings.academyName}\nAll data is stored only on this phone", Modifier.fillMaxWidth(),
+            Text("Made for ${AppSettings.academyName}\n" + if (`in`.vidyadhan.academy.cloud.Cloud.state == `in`.vidyadhan.academy.cloud.Cloud.State.On) "Records are kept on this phone and in your cloud" else "All data is stored only on this phone", Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall, color = Brand.Slate400, textAlign = TextAlign.Center)
             Spacer(Modifier.height(20.dp))
         }
@@ -344,6 +354,48 @@ private fun LibraryPage() {
                 TextButton({ edit = null }) { Text("Cancel") }
             } })
     }
+}
+
+@Composable
+private fun CloudPage() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val c = `in`.vidyadhan.academy.cloud.Cloud
+    var error by remember { mutableStateOf<String?>(null) }
+    var signOut by remember { mutableStateOf(false) }
+    val st = c.state
+    val on = st == `in`.vidyadhan.academy.cloud.Cloud.State.On || st == `in`.vidyadhan.academy.cloud.Cloud.State.Error
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(PrimaryBrush).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        IconTile(Icons.Rounded.CloudSync, Color.White, 48.dp)
+        Text(if (st == `in`.vidyadhan.academy.cloud.Cloud.State.On) "Cloud sync is on" else "Use the app on more phones", style = MaterialTheme.typography.titleLarge, color = Color.White)
+        Text(when {
+            on -> "Signed in as ${c.email}. Students, fees, seats, enquiries and expenses are the same on every phone signed in to this account, and safe if a phone is lost." +
+                if (c.lastSync > 0) "\nLast sync: " + java.text.SimpleDateFormat("d MMM, h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(c.lastSync)) else ""
+            st == `in`.vidyadhan.academy.cloud.Cloud.State.NotSetUp -> "This version of the app was made without the academy's Firebase settings. Install the latest version from the update link."
+            st == `in`.vidyadhan.academy.cloud.Cloud.State.Working -> c.message.ifBlank { "Working…" }
+            else -> "Sign in with the academy's Google account. Your records stay on this phone too, so the app keeps working without internet and syncs when it is back."
+        }, style = MaterialTheme.typography.bodyMedium, color = Brand.Blue100)
+        when {
+            st == `in`.vidyadhan.academy.cloud.Cloud.State.SignedOut -> PrimaryButton("Sign in with Google", { scope.launch { error = c.signIn(ctx) } }, Modifier.fillMaxWidth(), accent = true, icon = Icons.AutoMirrored.Rounded.Login)
+            st == `in`.vidyadhan.academy.cloud.Cloud.State.Working -> LinearProgressIndicator(Modifier.fillMaxWidth(), color = Color.White, trackColor = Color.White.copy(alpha = 0.25f))
+            on -> PrimaryButton("Sync now", { `in`.vidyadhan.academy.cloud.Sync.syncNow() }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Sync)
+            else -> {}
+        }
+    }
+    if (st == `in`.vidyadhan.academy.cloud.Cloud.State.Error) StatusChip("Sync problem: ${c.message}", Tone.Bad)
+    error?.let { StatusChip(it, Tone.Bad) }
+    if (st == `in`.vidyadhan.academy.cloud.Cloud.State.Choosing) {
+        Text("This phone and your cloud both have records. Which should be kept?", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+        OptionRow(Icons.Rounded.CloudDownload, Brand.Blue600, "Use the cloud's records", "This phone's records are replaced by the ones in the cloud") { scope.launch { c.finish(ctx, keepCloud = true) } }
+        OptionRow(Icons.Rounded.CloudUpload, Brand.Saffron700, "Keep this phone's records", "The cloud is replaced by this phone's records. Other phones then take them.") { scope.launch { c.finish(ctx, keepCloud = false) } }
+        Text("Tip: make a backup first (Settings → Backup & export).", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+    }
+    if (on) {
+        OptionRow(Icons.AutoMirrored.Rounded.Logout, Brand.Red600, "Sign out", "Stops syncing on this phone. Records stay here.") { signOut = true }
+        Text("Photos stay on the phone that took them. The Telegram bot and reminders run on the phone where the bot is connected.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+    }
+    if (signOut) ConfirmDialog("Sign out of cloud sync?", "This phone stops syncing. Its records stay here.", "Sign out", danger = true,
+        onConfirm = { scope.launch { c.signOut(ctx) }; signOut = false }, onDismiss = { signOut = false })
 }
 
 @Composable
