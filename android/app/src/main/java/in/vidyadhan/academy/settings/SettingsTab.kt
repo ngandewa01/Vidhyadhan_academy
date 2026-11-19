@@ -484,12 +484,13 @@ private fun UpdatesPage() {
         }
     }
     FormCard("Where updates come from", Icons.Rounded.Link) {
+        Text("The app looks for a new version once a day and asks before installing.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
         Field(AppSettings.updateUrl, { AppSettings.updateUrl = it.trim() }, "Update link (starts with https://)", Icons.Rounded.Link, keyboard = KeyboardType.Uri)
         PrimaryButton("Check for updates", {
             status = "Checking…"; info = null
             scope.launch {
                 runCatching { Updater.check(AppSettings.updateUrl) }
-                    .onSuccess { if (it.versionCode > code) { info = it; status = null } else status = "You have the latest version ✓" }
+                    .onSuccess { AppSettings.updateSkipped = 0; if (it.versionCode > code) { info = it; status = null } else status = "You have the latest version ✓" }
                     .onFailure { status = "Could not check: ${it.message}" }
             }
         }, Modifier.fillMaxWidth(), enabled = AppSettings.updateUrl.startsWith("https://"), icon = Icons.Rounded.Refresh)

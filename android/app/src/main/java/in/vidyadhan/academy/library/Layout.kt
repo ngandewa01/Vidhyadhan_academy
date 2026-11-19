@@ -47,6 +47,20 @@ fun wallRoom(counts: List<Int>, islands: Int, perIsland: Int, numbers: List<Int>
     return walls to centre
 }
 
+/** How [count] seats are set out in a new hall: [top, right, bottom, left] wall counts, middle double rows, seats per middle row. */
+fun defaultWalls(count: Int): Triple<List<Int>, Int, Int> {
+    val n = count.coerceAtLeast(1)
+    if (n <= 12) return Triple(listOf(0, (n + 1) / 2, 0, n / 2), 0, 0)
+    var right = minOf(8, (n + 1) / 2); var left = minOf(8, n - right)
+    var rest = n - right - left
+    val top = minOf(5, (rest + 1) / 2); val bottom = minOf(5, rest - top)
+    rest -= top + bottom
+    val island = minOf(rest, 16)
+    rest -= island
+    right += (rest + 1) / 2; left += rest / 2 // very big halls: longer side walls
+    return Triple(listOf(top, right, bottom, left), if (island > 0) 1 else 0, island)
+}
+
 fun wallSeatList(walls: List<List<Int>>, centre: List<List<Int>>) = (walls.flatten() + centre.flatten()).filter { it > 0 }
 
 /** Seats [numbers] in [rows] rows: [left] seats, an aisle, then [right] seats (no aisle when one side is 0). Extra places get the next numbers after [nextFrom]. */

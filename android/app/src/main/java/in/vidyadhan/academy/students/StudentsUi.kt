@@ -117,7 +117,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
             if (shown.isEmpty() && libShown.isEmpty()) EmptyState(Icons.Rounded.School,
                 if (all.isEmpty()) "No students yet" else if (filter == "Former") "No former students" else "No matches",
                 if (all.isEmpty()) "Tap “Admit” to add your first student." else if (filter == "Former") "Students who finish or leave are kept here with their records." else "Try a different name or filter.",
-                action = if (all.isEmpty()) "Admit a student" else null, onAction = onAdd)
+                action = null, onAction = onAdd)
             else LazyColumn(contentPadding = PaddingValues(14.dp, 16.dp, 14.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(shown, key = { it.id }) { s -> StudentCard(s, seatOf[s.id], t) { onOpen(s.id) } }
                 items(libShown, key = { "m${it.id}" }) { m -> MemberLedgerCard(m, t) { onOpenMember(m.id) } }

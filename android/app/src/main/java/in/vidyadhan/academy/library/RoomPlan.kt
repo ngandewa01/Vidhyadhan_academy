@@ -89,8 +89,8 @@ internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (L
         val first = rooms.isEmpty()
         val count = if (first) AppSettings.seatCount.coerceAtLeast(1) else 16
         val start = if (first) 1 else nextSeatNumber(rooms)
-        val half = (count + 1) / 2
-        val (w, c) = wallRoom(listOf(0, half, 0, count - half), 0, 0, emptyList(), start)
+        val (walls, islands, per) = defaultWalls(count)
+        val (w, c) = wallRoom(walls, islands, per, emptyList(), start)
         vm.addRoom(LibraryRoom(name = if (first) "Hall A" else "Hall ${'A' + rooms.size}", sortOrder = (rooms.maxOfOrNull { it.sortOrder } ?: 0) + 1,
             layout = planText(FloorPlan(walls = w, centre = c)))) { roomId = it; editing = true }
     }
@@ -120,7 +120,7 @@ internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (L
                 if (!editing && room != null) Chip(if (names) "Hide names" else "Show names", names) { names = !names }
             }
 
-            if (room == null) Text("No room yet. Tap “+ Create room”: your ${AppSettings.seatCount} seats are set out along the two side walls, students back to back. Then put seats on any wall in Edit room.",
+            if (room == null) Text("No room yet. Tap “+ Create room”: your ${AppSettings.seatCount} seats are set out along the walls and a back-to-back row in the middle. Change it any time in Edit room.",
                 style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
             else {
                 val (walls, centre) = wallsOf(planOf(room.layout))
