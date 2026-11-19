@@ -105,12 +105,12 @@ class ScreenshotTest {
         nav("Enquiries"); shot("07b-enquiries")
 
         // Seats: no room yet → create one → edit → view
-        nav("Abhyasika"); rule.onNodeWithText("Seats").performClick(); shot("08-seats-start")
-        rule.onNodeWithText("Create first room").performClick(); shot("08b-room-edit")
-        rule.onNodeWithText("Done").performClick(); shot("08c-room-plan")
-        rule.onNodeWithText("7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
+        nav("Abhyasika"); shot("08-seats-start")
+        rule.onNodeWithText("+ Create room").performClick(); shot("08b-room-edit")
+        rule.onNodeWithText("Live map").performClick(); shot("08c-room-plan")
+        rule.onNodeWithText("N-07").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
 
-        nav("Abhyasika"); rule.onNodeWithText("Members").performClick(); shot("09-members")
+        nav("Abhyasika"); rule.onNodeWithText("Members").performScrollTo().performClick(); shot("09-members")
         rule.onNode(hasSetTextAction()).performTextReplacement("Snehal"); settle()
         rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Snehal Mane"))
         rule.onNodeWithText("Snehal Mane").performClick(); shot("10-member-detail")

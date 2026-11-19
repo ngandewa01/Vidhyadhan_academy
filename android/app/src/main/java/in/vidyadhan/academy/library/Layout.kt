@@ -14,7 +14,33 @@ import java.time.LocalDate
  * (one cell holds one seat). [w] × [h] is the size of the room inside its walls.
  */
 @Serializable
-data class FloorPlan(val w: Float = 10f, val h: Float = 6f, val items: List<PlanItem> = emptyList())
+data class FloorPlan(val w: Float = 10f, val h: Float = 6f, val items: List<PlanItem> = emptyList(), val cols: Int = 0, val grid: List<GridItem> = emptyList())
+
+/**
+ * The room as a grid (like the owner's prototype): items fill rows of [FloorPlan.cols] columns in order.
+ * [kind] SEAT (number [n]; XL seats take 2 columns) or FIXTURE ([icon] WINDOW, AC, FAN, DOOR, WATER, LOCKERS, WIFI; [span] columns).
+ */
+@Serializable
+data class GridItem(val id: Int, val kind: String, val n: Int = 0, val span: Int = 1, val label: String = "", val icon: String = "") {
+    companion object { const val SEAT = "SEAT"; const val FIXTURE = "FIXTURE" }
+}
+
+const val GRID_COLS = 6
+
+/** The grid of a room: the saved one, or one made from an older drawing (seats in reading order, then the door). */
+fun gridOf(p: FloorPlan): List<GridItem> {
+    if (p.grid.isNotEmpty()) return p.grid
+    var id = 1
+    val seats = p.items.filter { it.type == PlanItem.SEAT }.sortedWith(compareBy({ (it.y * 2).toInt() }, { it.x }))
+        .map { GridItem(id++, GridItem.SEAT, n = it.n) }
+    val doors = p.items.filter { it.type == PlanItem.DOOR }.map { GridItem(id++, GridItem.FIXTURE, span = 2, label = "Main entrance", icon = "DOOR") }
+    return seats + doors
+}
+
+fun fixtureLabel(icon: String) = when (icon) {
+    "WINDOW" -> "Window light"; "AC" -> "Split AC"; "FAN" -> "Wall fan"; "DOOR" -> "Main entrance"; "WATER" -> "RO water & Wi-Fi"; "LOCKERS" -> "Lockers"; "WIFI" -> "Wi-Fi"
+    else -> "Fixture"
+}
 
 /**
  * One thing in the room. [type] is SEAT (number [n]), DESK (a table line [len] cells long) or DOOR.
@@ -80,7 +106,9 @@ fun quickPlan(from: Int, to: Int, perRow: Int): FloorPlan {
     return FloorPlan(w = w, h = h, items = items)
 }
 
-fun seatsIn(layout: String): List<Int> = planOf(layout).items.filter { it.type == PlanItem.SEAT }.map { it.n }
+fun seatsIn(layout: String): List<Int> = planOf(layout).let { p ->
+    if (p.grid.isNotEmpty()) p.grid.filter { it.kind == GridItem.SEAT }.map { it.n } else p.items.filter { it.type == PlanItem.SEAT }.map { it.n }
+}
 
 /** Every seat number in the library: the seats placed in rooms, or 1..[count] while no rooms are set up. */
 fun allSeats(rooms: List<LibraryRoom>, count: Int): List<Int> =

@@ -101,12 +101,13 @@ fun LibraryTab(
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Main) }
     var memberFilter by rememberSaveable { mutableStateOf(MemberFilter.All) }
-    var seats by rememberSaveable { mutableStateOf(false) }
+    var seats by rememberSaveable { mutableStateOf(true) } // the room plan opens first, like the prototype
     LaunchedEffect(openSeats) { if (openSeats) { seats = true; screen = Screen.Main; onOpened() } }
     LaunchedEffect(openNew, openId, startFilter) { if (openNew || openId > 0 || startFilter != MemberFilter.All) seats = false }
     val switcher: @Composable () -> Unit = {
         Spacer(Modifier.height(14.dp))
-        Segmented(listOf("members" to "Members", "seats" to "Seats"), if (seats) "seats" else "members", { seats = it == "seats" })
+        Text("← Room plan", Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.15f)).clickable { seats = true }
+            .padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge, color = Color.White)
     }
     LaunchedEffect(startFilter) { if (startFilter != MemberFilter.All) memberFilter = startFilter }
     val members by vm.members.collectAsStateWithLifecycle()
@@ -125,7 +126,7 @@ fun LibraryTab(
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "lib") { s ->
         when (s) {
-            Screen.Main -> if (seats) SeatsPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) }, switcher)
+            Screen.Main -> if (seats) RoomPlanPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) }, onMembers = { seats = false })
             else MembersPage(vm, memberFilter, { memberFilter = it }, onAdd = {
                 val taken = members.filter { it.active }.map { it.seatNo }.toSet()
                 screen = Screen.Form(allSeats(vm.rooms.value, AppSettings.seatCount).firstOrNull { it !in taken } ?: 0)
