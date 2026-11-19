@@ -57,6 +57,13 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Vidhyadhan-$VERSION.apk"
 
+      - name: Keep the APK with this build
+        uses: actions/upload-artifact@v4
+        with:
+          name: Vidhyadhan-${{ env.VERSION }}-apk
+          path: ${{ runner.temp }}/Vidhyadhan-${{ env.VERSION }}.apk
+          retention-days: 90
+
       - name: Publish on a GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
