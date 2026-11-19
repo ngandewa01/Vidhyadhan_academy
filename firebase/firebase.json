@@ -1,9 +1,0 @@
-{
-  "hosting": {
-    "public": "public",
-    "headers": [
-      { "source": "**/*.apk", "headers": [{ "key": "Content-Type", "value": "application/vnd.android.package-archive" }, { "key": "Cache-Control", "value": "no-cache" }] },
-      { "source": "update.json", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
-    ]
-  }
-}
