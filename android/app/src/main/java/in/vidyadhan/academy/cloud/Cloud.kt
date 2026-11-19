@@ -74,9 +74,14 @@ object Cloud {
             null
         } catch (e: GetCredentialCancellationException) {
             state = State.SignedOut; null
+        } catch (e: androidx.credentials.exceptions.NoCredentialException) {
+            state = State.SignedOut; "No Google account to choose. Add your Gmail in phone Settings → Accounts, and update Google Play services, then try again."
+        } catch (e: androidx.credentials.exceptions.GetCredentialException) {
+            Log.w("Cloud", "sign in", e)
+            state = State.SignedOut; "Google sign-in failed (${e.type.substringAfterLast('.')}): ${e.message ?: "no details"}"
         } catch (e: Exception) {
             Log.w("Cloud", "sign in", e)
-            state = State.SignedOut; e.message ?: "Sign-in failed"
+            state = State.SignedOut; "Sign-in failed (${e.javaClass.simpleName}): ${e.message ?: "no details"}"
         }
     }
 
