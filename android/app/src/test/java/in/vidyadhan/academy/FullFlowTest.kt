@@ -63,7 +63,7 @@ class PickersTest {
         rule.waitForIdle()
         rule.onAllNodesWithText("More").onLast().performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
-        rule.onNodeWithText("Settings").performClick()
+        rule.onNodeWithText("Settings").performScrollTo().performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
         rule.onNodeWithText("Backup & export").performScrollTo().performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
