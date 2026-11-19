@@ -69,7 +69,7 @@ class MigrationTest {
             execSQL("INSERT INTO LibraryMember(name,mobile,aadhaar,seatNo,seatType,monthlyFee,deposit,depositPaid,joinedOn,validTill,active,photo,aadhaarPhoto,lockerNo,lockerFee,balance,planName) VALUES('Other','9111111111','',4,'Normal',800,500,1,20000,20030,1,'','','',0,0,'')")
             close()
         }
-        val db = helper.runMigrationsAndValidate("mig7.db", 7, true, `in`.vidyadhan.academy.data.V6toV7())
+        val db = helper.runMigrationsAndValidate("mig7.db", 7, true)
         db.query("SELECT studentId FROM LibraryMember ORDER BY seatNo").use { c ->
             c.moveToFirst(); assertEquals(5L, c.getLong(0))
             c.moveToNext(); assertEquals(true, c.isNull(0))
