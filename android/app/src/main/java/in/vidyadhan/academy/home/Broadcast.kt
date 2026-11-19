@@ -147,14 +147,12 @@ fun BroadcastScreen(onClose: () -> Unit) {
             }
             FormCard("3. Send", Icons.AutoMirrored.Rounded.Send, Brand.Green600) {
                 if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) {
-                    val tgOf = students.associate { "s${it.id}" to it.telegram } + members.associate { m -> "m${m.id}" to (m.studentId?.let { id -> students.firstOrNull { it.id == id }?.telegram }.orEmpty()) } +
-                        enquiries.associate { "e${it.id}" to it.telegram }
-                    val withTg = chosen.filter { tgOf[it.key].orEmpty().isNotBlank() }
-                    OptionRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Send with our Telegram bot", "${withTg.size} of ${chosen.size} have a Telegram username · each gets their own message") {
+                    val withTg = chosen.filter { `in`.vidyadhan.academy.telegram.TelegramBot.isLinked(it.key) }
+                    OptionRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Send with our Telegram bot", "${withTg.size} of ${chosen.size} are connected on Telegram · each gets their own message") {
                         tgScope.launch {
                             var sent = 0
-                            withTg.forEach { p -> if (`in`.vidyadhan.academy.telegram.TelegramBot.sendTo(tgOf.getValue(p.key), `in`.vidyadhan.academy.telegram.TelegramBot.esc(text.replace("{name}", p.name.substringBefore(' '))))) sent++ }
-                            android.widget.Toast.makeText(ctx, "Sent to $sent on Telegram" + if (sent < withTg.size) " · ${withTg.size - sent} haven't pressed Start yet" else " ✓", android.widget.Toast.LENGTH_LONG).show()
+                            withTg.forEach { p -> if (`in`.vidyadhan.academy.telegram.TelegramBot.sendToKey(p.key, `in`.vidyadhan.academy.telegram.TelegramBot.esc(text.replace("{name}", p.name.substringBefore(' '))))) sent++ }
+                            android.widget.Toast.makeText(ctx, "Sent to $sent on Telegram" + if (sent < withTg.size) " · ${withTg.size - sent} could not be sent" else " ✓", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
                     if (AppSettings.botStaffChat != 0L) OptionRow(Icons.Rounded.Groups, Color(0xFF229ED9), "Post in the Telegram group", "The bot posts it in your group") {

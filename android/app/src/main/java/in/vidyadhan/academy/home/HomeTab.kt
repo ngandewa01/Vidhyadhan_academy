@@ -58,7 +58,7 @@ fun isBirthday(dob: Long?, day: LocalDate): Boolean = dob != null && LocalDate.o
 
 fun birthdayWish(name: String) = `in`.vidyadhan.academy.Templates.fill("birthday", true, mapOf("name" to name.substringBefore(' ')))
 
-private data class Bday(val name: String, val mobile: String, val what: String, val photo: String, val telegram: String = "")
+private data class Bday(val name: String, val mobile: String, val what: String, val photo: String, val key: String = "")
 
 /** One line of "Recent transactions": money in (payment) or out (expense, deposit returned). */
 private data class Txn(val title: String, val subtitle: String, val amount: Long, val income: Boolean, val day: Long, val mode: String)
@@ -115,9 +115,9 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val libDue = active.count { it.validTill <= t || it.balance > 0 }
     val ending = active.count { it.validTill in t..(t + ENDING_DAYS) }
     val tgOf = allStudents.associate { it.id to it.telegram }
-    val birthdays = students.filter { isBirthday(it.dob, now) }.map { Bday(it.name, it.mobile, "Student · ${it.course}${if (it.batch.isNotBlank()) " ${it.batch}" else ""}", it.photo, it.telegram) } +
+    val birthdays = students.filter { isBirthday(it.dob, now) }.map { Bday(it.name, it.mobile, "Student · ${it.course}${if (it.batch.isNotBlank()) " ${it.batch}" else ""}", it.photo, "s${it.id}") } +
         active.filter { isBirthday(it.dob, now) && (it.studentId == null || students.none { s -> s.id == it.studentId && isBirthday(s.dob, now) }) }
-            .map { Bday(it.name, it.mobile, "Abhyasika · seat ${it.seatNo}", it.photo, it.studentId?.let { id -> tgOf[id] }.orEmpty()) }
+            .map { Bday(it.name, it.mobile, "Abhyasika · seat ${it.seatNo}", it.photo, it.studentId?.let { id -> "s$id" } ?: "m${it.id}") }
     val backupDays = if (AppSettings.lastBackup == 0L) null else t - AppSettings.lastBackup
     val needsBackup = (students.isNotEmpty() || members.isNotEmpty()) && (backupDays == null || backupDays >= 7)
     val alerts = feesDue + libDue + callsToday + birthdays.size + if (needsBackup) 1 else 0
@@ -377,7 +377,7 @@ private fun WishSheet(b: Bday, onClose: () -> Unit) {
             OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), minLines = 5, shape = RoundedCornerShape(16.dp), textStyle = MaterialTheme.typography.bodyMedium,
                 colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Brand.Saffron50, focusedContainerColor = Color.White, focusedBorderColor = Brand.Saffron500, unfocusedBorderColor = Brand.Line))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFF0284C7)).clickable { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, b.telegram, `in`.vidyadhan.academy.telegram.TelegramBot.esc(text)); onClose() }.padding(vertical = 12.dp),
+                Row(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFF0284C7)).clickable { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, b.key, b.mobile, `in`.vidyadhan.academy.telegram.TelegramBot.esc(text)); onClose() }.padding(vertical = 12.dp),
                     horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color.White, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp))
                     Text("Send via Telegram", style = MaterialTheme.typography.labelLarge, color = Color.White, maxLines = 1)

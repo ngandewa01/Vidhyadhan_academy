@@ -100,6 +100,8 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
                         onAdd: () -> Unit, onOpen: (Long) -> Unit, onAdmitted: (String, Long) -> Unit) {
     val ctx = LocalContext.current
     val all by vm.list.collectAsStateWithLifecycle()
+    val notes by remember { AppDb.get(ctx).notes().allOf("ENQUIRY") }.collectAsStateWithLifecycle(emptyList())
+    val latestNote = notes.groupBy { it.ownerId }.mapValues { (_, l) -> l.first().text }
     val t = today()
     val open = all.filter(::isOpen)
     HeroPage("Enquiries & Admissions", "Convert walk-ins into Academy, Abhyasika or Combo", header = {
@@ -143,7 +145,7 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
                         Text(label, Modifier.clip(RoundedCornerShape(50)).background(bg).border(1.dp, fg.copy(alpha = 0.25f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = fg)
                     }
-                    Text("“${e.details.ifBlank { "No note yet" }}”", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp))
+                    Text("“${latestNote[e.id] ?: e.details.ifBlank { "No note yet" }}”", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp))
                         .padding(8.dp), style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
                     Row {
                         Text("Source: ", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
@@ -153,7 +155,7 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF0F9FF)).border(1.dp, Color(0xFFBAE6FD), RoundedCornerShape(12.dp))
-                            .clickable { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, e.telegram, `in`.vidyadhan.academy.telegram.TelegramBot.esc(`in`.vidyadhan.academy.Templates.fill("enquiry", false, mapOf("name" to e.name)))) }.padding(vertical = 9.dp),
+                            .clickable { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, "e${e.id}", e.mobile, `in`.vidyadhan.academy.telegram.TelegramBot.esc(`in`.vidyadhan.academy.Templates.fill("enquiry", false, mapOf("name" to e.name)))) }.padding(vertical = 9.dp),
                             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color(0xFF0369A1), modifier = Modifier.size(15.dp)); Spacer(Modifier.width(6.dp))
                             Text("Telegram info", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color(0xFF0369A1))
@@ -193,7 +195,6 @@ private fun EnquiryForm(vm: EnquiriesViewModel, id: Long, onDone: () -> Unit) {
                 Field(name, { name = it }, "Name", Icons.Rounded.Person)
                 DigitsField("Mobile number", mobile, 10, { mobile = it }, Icons.Rounded.Phone, prefix = "+91 ", phone = true,
                     supporting = if (mobile.isNotEmpty() && mobile.length < 10) "Enter all 10 digits" else null, isError = mobile.isNotEmpty() && mobile.length < 10)
-                Field(telegram, { telegram = it.trim().removePrefix("@").take(32) }, "Telegram username (optional)", Icons.AutoMirrored.Rounded.Send, prefix = "@")
             }
             FormCard("Interested in", Icons.Rounded.School) {
                 ChoicePills(AppSettings.courseList, course, { course = if (course == it) "" else it })

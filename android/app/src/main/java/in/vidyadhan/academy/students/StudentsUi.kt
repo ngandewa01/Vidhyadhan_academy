@@ -278,8 +278,6 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
                 Field(name, { name = it }, "Full name", Icons.Rounded.Person)
                 DigitsField("Mobile number", mobile, 10, { mobile = it }, Icons.Rounded.Phone, prefix = "+91 ", phone = true,
                     supporting = if (mobile.isNotEmpty() && mobile.length < 10) "Enter all 10 digits" else null, isError = mobile.isNotEmpty() && mobile.length < 10)
-                Field(telegram, { telegram = it.trim().removePrefix("@").take(32) }, "Telegram username (optional)", Icons.AutoMirrored.Rounded.Send, prefix = "@",
-                    supporting = "For receipts and reminders on Telegram")
                 DigitsField("Aadhaar number", aadhaar, 12, { aadhaar = it }, Icons.Rounded.CreditCard,
                     supporting = if (aadhaar.isNotEmpty() && aadhaar.length < 12) "Enter all 12 digits" else "Optional · kept only on this phone", isError = aadhaar.isNotEmpty() && aadhaar.length < 12)
                 DocPhoto("Aadhaar card photo", aadhaarPhoto, aadhaarPicker.open) { viewPhoto = aadhaarPhoto }
@@ -461,7 +459,14 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
 
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 4.dp)) {
                 InfoRow(Icons.Rounded.Phone, "Mobile", "+91 ${st.mobile}")
-                if (st.telegram.isNotBlank()) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.AutoMirrored.Rounded.Send, "Telegram", "@${st.telegram}") }
+                HorizontalDivider(color = Brand.Line)
+                val linked = `in`.vidyadhan.academy.telegram.TelegramBot.isLinked("s${st.id}")
+                InfoRow(Icons.AutoMirrored.Rounded.Send, "Telegram", if (linked) "Connected ✓" else "Not connected yet") {
+                    if (!linked) PillButton("Send link", {
+                        if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) Contact.whatsapp(ctx, st.mobile, `in`.vidyadhan.academy.telegram.TelegramBot.invite("s${st.id}"))
+                        else android.widget.Toast.makeText(ctx, "Connect your Telegram bot first: Bot & More", android.widget.Toast.LENGTH_LONG).show()
+                    }, Color(0xFF0284C7))
+                }
                 HorizontalDivider(color = Brand.Line)
                 InfoRow(Icons.Rounded.School, "Course", st.course + (if (st.batch.isNotBlank()) " · ${st.batch}" else "") + " · joined ${st.joinedOn.asDate()}")
                 if (st.dob != null) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.Rounded.Cake, "Birthday", LocalDate.ofEpochDay(st.dob).format(java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy"))) }
@@ -553,7 +558,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     PrimaryButton("WhatsApp", { Contact.whatsapp(ctx, st.mobile, text); remind = false }, Modifier.weight(1.4f), icon = Icons.AutoMirrored.Rounded.Chat,
                         custom = Brush.linearGradient(listOf(Brand.WhatsApp, Brand.WhatsAppDark)))
-                    SoftButton("Telegram", { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, st.telegram, `in`.vidyadhan.academy.telegram.TelegramBot.esc(text)); remind = false }, Modifier.weight(1f), color = Color(0xFF0284C7), icon = Icons.AutoMirrored.Rounded.Send)
+                    SoftButton("Telegram", { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, "s${st.id}", st.mobile, `in`.vidyadhan.academy.telegram.TelegramBot.esc(text)); remind = false }, Modifier.weight(1f), color = Color(0xFF0284C7), icon = Icons.AutoMirrored.Rounded.Send)
                 }
                 SoftButton("SMS", { Contact.sms(ctx, st.mobile, text); remind = false }, Modifier.fillMaxWidth(), color = Brand.Slate600, icon = Icons.Rounded.Sms)
                 Text("The app opens with the message typed. You press send.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate400)

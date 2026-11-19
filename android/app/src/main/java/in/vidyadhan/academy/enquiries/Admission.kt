@@ -101,11 +101,8 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Step("1. Student & Telegram details") {
             Field(name, { name = it }, "Full name *", Icons.Rounded.Person)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DigitsField("Mobile number", mobile, 10, { mobile = it }, prefix = "+91 ", phone = true, modifier = Modifier.weight(1f),
-                    isError = mobile.isNotEmpty() && mobile.length < 10)
-                Field(telegram, { telegram = it.trim().removePrefix("@").take(32) }, "Telegram", modifier = Modifier.weight(1f), prefix = "@")
-            }
+            DigitsField("Mobile number", mobile, 10, { mobile = it }, prefix = "+91 ", phone = true, isError = mobile.isNotEmpty() && mobile.length < 10,
+                supporting = "Telegram is linked later through your bot (no username needed)")
         }
 
         Step("2. Course, seat & locker") {
@@ -231,7 +228,7 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
                     append("Thank you! 🙏")
                 }
                 // through the academy bot when the student is linked, otherwise the Telegram app opens with it
-                `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, telegram, `in`.vidyadhan.academy.telegram.TelegramBot.esc(receipt))
+                `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, if (studentId > 0) "s$studentId" else "m$memberId", mobile, `in`.vidyadhan.academy.telegram.TelegramBot.esc(receipt))
                 if (studentId > 0) onDone("student", studentId) else onDone("member", memberId)
             }
         }, Modifier.fillMaxWidth(), enabled = valid, icon = Icons.Rounded.Check)
@@ -260,7 +257,7 @@ private fun Step(title: String, trailing: String? = null, content: @Composable C
 private fun Toggle(text: String, selected: Boolean, color: Color, modifier: Modifier, onClick: () -> Unit) {
     Text(text, modifier.clip(RoundedCornerShape(12.dp)).background(if (selected) color else Brand.Slate50).border(1.dp, if (selected) color else Brand.Line, RoundedCornerShape(12.dp))
         .clickable(onClick = onClick).padding(vertical = 9.dp, horizontal = 4.dp), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-        color = if (selected) Color.White else Brand.Slate600, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        color = if (selected) Color.White else Brand.Slate600, textAlign = androidx.compose.ui.text.style.TextAlign.Center, maxLines = 2)
 }
 
 @Composable

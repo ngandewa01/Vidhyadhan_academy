@@ -81,19 +81,18 @@ class DailyWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
         bot.refresh()
         val rupees = { v: Long -> `in`.vidyadhan.academy.students.rupees(v) }
         if (AppSettings.tgDue) {
-            all.filter { it.telegram.isNotBlank() && it.nextDue != null && (it.nextDue == today || it.nextDue == today + 3) }.forEach {
-                bot.sendTo(it.telegram, "Installment reminder ⏰\nNamaskar ${bot.esc(it.name)}, your ${it.course} installment of ${rupees(it.nextDueAmount)} is due on " +
+            all.filter { bot.isLinked("s${it.id}") && it.nextDue != null && (it.nextDue == today || it.nextDue == today + 3) }.forEach {
+                bot.sendToKey("s${it.id}", "Installment reminder ⏰\nNamaskar ${bot.esc(it.name)}, your ${it.course} installment of ${rupees(it.nextDueAmount)} is due on " +
                     "${`in`.vidyadhan.academy.students.shortDate(it.nextDue!!)}. Please pay on time. — ${AppSettings.academyName}")
             }
-            val byStudent = all.associateBy { it.id }
             db.library().allMembers().filter { it.active && (it.validTill == today || it.validTill == today + 3) }.forEach { m ->
-                val tg = m.studentId?.let { byStudent[it]?.telegram }.orEmpty()
-                if (tg.isNotBlank()) bot.sendTo(tg, "Abhyasika renewal alert 📚\nHi ${bot.esc(m.name)}, seat ${m.seatNo}" + (if (m.hasLocker) " + locker" else "") +
+                val key = if (bot.isLinked("m${m.id}")) "m${m.id}" else m.studentId?.let { "s$it" }.orEmpty()
+                if (key.isNotBlank()) bot.sendToKey(key, "Abhyasika renewal alert 📚\nHi ${bot.esc(m.name)}, seat ${m.seatNo}" + (if (m.hasLocker) " + locker" else "") +
                     " expires on ${`in`.vidyadhan.academy.students.shortDate(m.validTill)} (${rupees(m.monthlyFee)}/mo). Reply YES to renew.")
             }
         }
-        if (AppSettings.tgBirthday) all.filter { it.telegram.isNotBlank() && `in`.vidyadhan.academy.home.isBirthday(it.dob, now) }.forEach {
-            bot.sendTo(it.telegram, bot.esc(`in`.vidyadhan.academy.home.birthdayWish(it.name)) + "\n\n" +
+        if (AppSettings.tgBirthday) all.filter { bot.isLinked("s${it.id}") && `in`.vidyadhan.academy.home.isBirthday(it.dob, now) }.forEach {
+            bot.sendToKey("s${it.id}", bot.esc(`in`.vidyadhan.academy.home.birthdayWish(it.name)) + "\n\n" +
                 `in`.vidyadhan.academy.Templates.fill("birthday", false, mapOf("name" to it.name.substringBefore(' '))))
         }
         if (AppSettings.tgEnquiry && AppSettings.botStaffChat != 0L) {

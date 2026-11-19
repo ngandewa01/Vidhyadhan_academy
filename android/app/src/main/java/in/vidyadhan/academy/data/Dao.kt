@@ -109,6 +109,7 @@ interface LibraryDao {
 @Dao
 interface NoteDao {
     @Query("SELECT * FROM Note WHERE kind = :kind AND ownerId = :id ORDER BY createdAt DESC") fun notes(kind: String, id: Long): Flow<List<Note>>
+    @Query("SELECT * FROM Note WHERE kind = :kind ORDER BY createdAt DESC") fun allOf(kind: String): Flow<List<Note>>
     @Insert suspend fun insert(n: Note)
     @Delete suspend fun delete(n: Note)
 }

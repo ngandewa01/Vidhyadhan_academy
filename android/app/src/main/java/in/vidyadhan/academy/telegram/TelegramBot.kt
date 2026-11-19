@@ -74,14 +74,23 @@ object TelegramBot {
                 val text = msg["text"]?.jsonPrimitive?.contentOrNull ?: ""
                 val user = msg["from"]?.jsonObject?.get("username")?.jsonPrimitive?.contentOrNull
                 when {
+                    text.startsWith("/start ") && type == "private" -> AppSettings.setTelegramChat("k_" + text.removePrefix("/start ").trim(), chatId)
                     text.startsWith("/owner") && type == "private" -> AppSettings.botOwnerChat = chatId
                     text.startsWith("/staff") && type != "private" -> AppSettings.botStaffChat = chatId
                     type == "private" && user != null -> AppSettings.setTelegramChat(user, chatId)
                 }
             }
         }
-        AppSettings.telegramChats().size
+        linkedCount()
     }
+
+    fun linkedCount() = AppSettings.telegramChats().keys.count { it.startsWith("k_") }
+    fun isLinked(key: String) = AppSettings.telegramChat("k_$key") != null
+    /** The personal link for a student (s12), Abhyasika member (m3) or enquiry (e5): tapping Start in it links them. */
+    fun linkFor(key: String) = "$link?start=$key"
+    fun invite(key: String) = "${AppSettings.academyName}: get your fee receipts and reminders on Telegram. Tap ${linkFor(key)} and press Start."
+    /** Sends to a person by their key; false if they have not tapped their link yet. */
+    suspend fun sendToKey(key: String, text: String): Boolean = sendTo("k_$key", text)
 
     /** [text] may use <b>bold</b> (Telegram HTML); anything typed by people must go through [esc]. */
     suspend fun send(chat: Long, text: String): Boolean = withContext(Dispatchers.IO) {
@@ -98,15 +107,16 @@ object TelegramBot {
      * Every Telegram button in the app: sends through the bot, or says why it can't
      * (bot not connected, no @username saved, or the person hasn't pressed Start yet).
      */
-    fun sendOrExplain(ctx: Context, username: String, text: String) {
+    fun sendOrExplain(ctx: Context, key: String, mobile: String, text: String) {
         fun toast(m: String) = android.widget.Toast.makeText(ctx, m, android.widget.Toast.LENGTH_LONG).show()
-        when {
-            !connected -> toast("Connect your Telegram bot first: Bot & More → Connect")
-            username.isBlank() -> toast("Add their Telegram @username first (edit their details)")
-            else -> scope.launch {
-                val ok = sendTo(username, text)
-                kotlinx.coroutines.withContext(Dispatchers.Main) {
-                    toast(if (ok) "Sent on Telegram to @$username ✓" else "@$username hasn't pressed Start in @${AppSettings.botName} yet. Send them the bot link.")
+        if (!connected) { toast("Connect your Telegram bot first: Bot & More → Connect"); return }
+        scope.launch {
+            val ok = sendToKey(key, text)
+            kotlinx.coroutines.withContext(Dispatchers.Main) {
+                if (ok) toast("Sent on Telegram ✓")
+                else {
+                    toast("Not on Telegram yet. WhatsApp opens with their personal link; once they tap Start, Telegram works.")
+                    if (mobile.isNotBlank()) `in`.vidyadhan.academy.ui.Contact.whatsapp(ctx, mobile, invite(key))
                 }
             }
         }
@@ -125,8 +135,7 @@ object TelegramBot {
         scope.launch {
             val dao = AppDb.get(ctx).students()
             val st = dao.allStudents().firstOrNull { it.id == studentId } ?: return@launch
-            if (st.telegram.isBlank()) return@launch
-            val chat = AppSettings.telegramChat(st.telegram) ?: run { refresh(); AppSettings.telegramChat(st.telegram) } ?: return@launch
+            val chat = AppSettings.telegramChat("k_s$studentId") ?: run { refresh(); AppSettings.telegramChat("k_s$studentId") } ?: return@launch
             val pos = studentsWithFeesNow(dao).firstOrNull { it.id == studentId } ?: return@launch
             val no = "${AppSettings.receiptPrefix}-S${paymentId.toString().padStart(5, '0')}"
             val text = receiptText(no, st.name, amount, mode, st.course + if (st.batch.isNotBlank()) " · ${st.batch}" else "",
