@@ -235,8 +235,8 @@ object Sync {
             buildMap { while (c.moveToNext()) put(c.getLong(0), c.getLong(1)) }
         }
         fun get(t: String, id: Long): Long? = readableDatabase.rawQuery("SELECT h FROM k WHERE t = ? AND id = ?", arrayOf(t, id.toString())).use { c -> if (c.moveToFirst()) c.getLong(0) else null }
-        fun put(t: String, id: Long, h: Long) { writableDatabase.execSQL("INSERT OR REPLACE INTO k(t, id, h) VALUES(?, ?, ?)", arrayOf(t, id, h)) }
-        fun remove(t: String, id: Long) { writableDatabase.execSQL("DELETE FROM k WHERE t = ? AND id = ?", arrayOf(t, id)) }
+        fun put(t: String, id: Long, h: Long) { writableDatabase.execSQL("INSERT OR REPLACE INTO k(t, id, h) VALUES(?, ?, ?)", arrayOf<Any>(t, id, h)) }
+        fun remove(t: String, id: Long) { writableDatabase.execSQL("DELETE FROM k WHERE t = ? AND id = ?", arrayOf<Any>(t, id)) }
         fun clear() { writableDatabase.execSQL("DELETE FROM k") }
     }
 }
