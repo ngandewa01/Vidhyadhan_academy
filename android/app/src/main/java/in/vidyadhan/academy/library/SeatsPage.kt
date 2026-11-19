@@ -91,7 +91,7 @@ internal fun SeatsPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Long
         }
     }
 
-    HeroPage("Library", "${seats.size} seats · ${seats.count { it !in bySeat }} free", header = { switcher() }) {
+    HeroPage("Abhyasika", "${seats.size} seats · ${seats.count { it !in bySeat }} free", header = { switcher() }) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             Spacer(Modifier.height(16.dp))
             if (rooms.isEmpty()) {

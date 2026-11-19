@@ -16,28 +16,28 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import `in`.vidyadhan.academy.R
 
-/** Colours taken from the Vidyadhan Academy website, plus a few supporting tones. */
+/** Academy teal and marigold (from the owner's prototype), plus supporting tones. Blue* = teal, Saffron* = marigold. */
 object Brand {
-    val Blue50 = Color(0xFFEEF7FC)
-    val Blue100 = Color(0xFFD6ECF7)
-    val Blue200 = Color(0xFFAED8EE)
-    val Blue300 = Color(0xFF7CBDE0)
-    val Blue400 = Color(0xFF3F9ACB)
-    val Blue500 = Color(0xFF1A7DB2)
-    val Blue600 = Color(0xFF0D6698)
-    val Blue700 = Color(0xFF0B5583)
-    val Blue800 = Color(0xFF0D466B)
-    val Blue900 = Color(0xFF0F3A58)
-    val Blue950 = Color(0xFF0A253A)
+    val Blue50 = Color(0xFFF2FAFC)
+    val Blue100 = Color(0xFFE0F2F5)
+    val Blue200 = Color(0xFFB3DCE4)
+    val Blue300 = Color(0xFF7FC2D0)
+    val Blue400 = Color(0xFF3E9DB2)
+    val Blue500 = Color(0xFF1E7F93)
+    val Blue600 = Color(0xFF166478)
+    val Blue700 = Color(0xFF0F4C5C)
+    val Blue800 = Color(0xFF0C4150)
+    val Blue900 = Color(0xFF0A3642)
+    val Blue950 = Color(0xFF072A33)
 
-    val Saffron50 = Color(0xFFFFF7ED)
-    val Saffron100 = Color(0xFFFFEDD5)
-    val Saffron200 = Color(0xFFFED7AA)
-    val Saffron400 = Color(0xFFFB923C)
-    val Saffron500 = Color(0xFFF97316)
-    val Saffron600 = Color(0xFFEA580C)
-    val Saffron700 = Color(0xFFC2410C)
-    val Saffron800 = Color(0xFF9A3412)
+    val Saffron50 = Color(0xFFFEF8F2)
+    val Saffron100 = Color(0xFFFDF0E4)
+    val Saffron200 = Color(0xFFF6CFA9)
+    val Saffron400 = Color(0xFFEA9550)
+    val Saffron500 = Color(0xFFE07A2B)
+    val Saffron600 = Color(0xFFC9661E)
+    val Saffron700 = Color(0xFFA9541A)
+    val Saffron800 = Color(0xFF864316)
 
     val Green50 = Color(0xFFECFDF3)
     val Green100 = Color(0xFFDCFCE7)

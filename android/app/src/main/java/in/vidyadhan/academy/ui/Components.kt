@@ -52,11 +52,11 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 
 // ───────────────────────── backgrounds ─────────────────────────
 
-/** Deep blue gradient with soft decorative circles: used behind every page header. */
+/** Deep academy teal with a warm marigold glow top-right and a green glow bottom-left: behind every page header. */
 fun Modifier.heroBackground(): Modifier = drawBehind {
-    drawRect(Brush.linearGradient(listOf(Brand.Blue950, Brand.Blue800, Brand.Blue600), Offset.Zero, Offset(size.width, size.height * 1.4f)))
-    drawCircle(Color.White.copy(alpha = 0.06f), radius = size.width * 0.42f, center = Offset(size.width * 0.98f, size.height * 0.02f))
-    drawCircle(Color.White.copy(alpha = 0.04f), radius = size.width * 0.28f, center = Offset(size.width * 0.04f, size.height * 1.02f))
+    drawRect(Brush.linearGradient(listOf(Color(0xFF093541), Brand.Blue700, Color(0xFF145E70)), Offset.Zero, Offset(size.width, size.height * 1.3f)))
+    drawRect(Brush.radialGradient(listOf(Color(0x3DE07A2B), Color.Transparent), Offset(size.width * 0.92f, size.height * 0.08f), size.width * 0.6f))
+    drawRect(Brush.radialGradient(listOf(Color(0x2E16A34A), Color.Transparent), Offset(size.width * 0.08f, size.height * 0.85f), size.width * 0.6f))
 }
 
 /** Sub-screens (forms, detail pages) hide the bottom navigation while they are open. */

@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
@@ -76,7 +77,7 @@ private enum class Tab(val label: String, val on: ImageVector, val off: ImageVec
     Home("Dashboard", Icons.Rounded.Dashboard, Icons.Outlined.Dashboard),
     Students("Students", Icons.Rounded.School, Icons.Outlined.School),
     Enquiries("Enquiries", Icons.Rounded.Forum, Icons.Outlined.Forum),
-    Library("Library", Icons.Rounded.LocalLibrary, Icons.Outlined.LocalLibrary),
+    Library("Abhyasika", Icons.Rounded.EventSeat, Icons.Outlined.EventSeat),
     More("More", Icons.Rounded.GridView, Icons.Outlined.GridView),
     // opened from "More" (the More tab stays highlighted)
     Money("Money", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, inNav = false),
@@ -146,6 +147,10 @@ private fun AppShell(lock: LockStore) {
 
 @Composable
 private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
+    // badge on Enquiries: how many are still open
+    val ctx = LocalContext.current
+    val enquiries by remember { `in`.vidyadhan.academy.data.AppDb.get(ctx).enquiries().all() }.collectAsStateWithLifecycle(emptyList())
+    val openEnquiries = enquiries.count { it.status == "NEW" || it.status == "CONTACTED" }
     Row(
         Modifier.fillMaxWidth().shadow(20.dp, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp), spotColor = Brand.Blue900.copy(alpha = 0.25f))
             .background(Color.White, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
@@ -161,8 +166,13 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
                     .clickable(remember { MutableInteractionSource() }, null) { onSelect(t) }.padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(Modifier.clip(RoundedCornerShape(50)).background(pill).padding(horizontal = 18.dp, vertical = 5.dp), Alignment.Center) {
-                    Icon(if (sel) t.on else t.off, t.label, tint = fg, modifier = Modifier.size(23.dp))
+                Box {
+                    Box(Modifier.clip(RoundedCornerShape(50)).background(pill).padding(horizontal = 18.dp, vertical = 5.dp), Alignment.Center) {
+                        Icon(if (sel) t.on else t.off, t.label, tint = fg, modifier = Modifier.size(23.dp))
+                    }
+                    if (t == Tab.Enquiries && openEnquiries > 0) Text(if (openEnquiries > 99) "99+" else "$openEnquiries",
+                        Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).clip(RoundedCornerShape(50)).background(Brand.Saffron500)
+                            .padding(horizontal = 5.dp), style = MaterialTheme.typography.labelSmall, color = Color.White)
                 }
                 Spacer(Modifier.height(3.dp))
                 Text(t.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold), color = fg, maxLines = 1)

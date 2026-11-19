@@ -61,7 +61,7 @@ internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: 
         .filter { m -> q.isEmpty() || m.name.lowercase().contains(q) || m.mobile.contains(q) || m.seatNo.toString() == q || m.lockerNo.lowercase() == q }
         .let { l -> when (sort) { "Name" -> l.sortedBy { it.name.lowercase() }; "Valid till" -> l.sortedBy { it.validTill }; else -> l.sortedBy { it.seatNo } } }
 
-    HeroPage("Library", "${active.size} members · ${count(MemberFilter.Expired)} expired", header = { switcher() }) {
+    HeroPage("Abhyasika", "${active.size} members · ${count(MemberFilter.Expired)} expired", header = { switcher() }) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 18.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

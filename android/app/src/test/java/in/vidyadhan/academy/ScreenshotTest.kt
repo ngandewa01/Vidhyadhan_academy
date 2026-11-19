@@ -105,7 +105,7 @@ class ScreenshotTest {
         nav("Enquiries"); shot("07b-enquiries")
 
         // Seats: no room yet → create one → edit → view
-        nav("Library"); rule.onNodeWithText("Seats").performClick(); shot("08-seats-start")
+        nav("Abhyasika"); rule.onNodeWithText("Seats").performClick(); shot("08-seats-start")
         rule.onNodeWithText("Create first room").performClick(); shot("08b-room-edit")
         rule.onNodeWithText("Done").performClick(); shot("08c-room-plan")
         rule.onNodeWithText("7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
