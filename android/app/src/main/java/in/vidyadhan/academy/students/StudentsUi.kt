@@ -49,7 +49,8 @@ private sealed interface Screen {
 }
 
 @Composable
-fun StudentsTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit = {}, onAdmit: (() -> Unit)? = null, vm: StudentsViewModel = viewModel()) {
+fun StudentsTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit = {}, onAdmit: (() -> Unit)? = null, onOpenMember: (Long) -> Unit = {},
+                vm: StudentsViewModel = viewModel()) {
     var screen by remember { mutableStateOf<Screen>(Screen.List) }
     LaunchedEffect(openNew, openId, Handoff.prefill) {
         if (openNew || Handoff.prefill != null) { screen = Screen.Form(0); onOpened() }
@@ -61,32 +62,38 @@ fun StudentsTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "students") { s ->
         when (s) {
-            Screen.List -> StudentList(vm, onAdd = { onAdmit?.invoke() ?: run { screen = Screen.Form(0) } }, onOpen = { screen = Screen.Detail(it) })
             is Screen.Form -> StudentForm(vm, s.id, onCancel = { screen = if (s.id == 0L) Screen.List else Screen.Detail(s.id) }, onSaved = { screen = Screen.Detail(it) })
-            is Screen.Detail -> StudentDetail(vm, s.id, onBack = { screen = Screen.List }, onEdit = { screen = Screen.Form(s.id) })
+            else -> StudentList(vm, onAdd = { onAdmit?.invoke() ?: run { screen = Screen.Form(0) } }, onOpen = { screen = Screen.Detail(it) }, onOpenMember = onOpenMember)
         }
     }
+    (screen as? Screen.Detail)?.let { d -> StudentSheet(vm, d.id, onClose = { screen = Screen.List }, onEdit = { screen = Screen.Form(d.id) }) }
 }
 
 // ───────────────────────── list ─────────────────────────
 
 @Composable
-private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long) -> Unit) {
+private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long) -> Unit, onOpenMember: (Long) -> Unit) {
     val all by vm.list.collectAsStateWithLifecycle()
     val members by vm.members.collectAsStateWithLifecycle()
-    var q by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("All") }
     val t = today()
     val current = all.filter { it.current }
     val former = all.filter { !it.current }
     val seatOf = members.filter { it.active && it.studentId != null }.associateBy { it.studentId!! }
     val courses = (AppSettings.courseList + current.map { it.course }).filter { it.isNotBlank() }.distinct()
-    val chips = listOf("All") + courses + listOf("Fees due", "Paid", "Former")
+    val libraryOnly = members.filter { it.active && it.studentId == null }.sortedBy { it.name.lowercase() }
+    val chips = listOf("All") + courses + (if (libraryOnly.isNotEmpty()) listOf("Abhyasika") else emptyList()) + listOf("Fees due", "Paid", "Former")
+    val libShown = when (filter) {
+        "All", "Abhyasika" -> libraryOnly
+        "Fees due" -> libraryOnly.filter { it.validTill < t || it.balance > 0 }
+        "Paid" -> libraryOnly.filter { it.validTill >= t && it.balance == 0L }
+        else -> emptyList()
+    }
     val shown = (if (filter == "Former") former else current)
-        .filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) || it.telegram.contains(q.removePrefix("@"), true) }
         .filter {
             when (filter) {
                 "All", "Former" -> true
+                "Abhyasika" -> false
                 "Fees due" -> it.totalFee > it.paid
                 "Paid" -> it.totalFee <= it.paid
                 else -> it.course == filter
@@ -107,13 +114,13 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
             }
         }) {
         Column {
-            SearchBox(q, { q = it }, "Search name, mobile or @telegram", Modifier.padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 4.dp))
-            if (shown.isEmpty()) EmptyState(Icons.Rounded.School,
+            if (shown.isEmpty() && libShown.isEmpty()) EmptyState(Icons.Rounded.School,
                 if (all.isEmpty()) "No students yet" else if (filter == "Former") "No former students" else "No matches",
                 if (all.isEmpty()) "Tap “Admit” to add your first student." else if (filter == "Former") "Students who finish or leave are kept here with their records." else "Try a different name or filter.",
                 action = if (all.isEmpty()) "Admit a student" else null, onAction = onAdd)
-            else LazyColumn(contentPadding = PaddingValues(14.dp, 8.dp, 14.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            else LazyColumn(contentPadding = PaddingValues(14.dp, 16.dp, 14.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(shown, key = { it.id }) { s -> StudentCard(s, seatOf[s.id], t) { onOpen(s.id) } }
+                items(libShown, key = { "m${it.id}" }) { m -> MemberLedgerCard(m, t) { onOpenMember(m.id) } }
             }
         }
     }
@@ -341,6 +348,15 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun StudentSheet(vm: StudentsViewModel, id: Long, onClose: () -> Unit, onEdit: () -> Unit) {
+    ModalBottomSheet(onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White, dragHandle = null,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)) {
+        Box(Modifier.fillMaxHeight(0.9f)) { StudentDetail(vm, id, onClose, onEdit) }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, onEdit: () -> Unit) {
     val ctx = LocalContext.current
     val s by remember(id) { vm.student(id) }.collectAsStateWithLifecycle(null)
@@ -366,7 +382,6 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     val statuses = allocate(plan, paid)
     val next = statuses.firstOrNull { !it.fullyPaid }
     val frac = if (st.totalFee == 0L) 0f else paid.toFloat() / st.totalFee
-    HideBottomNav()
 
     fun receipt(p: StudentPayment) {
         val upTo = payments.filter { it.paidOn < p.paidOn || (it.paidOn == p.paidOn && it.id <= p.id) }.sumOf { it.amount }
@@ -385,7 +400,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     val seatDue = m?.let { it.balance + if (it.validTill < t) it.monthlyFee else 0L } ?: 0L
     Column(Modifier.fillMaxSize().background(Color.White)) {
         // header like the prototype's student sheet
-        Row(Modifier.fillMaxWidth().statusBarsPadding().padding(start = 18.dp, end = 12.dp, top = 12.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 12.dp, top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("${rollNo(st.id, st.joinedOn)} · $planType plan".uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700, maxLines = 1)
                 Text(st.name, style = MaterialTheme.typography.titleLarge, color = Brand.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -653,5 +668,51 @@ private fun ScheduleRow(s: InstallmentStatus, paidBy: StudentPayment?, t: Long, 
 private fun HeaderButton(icon: androidx.compose.ui.graphics.vector.ImageVector, desc: String, color: Color, onClick: () -> Unit) {
     Box(Modifier.padding(start = 6.dp).size(36.dp).clip(CircleShape).background(Brand.Slate50).border(1.dp, Brand.Line, CircleShape).clickable(onClick = onClick), Alignment.Center) {
         Icon(icon, desc, tint = color, modifier = Modifier.size(18.dp))
+    }
+}
+
+/** An Abhyasika-only member in the students list (the prototype lists everyone together). */
+@Composable
+private fun MemberLedgerCard(m: LibraryMember, t: Long, onClick: () -> Unit) {
+    val due = m.balance + if (m.validTill < t) m.monthlyFee else 0L
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
+        .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.Top) {
+            Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brand.Blue100), Alignment.Center) {
+                Text(initials(m.name), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Blue700)
+            }
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(m.name, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.width(6.dp))
+                    Text("${AppSettings.receiptPrefix}-L${m.id.toString().padStart(2, '0')}", style = MaterialTheme.typography.labelSmall, color = Brand.Slate400, maxLines = 1)
+                }
+                Text("Abhyasika (Library) only", style = MaterialTheme.typography.labelMedium, color = Brand.Blue700, maxLines = 1)
+            }
+        }
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            val xl = m.seatType.contains("leg", true) || m.seatType.contains("xl", true)
+            Pill("Seat ${m.seatNo}" + if (m.seatType.isNotBlank()) " (${m.seatType})" else "", if (xl) Brand.Violet700 else Brand.Slate600, if (xl) Color(0xFFF5F3FF) else Brand.Slate50)
+            if (m.hasLocker) Pill(if (m.lockerNo == "-") "Locker" else "Locker ${m.lockerNo}", Color(0xFF4338CA), Color(0xFFEEF2FF))
+            if (m.depositPaid && m.depositReturnedOn == null && m.deposit > 0) Pill("Deposit ${rupees(m.deposit)}", Brand.Green700, Brand.Green50)
+        }
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp)).padding(vertical = 7.dp)) {
+            listOf(Triple("Monthly", rupees(m.monthlyFee), Brand.Ink), Triple("Paid till", shortDate(m.validTill), if (m.validTill < t) Brand.Red600 else Brand.Green600),
+                Triple("Balance", rupees(due), if (due > 0) Brand.Saffron500 else Brand.Green600)).forEach { (l, v, c) ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(l, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
+                    Text(v, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = c, maxLines = 1)
+                }
+            }
+        }
+        HorizontalDivider(color = Brand.Line)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(if (m.validTill < t) "Renewal overdue since ${m.validTill.asDate()}" else "Next due: ${rupees(m.monthlyFee)} on ${m.validTill.asDate()}",
+                Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = if (m.validTill < t) Brand.Red600 else Brand.Slate600, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Manage plan", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
+            Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
+        }
     }
 }

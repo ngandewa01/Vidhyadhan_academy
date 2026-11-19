@@ -128,7 +128,8 @@ private fun AppShell(lock: LockStore) {
                     Crossfade(tab, animationSpec = tween(220), label = "tabs") { t ->
                         when (t) {
                             Tab.Home -> HomeTab(::go)
-                            Tab.Students -> StudentsTab(openId = if (pending == Go.Student) pendingId else 0, onOpened = done, onAdmit = { go(Go.NewStudent, 0) })
+                            Tab.Students -> StudentsTab(openId = if (pending == Go.Student) pendingId else 0, onOpened = done, onAdmit = { go(Go.NewStudent, 0) },
+                                onOpenMember = { go(Go.Member, it) })
                             Tab.Enquiries -> EnquiriesTab(openNew = pending == Go.NewEnquiry, openId = if (pending == Go.Enquiry) pendingId else 0,
                                 openAdmission = pending == Go.NewStudent, onOpened = done,
                                 onAdmitted = { kind, id -> if (kind == "student") go(Go.Student, id) else go(Go.Member, id) })
