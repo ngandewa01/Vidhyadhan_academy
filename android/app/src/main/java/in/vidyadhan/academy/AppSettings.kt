@@ -44,4 +44,11 @@ object AppSettings {
     fun setTemplate(key: String, marathi: Boolean, text: String) = put("tpl_${key}_${if (marathi) "mr" else "en"}", text)
     var telegramLink: String get() = get("tgLink", ""); set(v) = put("tgLink", v.trim())
     var updateUrl: String get() = get("updUrl", ""); set(v) = put("updUrl", v)
+
+    /** Day (epoch day) of the last successful backup; 0 = never. */
+    var lastBackup: Long get() = get("lastBackup", "0").toLong(); set(v) = put("lastBackup", v.toString())
+
+    /** "Reminded today ✓": [key] is e.g. "s12" (student) or "m7" (library member). */
+    fun remindedOn(key: String, day: Long): Boolean = s["rem_$key"] == day.toString()
+    fun markReminded(key: String, day: Long) = put("rem_$key", day.toString())
 }

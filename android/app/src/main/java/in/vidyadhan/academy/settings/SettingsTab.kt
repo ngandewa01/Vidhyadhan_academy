@@ -353,7 +353,7 @@ private fun BackupPage() {
     var status by remember { mutableStateOf<String?>(null) }
     var restoreUri by remember { mutableStateOf<Uri?>(null) }
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        if (uri != null) scope.launch { status = runCatching { backup(ctx, uri) }.fold({ "Backup saved ✓" }, { "Backup failed: ${it.message}" }) }
+        if (uri != null) scope.launch { status = runCatching { backup(ctx, uri) }.fold({ AppSettings.lastBackup = `in`.vidyadhan.academy.students.today(); "Backup saved ✓" }, { "Backup failed: ${it.message}" }) }
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) restoreUri = uri }
     val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->

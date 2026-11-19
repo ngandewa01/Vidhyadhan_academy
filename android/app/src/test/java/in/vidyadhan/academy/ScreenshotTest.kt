@@ -134,6 +134,6 @@ class ScreenshotTest {
         rule.onNodeWithContentDescription("Search").performClick(); settle()
         rule.onNodeWithText("Name, mobile, seat or locker no.").performTextInput("sh"); shot("16-search")
         backButton()
-        rule.onNodeWithContentDescription("Settings").performClick(); shot("17-settings")
+        nav("More"); rule.onNodeWithText("Settings").performClick(); shot("17-settings")
     }
 }

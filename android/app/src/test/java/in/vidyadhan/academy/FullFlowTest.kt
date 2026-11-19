@@ -61,7 +61,7 @@ class PickersTest {
         rule.activityRule.scenario.recreate()
         listOf("1", "2", "3", "4").forEach { rule.onNodeWithText(it).performClick() }
         rule.waitForIdle()
-        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onAllNodesWithText("More").onLast().performClick(); rule.waitForIdle(); rule.onNodeWithText("Settings").performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
         rule.onNodeWithText("Backup & export").performScrollTo().performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
