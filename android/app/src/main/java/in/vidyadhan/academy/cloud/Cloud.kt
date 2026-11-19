@@ -61,14 +61,25 @@ object Cloud {
         if (!available(activity)) return "Cloud is not set up in this version of the app."
         state = State.Working; message = "Signing in…"
         return try {
-            val webId = activity.resources.getIdentifier("default_web_client_id", "string", activity.packageName).takeIf { it != 0 }?.let { activity.getString(it) }.orEmpty()
+            val webId = `in`.vidyadhan.academy.BuildConfig.WEB_CLIENT_ID
             require(webId.isNotBlank()) { "Google sign-in is not turned on in Firebase yet (no web client id)." }
-            val option = GetGoogleIdOption.Builder().setFilterByAuthorizedAccounts(false).setServerClientId(webId).setAutoSelectEnabled(false).build()
-            val res = CredentialManager.create(activity).getCredential(activity, GetCredentialRequest.Builder().addCredentialOption(option).build())
+            val cm = CredentialManager.create(activity)
+            val button = com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption.Builder(webId).build()
+            val sheet = GetGoogleIdOption.Builder().setFilterByAuthorizedAccounts(false).setServerClientId(webId).setAutoSelectEnabled(false).build()
+            val res = try {
+                cm.getCredential(activity, GetCredentialRequest.Builder().addCredentialOption(button).build())
+            } catch (e: GetCredentialCancellationException) { throw e }
+            catch (e: androidx.credentials.exceptions.GetCredentialException) {
+                Log.w("Cloud", "button flow", e)
+                cm.getCredential(activity, GetCredentialRequest.Builder().addCredentialOption(sheet).build())
+            }
             val c = res.credential
-            require(c is CustomCredential && c.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) { "Please choose a Google account." }
+            require(c is CustomCredential && c.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) { "Google returned ${c.type}, not a Google account sign-in" }
             val token = GoogleIdTokenCredential.createFrom(c.data).idToken
-            val user = FirebaseAuth.getInstance().signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await().user ?: error("Sign-in failed")
+            val user = try {
+                FirebaseAuth.getInstance().signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await().user
+            } catch (e: Exception) { throw IllegalStateException("Google account chosen, but Firebase refused it: ${e.message}", e) }
+                ?: error("Firebase returned no user")
             email = user.email.orEmpty()
             prepare(activity, user.uid)
             null
@@ -78,12 +89,16 @@ object Cloud {
             state = State.SignedOut; "No Google account to choose. Add your Gmail in phone Settings → Accounts, and update Google Play services, then try again."
         } catch (e: androidx.credentials.exceptions.GetCredentialException) {
             Log.w("Cloud", "sign in", e)
-            state = State.SignedOut; "Google sign-in failed (${e.type.substringAfterLast('.')}): ${e.message ?: "no details"}"
+            state = State.SignedOut; "Google sign-in failed: ${e.type.substringAfterLast('.')}\n${chain(e)}"
         } catch (e: Exception) {
             Log.w("Cloud", "sign in", e)
-            state = State.SignedOut; "Sign-in failed (${e.javaClass.simpleName}): ${e.message ?: "no details"}"
+            state = State.SignedOut; "Sign-in failed\n${chain(e)}"
         }
     }
+
+    /** The error and its causes, one per line (shown in full so the problem can be read and copied). */
+    private fun chain(e: Throwable): String = generateSequence(e) { it.cause }.take(4)
+        .joinToString("\n") { "• ${it.javaClass.simpleName}: ${it.message ?: "(no message)"}" }
 
     /** First sync of this phone: if both this phone and the cloud already have records, the owner chooses. */
     private suspend fun prepare(ctx: Context, uid: String) {
@@ -135,7 +150,7 @@ object Cloud {
             state = State.On; message = ""
         } catch (e: Exception) {
             Log.w("Cloud", "first sync", e)
-            state = State.Error; message = e.message ?: "Could not reach the cloud"
+            state = State.Error; message = "Could not set up the cloud\n${chain(e)}"
         }
         pending = null
     }

@@ -233,6 +233,21 @@ fun StatusChip(text: String, tone: Tone, dot: Boolean = true) {
     }
 }
 
+/** A problem shown in full (several lines) with a Copy button, so the exact message can be sent to support. */
+@Composable
+fun ErrorBox(text: String) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Red50).border(1.dp, Brand.Red100, RoundedCornerShape(16.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(text, style = MaterialTheme.typography.bodySmall, color = Brand.Red700)
+        Text("Copy this message", Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+            val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("error", text))
+            android.widget.Toast.makeText(ctx, "Copied. Paste it in WhatsApp to send.", android.widget.Toast.LENGTH_SHORT).show()
+        }.padding(vertical = 4.dp, horizontal = 2.dp), style = MaterialTheme.typography.labelLarge, color = Brand.Red700)
+    }
+}
+
 @Composable
 fun SmallTag(text: String, color: Color = Brand.Blue700) {
     Text(

@@ -382,8 +382,8 @@ private fun CloudPage() {
             else -> {}
         }
     }
-    if (st == `in`.vidyadhan.academy.cloud.Cloud.State.Error) StatusChip("Sync problem: ${c.message}", Tone.Bad)
-    error?.let { StatusChip(it, Tone.Bad) }
+    if (st == `in`.vidyadhan.academy.cloud.Cloud.State.Error) ErrorBox("Sync problem: ${c.message}")
+    error?.let { ErrorBox(it) }
     if (st == `in`.vidyadhan.academy.cloud.Cloud.State.Choosing) {
         Text("This phone and your cloud both have records. Which should be kept?", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
         OptionRow(Icons.Rounded.CloudDownload, Brand.Blue600, "Use the cloud's records", "This phone's records are replaced by the ones in the cloud") { scope.launch { c.finish(ctx, keepCloud = true) } }

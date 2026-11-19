@@ -13,7 +13,7 @@ android {
         applicationId = "in.vidyadhan.academy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 35
+        versionCode = 36
         versionName = "0.6.0"
         // Firebase (cloud sync): read from app/google-services.json when it is there. Without it the app works as before, phone only.
         val gs = file("google-services.json")
@@ -35,7 +35,8 @@ android {
             resValue("string", "gcm_defaultSenderId", info["project_number"].toString())
             resValue("string", "google_storage_bucket", info["storage_bucket"]?.toString().orEmpty())
             resValue("string", "default_web_client_id", web)
-        }
+            buildConfigField("String", "WEB_CLIENT_ID", "\"$web\"")
+        } else buildConfigField("String", "WEB_CLIENT_ID", "\"\"")
     }
     // Release key: given by the build server through environment variables (never stored in the repo).
     val keystore = System.getenv("SIGNING_KEYSTORE")?.takeIf { file(it).exists() }
@@ -60,7 +61,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    buildFeatures { compose = true; resValues = true }
+    buildFeatures { compose = true; resValues = true; buildConfig = true }
     // Room schema files, so the database-upgrade test can read them (debug builds only)
     sourceSets.getByName("debug").assets.directories.add("$projectDir/schemas")
     testOptions {

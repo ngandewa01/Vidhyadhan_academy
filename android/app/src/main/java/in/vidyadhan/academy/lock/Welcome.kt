@@ -62,8 +62,8 @@ fun WelcomeScreen(onDone: () -> Unit) {
                         style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
                     if (st != Cloud.State.NotSetUp)
                         PrimaryButton("Sign in with Google", { error = null; scope.launch { error = Cloud.signIn(ctx) } }, Modifier.fillMaxWidth(), icon = Icons.AutoMirrored.Rounded.Login)
-                    if (st == Cloud.State.Error) StatusChip(Cloud.message, Tone.Bad)
-                    error?.let { StatusChip(it, Tone.Bad) }
+                    if (st == Cloud.State.Error) ErrorBox(Cloud.message)
+                    error?.let { ErrorBox(it) }
                 }
             }
         }
