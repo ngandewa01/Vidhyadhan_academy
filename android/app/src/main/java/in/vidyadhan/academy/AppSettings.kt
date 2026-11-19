@@ -49,6 +49,21 @@ object AppSettings {
     var telegramLink: String get() = get("tgLink", ""); set(v) = put("tgLink", v.trim())
     var updateUrl: String get() = get("updUrl", ""); set(v) = put("updUrl", v)
 
+    // ── Telegram bot ──
+    var botToken: String get() = get("botToken", ""); set(v) = put("botToken", v.trim())
+    var botName: String get() = get("botName", ""); set(v) = put("botName", v)
+    var botOffset: Long get() = get("botOffset", "0").toLong(); set(v) = put("botOffset", v.toString())
+    var botOwnerChat: Long get() = get("botOwner", "0").toLong(); set(v) = put("botOwner", v.toString())
+    var botStaffChat: Long get() = get("botStaff", "0").toLong(); set(v) = put("botStaff", v.toString())
+    var tgReceipt: Boolean get() = get("tgReceipt", "true") == "true"; set(v) = put("tgReceipt", v.toString())
+    var tgDue: Boolean get() = get("tgDue", "true") == "true"; set(v) = put("tgDue", v.toString())
+    var tgBirthday: Boolean get() = get("tgBday", "true") == "true"; set(v) = put("tgBday", v.toString())
+    var tgEnquiry: Boolean get() = get("tgEnq", "true") == "true"; set(v) = put("tgEnq", v.toString())
+    /** Telegram chat of a student, learnt when they press Start in the bot; keyed by @username (lower case). */
+    fun telegramChat(username: String): Long? = s["tg_${username.lowercase().removePrefix("@")}"]?.toLongOrNull()
+    fun setTelegramChat(username: String, chat: Long) = put("tg_${username.lowercase().removePrefix("@")}", chat.toString())
+    fun telegramChats(): Map<String, Long> = s.filterKeys { it.startsWith("tg_") }.mapNotNull { (k, v) -> v.toLongOrNull()?.let { k.removePrefix("tg_") to it } }.toMap()
+
     /** Day (epoch day) of the last successful backup; 0 = never. */
     var lastBackup: Long get() = get("lastBackup", "0").toLong(); set(v) = put("lastBackup", v.toString())
 

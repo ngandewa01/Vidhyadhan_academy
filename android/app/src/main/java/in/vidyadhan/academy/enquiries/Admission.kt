@@ -214,7 +214,7 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
                 }
                 from?.let { db.enquiries().update(it.copy(status = "JOINED")) }
                 val next = if (academy) plan.drop(if (paidFirst) 1 else 0).firstOrNull() else null
-                Contact.telegram(ctx, buildString {
+                val receipt = buildString {
                     append("✅ Admission confirmed — ${AppSettings.academyName}\n")
                     append("Student: ${name.trim()}\n")
                     if (academy) append("Course: $course" + (if (batch.isNotBlank()) " · $batch" else "") + "\n")
@@ -222,7 +222,10 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
                     if (payingNow > 0) append("Paid today: ${rupees(payingNow)} ($mode)\n")
                     if (next != null) append("Next due: ${rupees(next.amount)} on ${next.dueOn.asDate()}\n")
                     append("Thank you! 🙏")
-                })
+                }
+                // through the academy bot when the student is linked, otherwise the Telegram app opens with it
+                val sent = telegram.isNotBlank() && `in`.vidyadhan.academy.telegram.TelegramBot.sendTo(telegram, receipt)
+                if (!sent) Contact.telegram(ctx, receipt)
                 if (studentId > 0) onDone("student", studentId) else onDone("member", memberId)
             }
         }, Modifier.fillMaxWidth(), enabled = valid, icon = Icons.Rounded.Check)

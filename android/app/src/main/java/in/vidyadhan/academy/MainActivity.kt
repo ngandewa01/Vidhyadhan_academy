@@ -135,7 +135,7 @@ private fun AppShell(lock: LockStore) {
                                 onAdmitted = { kind, id -> if (kind == "student") go(Go.Student, id) else go(Go.Member, id) })
                             Tab.Library -> LibraryTab(openSeats = pending == Go.Seats, openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0,
                                 startFilter = when (pending) { Go.MemberDues -> MemberFilter.Expired; Go.MemberEnding -> MemberFilter.Ending; else -> MemberFilter.All }, onOpened = done)
-                            Tab.More -> MoreTab(::go)
+                            Tab.More -> `in`.vidyadhan.academy.telegram.BotPage(::go)
                             Tab.Money -> MoneyTab(openNew = pending == Go.NewExpense, onOpened = done)
                         }
                     }
@@ -189,22 +189,6 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
                 Spacer(Modifier.height(3.dp))
                 Text(t.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold), color = fg, maxLines = 1)
             }
-        }
-    }
-}
-
-/** Everything that is not on the bottom bar. */
-@Composable
-private fun MoreTab(onGo: (Go, Long) -> Unit) {
-    `in`.vidyadhan.academy.ui.HeroPage("Bot & More", "Telegram, money, messages and settings") {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Spacer(Modifier.height(6.dp))
-            `in`.vidyadhan.academy.ui.OptionRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF0284C7), "Telegram",
-                if (AppSettings.telegramLink.isBlank()) "Add your Telegram group link (Settings → Academy details)" else AppSettings.telegramLink) { onGo(Go.Settings, 0) }
-            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Money", "Income, expenses and reports") { onGo(Go.Money, 0) }
-            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message", "WhatsApp or Telegram to many people") { onGo(Go.Broadcast, 0) }
-            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Search, Brand.Blue600, "Search", "Students, members and enquiries") { onGo(Go.Search, 0) }
-            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Settings, Brand.Slate600, "Settings", "Academy details, fees, seat types, backup, updates") { onGo(Go.Settings, 0) }
         }
     }
 }

@@ -43,6 +43,7 @@ class StudentsViewModel(app: Application) : AndroidViewModel(app) {
     fun delete(s: Student) = viewModelScope.launch { dao.delete(s) }
     fun pay(p: StudentPayment, onSaved: (StudentPayment) -> Unit = {}) = viewModelScope.launch {
         val id = dao.insertPayment(p); onSaved(p.copy(id = id))
+        `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(getApplication(), p.studentId, p.amount, p.mode)
     }
     fun deletePayment(p: StudentPayment) = viewModelScope.launch { dao.deletePayment(p) }
 }

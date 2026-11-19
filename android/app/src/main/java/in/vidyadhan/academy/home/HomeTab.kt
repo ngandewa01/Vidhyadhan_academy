@@ -192,6 +192,11 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                     Text(AppSettings.academyName, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("Abhyasika Kendra · ${now.format(DateTimeFormatter.ofPattern("EEE, d MMM"))}", style = MaterialTheme.typography.labelMedium, color = Brand.Blue100.copy(alpha = 0.85f), maxLines = 1)
                 }
+                if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) {
+                    Text("TG BOT ON", Modifier.clip(RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = 0.15f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                    Spacer(Modifier.width(8.dp))
+                }
                 GlassIconButton(Icons.Rounded.Search, "Search", { onGo(Go.Search, 0) })
                 Spacer(Modifier.width(8.dp))
                 Box {
@@ -316,7 +321,8 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
 
     if (showReminders) ModalBottomSheet({ showReminders = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SheetTitle("Today's alerts", "Everything that needs you today")
+            SheetTitle("Today's alerts & Telegram feed", if (`in`.vidyadhan.academy.telegram.TelegramBot.connected)
+                "Due reminders and birthday wishes go out by the bot at ${"%02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)}" else "Everything that needs you today")
             if (feesDue > 0) OptionRow(Icons.Rounded.CurrencyRupee, Brand.Red600, "$feesDue student fee${if (feesDue == 1) "" else "s"} due", "Tap to collect") { showReminders = false; showCollect = true }
             if (callsToday > 0) OptionRow(Icons.Rounded.Call, Brand.Saffron500, "$callsToday enquir${if (callsToday == 1) "y" else "ies"} to call") { showReminders = false; onGo(Go.Enquiries, 0) }
             if (libDue > 0) OptionRow(Icons.Rounded.EventSeat, Brand.Teal700, "$libDue Abhyasika due${if (libDue == 1) "" else "s"}") { showReminders = false; onGo(Go.MemberDues, 0) }
@@ -414,6 +420,7 @@ private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<Lib
                 CollectRow(s.name, "Instalment ${if (due < t) "overdue since" else "due"} ${shortDate(due)}", s.nextDueAmount, due < t, done[key]) {
                     scope.launch {
                         db.students().insertPayment(StudentPayment(studentId = s.id, amount = s.nextDueAmount, paidOn = t, mode = mode))
+                        `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(ctx, s.id, s.nextDueAmount, mode)
                         done[key] = s.nextDueAmount
                     }
                 }

@@ -11,6 +11,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.work.*
+import kotlinx.coroutines.flow.first
 import `in`.vidyadhan.academy.AppSettings
 import `in`.vidyadhan.academy.MainActivity
 import `in`.vidyadhan.academy.R
@@ -69,6 +70,36 @@ class DailyWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
             if (bdays > 0) add("$bdays birthday(s) 🎂")
         }
         if (parts.isNotEmpty()) Reminders.notify(applicationContext, "Today: " + parts.joinToString(", "))
+        telegram(db, all, today, now)
         return Result.success()
+    }
+
+    /** The bot's daily work: due reminders (3 days before and on the day), birthday wishes, the staff digest. */
+    private suspend fun telegram(db: AppDb, all: List<`in`.vidyadhan.academy.data.StudentWithFees>, today: Long, now: LocalDate) {
+        val bot = `in`.vidyadhan.academy.telegram.TelegramBot
+        if (!bot.connected) return
+        bot.refresh()
+        val rupees = { v: Long -> `in`.vidyadhan.academy.students.rupees(v) }
+        if (AppSettings.tgDue) {
+            all.filter { it.telegram.isNotBlank() && it.nextDue != null && (it.nextDue == today || it.nextDue == today + 3) }.forEach {
+                bot.sendTo(it.telegram, "Installment reminder ⏰\nNamaskar ${it.name}, your ${it.course} installment of ${rupees(it.nextDueAmount)} is due on " +
+                    "${`in`.vidyadhan.academy.students.shortDate(it.nextDue!!)}. Please pay on time. — ${AppSettings.academyName}")
+            }
+            val byStudent = all.associateBy { it.id }
+            db.library().allMembers().filter { it.active && (it.validTill == today || it.validTill == today + 3) }.forEach { m ->
+                val tg = m.studentId?.let { byStudent[it]?.telegram }.orEmpty()
+                if (tg.isNotBlank()) bot.sendTo(tg, "Abhyasika renewal alert 📚\nHi ${m.name}, seat ${m.seatNo}" + (if (m.hasLocker) " + locker" else "") +
+                    " expires on ${`in`.vidyadhan.academy.students.shortDate(m.validTill)} (${rupees(m.monthlyFee)}/mo). Reply YES to renew.")
+            }
+        }
+        if (AppSettings.tgBirthday) all.filter { it.telegram.isNotBlank() && `in`.vidyadhan.academy.home.isBirthday(it.dob, now) }.forEach {
+            bot.sendTo(it.telegram, `in`.vidyadhan.academy.home.birthdayWish(it.name) + "\n\n" +
+                `in`.vidyadhan.academy.Templates.fill("birthday", false, mapOf("name" to it.name.substringBefore(' '))))
+        }
+        if (AppSettings.tgEnquiry && AppSettings.botStaffChat != 0L) {
+            val due = db.enquiries().all().first().filter { (it.status == "NEW" || it.status == "CONTACTED") && it.followUpOn <= today }
+            if (due.isNotEmpty()) bot.send(AppSettings.botStaffChat, "Enquiry follow-ups today (${due.size}):\n" +
+                due.joinToString("\n") { "• ${it.name} (${it.mobile})" + if (it.course.isNotBlank()) " — ${it.course}" else "" })
+        }
     }
 }
