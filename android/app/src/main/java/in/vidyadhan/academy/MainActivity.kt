@@ -69,8 +69,14 @@ class MainActivity : FragmentActivity() {
         setContent {
             VidyadhanTheme {
                 var unlocked by rememberSaveable { mutableStateOf(false) }
-                Crossfade(unlocked, animationSpec = tween(350), label = "lock") { u ->
-                    if (u) AppShell(store) else LockScreen(this, store) { unlocked = true }
+                // first open: sign in with Google or use this phone only; then the PIN as before
+                val welcome = !AppSettings.welcomed && `in`.vidyadhan.academy.cloud.Cloud.state != `in`.vidyadhan.academy.cloud.Cloud.State.On
+                Crossfade(if (welcome) 0 else if (unlocked) 2 else 1, animationSpec = tween(350), label = "lock") { u ->
+                    when (u) {
+                        0 -> `in`.vidyadhan.academy.lock.WelcomeScreen { }
+                        2 -> AppShell(store)
+                        else -> LockScreen(this, store) { unlocked = true }
+                    }
                 }
             }
         }

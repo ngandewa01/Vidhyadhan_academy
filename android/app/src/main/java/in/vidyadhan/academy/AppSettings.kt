@@ -31,6 +31,7 @@ object AppSettings {
     }
 
     // ── cloud sync state (this phone only) ──
+    var welcomed: Boolean get() = get("welcomed", "") == "1"; set(v) = put("welcomed", if (v) "1" else "")
     var cloudAcademy: String get() = get("cloudAcademy", ""); set(v) = put("cloudAcademy", v)
     var cloudDevice: Long get() = get("cloudDevice", "0").toLongOrNull() ?: 0; set(v) = put("cloudDevice", v.toString())
     var cloudLast: Long get() = get("cloudLast", "0").toLongOrNull() ?: 0; set(v) = put("cloudLast", v.toString())

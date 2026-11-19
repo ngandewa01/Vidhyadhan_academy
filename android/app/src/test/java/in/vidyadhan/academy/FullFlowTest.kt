@@ -42,6 +42,7 @@ class UnlockFlowTest {
 
     @Test fun unlockAndOpenEveryTab() {
         LockStore(ApplicationProvider.getApplicationContext()).setPin("1234")
+        AppSettings.welcomed = true
         rule.activityRule.scenario.recreate()
         listOf("1", "2", "3", "4").forEach { rule.onNodeWithText(it).performClick() }
         rule.waitForIdle()
@@ -58,6 +59,7 @@ class PickersTest {
 
     @Test fun backupRestoreExportButtonsDoNotCrash() {
         LockStore(ApplicationProvider.getApplicationContext()).setPin("1234")
+        AppSettings.welcomed = true
         rule.activityRule.scenario.recreate()
         listOf("1", "2", "3", "4").forEach { rule.onNodeWithText(it).performClick() }
         rule.waitForIdle()

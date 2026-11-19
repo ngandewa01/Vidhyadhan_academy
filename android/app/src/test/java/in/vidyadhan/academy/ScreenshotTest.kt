@@ -84,6 +84,8 @@ class ScreenshotTest {
     }
 
     @Test fun allScreens() {
+        shot("00-welcome")
+        rule.onNodeWithText("Use on this phone only").performClick(); settle()
         repeat(2) { listOf("1", "2", "3", "4").forEach { d -> rule.onNodeWithText(d).performClick() } }
         seed()
         runBlocking {
