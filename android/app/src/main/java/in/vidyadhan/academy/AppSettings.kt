@@ -24,6 +24,10 @@ object AppSettings {
     var courses: String get() = get("courses", "MPSC"); set(v) = put("courses", v)
     val courseList: List<String> get() = courses.split(",").map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf("MPSC") }
 
+    /** Usual fee of a course (filled in on the admission form); 0 = not set. */
+    fun courseFee(course: String): Long = get("cf_$course", "0").toLongOrNull() ?: 0
+    fun setCourseFee(course: String, fee: Long) = put("cf_$course", fee.toString())
+
     var batches: String get() = get("batches", "Morning, Evening, Weekend"); set(v) = put("batches", v)
     val batchList: List<String> get() = batches.split(",").map { it.trim() }.filter { it.isNotEmpty() }
 

@@ -105,7 +105,8 @@ private fun AppShell(lock: LockStore) {
             Go.Settings, Go.Backup -> settings = true
             Go.Search -> search = true
             Go.Broadcast -> broadcast = true
-            Go.Students, Go.NewStudent, Go.Student -> tab = Tab.Students
+            Go.Students, Go.Student -> tab = Tab.Students
+            Go.NewStudent -> tab = Tab.Enquiries
             Go.Enquiries, Go.NewEnquiry, Go.Enquiry -> tab = Tab.Enquiries
             Go.Library, Go.NewMember, Go.Member, Go.MemberDues, Go.MemberEnding, Go.Seats -> tab = Tab.Library
             Go.Money, Go.NewExpense -> tab = Tab.Money
@@ -127,9 +128,10 @@ private fun AppShell(lock: LockStore) {
                     Crossfade(tab, animationSpec = tween(220), label = "tabs") { t ->
                         when (t) {
                             Tab.Home -> HomeTab(::go)
-                            Tab.Students -> StudentsTab(openNew = pending == Go.NewStudent, openId = if (pending == Go.Student) pendingId else 0, onOpened = done)
-                            Tab.Enquiries -> EnquiriesTab(openNew = pending == Go.NewEnquiry, openId = if (pending == Go.Enquiry) pendingId else 0, onOpened = done,
-                                onConvert = { Handoff.prefill = it; tab = Tab.Students })
+                            Tab.Students -> StudentsTab(openId = if (pending == Go.Student) pendingId else 0, onOpened = done, onAdmit = { go(Go.NewStudent, 0) })
+                            Tab.Enquiries -> EnquiriesTab(openNew = pending == Go.NewEnquiry, openId = if (pending == Go.Enquiry) pendingId else 0,
+                                openAdmission = pending == Go.NewStudent, onOpened = done,
+                                onAdmitted = { kind, id -> if (kind == "student") go(Go.Student, id) else go(Go.Member, id) })
                             Tab.Library -> LibraryTab(openSeats = pending == Go.Seats, openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0,
                                 startFilter = when (pending) { Go.MemberDues -> MemberFilter.Expired; Go.MemberEnding -> MemberFilter.Ending; else -> MemberFilter.All }, onOpened = done)
                             Tab.More -> MoreTab(::go)

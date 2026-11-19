@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,7 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Chat
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -19,7 +23,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -62,88 +68,100 @@ private fun EnquiryStatus(e: Enquiry, t: Long) = when {
 }
 
 @Composable
-fun EnquiriesTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit = {}, onConvert: (Prefill) -> Unit = {}, vm: EnquiriesViewModel = viewModel()) {
+fun EnquiriesTab(
+    openNew: Boolean = false, openId: Long = 0, openAdmission: Boolean = false, onOpened: () -> Unit = {},
+    onAdmitted: (String, Long) -> Unit = { _, _ -> }, vm: EnquiriesViewModel = viewModel(),
+) {
     var screen by remember { mutableStateOf<Screen>(Screen.List) }
-    LaunchedEffect(openNew, openId) {
-        if (openNew) { screen = Screen.Form(0); onOpened() } else if (openId > 0) { screen = Screen.Detail(openId); onOpened() }
+    var sub by rememberSaveable { mutableStateOf("pipeline") } // pipeline or admission
+    var admitFrom by remember { mutableStateOf<Enquiry?>(null) }
+    LaunchedEffect(openNew, openId, openAdmission) {
+        if (openNew) { screen = Screen.Form(0); onOpened() }
+        else if (openId > 0) { screen = Screen.Detail(openId); onOpened() }
+        else if (openAdmission) { admitFrom = null; sub = "admission"; screen = Screen.List; onOpened() }
     }
-    BackHandler(enabled = screen != Screen.List) { screen = Screen.List }
+    BackHandler(enabled = screen != Screen.List || sub == "admission") { if (screen != Screen.List) screen = Screen.List else sub = "pipeline" }
     AnimatedContent(screen, transitionSpec = {
         if (targetState == Screen.List) (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { it / 5 } + fadeOut())
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "enq") { s ->
         when (s) {
-            Screen.List -> EnquiryList(vm, { screen = Screen.Form(0) }, { screen = Screen.Detail(it) })
+            Screen.List -> EnquiryList(vm, sub, { sub = it }, admitFrom, onAdmit = { admitFrom = it; sub = "admission" },
+                onAdd = { screen = Screen.Form(0) }, onOpen = { screen = Screen.Detail(it) },
+                onAdmitted = { kind, id -> sub = "pipeline"; admitFrom = null; onAdmitted(kind, id) })
             is Screen.Form -> EnquiryForm(vm, s.id) { screen = if (s.id == 0L) Screen.List else Screen.Detail(s.id) }
-            is Screen.Detail -> EnquiryDetail(vm, s.id, { screen = Screen.List }, { screen = Screen.Form(s.id) }, onConvert)
+            is Screen.Detail -> EnquiryDetail(vm, s.id, { screen = Screen.List }, { screen = Screen.Form(s.id) }) { en -> admitFrom = en; sub = "admission"; screen = Screen.List }
         }
     }
 }
 
 @Composable
-private fun EnquiryList(vm: EnquiriesViewModel, onAdd: () -> Unit, onOpen: (Long) -> Unit) {
+private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) -> Unit, admitFrom: Enquiry?, onAdmit: (Enquiry?) -> Unit,
+                        onAdd: () -> Unit, onOpen: (Long) -> Unit, onAdmitted: (String, Long) -> Unit) {
+    val ctx = LocalContext.current
     val all by vm.list.collectAsStateWithLifecycle()
-    var filter by rememberSaveable { mutableStateOf("today") }
-    var q by rememberSaveable { mutableStateOf("") }
     val t = today()
     val open = all.filter(::isOpen)
-    val due = open.filter { it.followUpOn <= t }
-    val joinedCount = all.count { it.status == "JOINED" }
-    val shown = when (filter) { "today" -> due; "open" -> open; else -> all }
-        .filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) }
-    HeroPage("Enquiries", "${open.size} open · ${due.size} to follow up today", header = {
-        Spacer(Modifier.height(16.dp))
-        SearchBox(q, { q = it }, "Search enquiries")
+    HeroPage("Enquiries & Admissions", "Convert walk-ins into Academy, Abhyasika or Combo", header = {
         Spacer(Modifier.height(12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassStat("Follow up", "${due.size}", Modifier.weight(1f), valueColor = Brand.Saffron200)
-            GlassStat("Open", "${open.size}", Modifier.weight(1f))
-            GlassStat("Joined", "$joinedCount", Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.25f)).border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)).padding(3.dp)) {
+            listOf("pipeline" to "Enquiries (${open.size})", "admission" to "+ New Admission").forEach { (k, l) ->
+                Text(l, Modifier.weight(1f).clip(RoundedCornerShape(9.dp)).background(if (sub == k) Color.White else Color.Transparent).clickable { if (k == "admission") onAdmit(null) else setSub(k) }
+                    .padding(vertical = 7.dp), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                    color = if (sub == k) Brand.Blue700 else Brand.Blue100, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
         }
     }) {
-        Box(Modifier.fillMaxSize()) {
-            Column {
-                Segmented(listOf("today" to "Today (${due.size})", "open" to "Open", "all" to "All"), filter, { filter = it },
-                    Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
-                if (shown.isEmpty()) EmptyState(Icons.Rounded.Forum,
-                    if (all.isEmpty()) "No enquiries yet" else if (filter == "today") "Nothing to follow up today" else "No matches",
-                    if (all.isEmpty()) "Note every call or walk-in. The app reminds you to follow up." else "You're all caught up. 🎉",
-                    action = if (all.isEmpty()) "New enquiry" else null, onAction = onAdd)
-                else LazyColumn(contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, 110.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(shown, key = { it.id }) { e ->
-                        ListCard(onClick = { onOpen(e.id) }) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Avatar(e.name)
-                                Spacer(Modifier.width(14.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(e.name, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1)
-                                    Spacer(Modifier.height(3.dp))
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        if (e.course.isNotBlank()) { SmallTag(e.course, Brand.Saffron700); Spacer(Modifier.width(6.dp)) }
-                                        if (e.source.isNotBlank()) { SmallTag(e.source, Brand.Blue600); Spacer(Modifier.width(8.dp)) }
-                                        Text(e.mobile, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                                    }
-                                }
-                                EnquiryStatus(e, t)
-                            }
-                            if (e.details.isNotBlank()) {
-                                Spacer(Modifier.height(10.dp))
-                                Text("“${e.details}”", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600, maxLines = 2)
-                            }
-                            if (isOpen(e)) {
-                                Spacer(Modifier.height(10.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Rounded.Alarm, null, tint = if (e.followUpOn < t) Brand.Red600 else Brand.Slate400, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Follow up ${whenText(e.followUpOn)}",
-                                        style = MaterialTheme.typography.labelMedium, color = if (e.followUpOn < t) Brand.Red600 else Brand.Slate500)
-                                }
-                            }
+        if (sub == "admission") Column(Modifier.verticalScroll(rememberScrollState()).imePadding()) {
+            if (admitFrom != null) Text("From enquiry: ${admitFrom.name}", Modifier.padding(start = 16.dp, top = 12.dp), style = MaterialTheme.typography.labelMedium, color = Brand.Saffron600)
+            AdmissionForm(admitFrom, onAdmitted)
+        } else LazyColumn(contentPadding = PaddingValues(14.dp, 14.dp, 14.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Active leads (${open.size})", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Slate600)
+                    PillButton("Add enquiry", onAdd, Brand.Blue700, Icons.Rounded.Add)
+                }
+            }
+            if (open.isEmpty()) item { EmptyState(Icons.Rounded.Forum, "No active leads", "Note every call or walk-in with “Add enquiry”. The app reminds you to follow up.") }
+            items(open.sortedBy { it.followUpOn }, key = { it.id }) { e ->
+                val (label, fg, bg) = when {
+                    e.followUpOn <= t -> Triple("Follow-up Today", Brand.Amber700, Brand.Amber50)
+                    e.status == "CONTACTED" -> Triple("Visited", Brand.Amber700, Brand.Amber50)
+                    else -> Triple("Hot", Color(0xFFBE123C), Color(0xFFFFF1F2))
+                }
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), { onOpen(e.id) }).padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        Column(Modifier.weight(1f)) {
+                            Text(e.name, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
+                            if (e.course.isNotBlank()) Text(e.course, style = MaterialTheme.typography.labelMedium, color = Brand.Blue700)
+                        }
+                        Text(label, Modifier.clip(RoundedCornerShape(50)).background(bg).border(1.dp, fg.copy(alpha = 0.25f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = fg)
+                    }
+                    Text("“${e.details.ifBlank { "No note yet" }}”", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp))
+                        .padding(8.dp), style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
+                    Row {
+                        Text("Source: ", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
+                        Text(e.source.ifBlank { "—" }, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Slate600)
+                        Text("Follow-up: ", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
+                        Text(if (e.followUpOn <= t) "Today" else relativeDay(e.followUpOn), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Saffron500)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF0F9FF)).border(1.dp, Color(0xFFBAE6FD), RoundedCornerShape(12.dp))
+                            .clickable { Contact.telegram(ctx, `in`.vidyadhan.academy.Templates.fill("enquiry", false, mapOf("name" to e.name))) }.padding(vertical = 9.dp),
+                            horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color(0xFF0369A1), modifier = Modifier.size(15.dp)); Spacer(Modifier.width(6.dp))
+                            Text("Telegram info", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color(0xFF0369A1))
+                        }
+                        Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Brand.Blue700).clickable { onAdmit(e) }.padding(vertical = 9.dp),
+                            horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Admit student", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color.White); Spacer(Modifier.width(4.dp))
+                            Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Color.White, modifier = Modifier.size(15.dp))
                         }
                     }
                 }
             }
-            if (all.isNotEmpty()) Fab("New enquiry", Icons.Rounded.AddComment, onAdd, Modifier.align(Alignment.BottomEnd).padding(20.dp))
         }
     }
 }
@@ -200,7 +218,7 @@ private fun EnquiryForm(vm: EnquiriesViewModel, id: Long, onDone: () -> Unit) {
 }
 
 @Composable
-private fun EnquiryDetail(vm: EnquiriesViewModel, id: Long, onBack: () -> Unit, onEdit: () -> Unit, onConvert: (Prefill) -> Unit) {
+private fun EnquiryDetail(vm: EnquiriesViewModel, id: Long, onBack: () -> Unit, onEdit: () -> Unit, onAdmit: (Enquiry) -> Unit) {
     val ctx = LocalContext.current
     val e by remember(id) { vm.get(id) }.collectAsStateWithLifecycle(null)
     var confirm by remember { mutableStateOf(false) }
@@ -237,11 +255,11 @@ private fun EnquiryDetail(vm: EnquiriesViewModel, id: Long, onBack: () -> Unit, 
                         PrimaryButton("Called · remind me in $days days", { vm.save(en.copy(status = "CONTACTED", followUpOn = t + days)) },
                             Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.PhoneCallback)
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            SoftButton("Joined", { vm.save(en.copy(status = "JOINED")) }, Modifier.weight(1f), color = Brand.Green700, icon = Icons.Rounded.HowToReg)
+                            SoftButton("Admit", { onAdmit(en) }, Modifier.weight(1f), color = Brand.Green700, icon = Icons.Rounded.HowToReg)
                             SoftButton("Not interested", { vm.save(en.copy(status = "CLOSED")) }, Modifier.weight(1f), color = Brand.Slate600, icon = Icons.Rounded.DoNotDisturbOn)
                         }
                     } else {
-                        if (en.status == "JOINED") PrimaryButton("Add as student", { onConvert(Prefill(en.name, en.mobile, en.course)) }, Modifier.fillMaxWidth(),
+                        if (en.status == "JOINED") PrimaryButton("Admit again", { onAdmit(en) }, Modifier.fillMaxWidth(),
                             icon = Icons.Rounded.PersonAdd, custom = Brush.linearGradient(listOf(Brand.Green500, Brand.Green700)))
                         SoftButton("Reopen enquiry", { vm.save(en.copy(status = "CONTACTED", followUpOn = t + days)) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Replay)
                     }

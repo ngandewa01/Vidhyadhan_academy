@@ -49,7 +49,7 @@ private sealed interface Screen {
 }
 
 @Composable
-fun StudentsTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit = {}, vm: StudentsViewModel = viewModel()) {
+fun StudentsTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit = {}, onAdmit: (() -> Unit)? = null, vm: StudentsViewModel = viewModel()) {
     var screen by remember { mutableStateOf<Screen>(Screen.List) }
     LaunchedEffect(openNew, openId, Handoff.prefill) {
         if (openNew || Handoff.prefill != null) { screen = Screen.Form(0); onOpened() }
@@ -61,7 +61,7 @@ fun StudentsTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "students") { s ->
         when (s) {
-            Screen.List -> StudentList(vm, onAdd = { screen = Screen.Form(0) }, onOpen = { screen = Screen.Detail(it) })
+            Screen.List -> StudentList(vm, onAdd = { onAdmit?.invoke() ?: run { screen = Screen.Form(0) } }, onOpen = { screen = Screen.Detail(it) })
             is Screen.Form -> StudentForm(vm, s.id, onCancel = { screen = if (s.id == 0L) Screen.List else Screen.Detail(s.id) }, onSaved = { screen = Screen.Detail(it) })
             is Screen.Detail -> StudentDetail(vm, s.id, onBack = { screen = Screen.List }, onEdit = { screen = Screen.Form(s.id) })
         }
