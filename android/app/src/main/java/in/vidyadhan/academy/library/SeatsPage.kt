@@ -64,7 +64,7 @@ fun statusDot(s: SeatStatus): Color = when (s) {
 /** "Seat management": rooms, their floor plans, and tapping seats to allocate them. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SeatsPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Long) -> Unit) {
+internal fun SeatsPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Long) -> Unit, switcher: @Composable () -> Unit = {}) {
     val members by vm.members.collectAsStateWithLifecycle()
     val types by vm.types.collectAsStateWithLifecycle()
     val rooms by vm.rooms.collectAsStateWithLifecycle()
@@ -91,7 +91,7 @@ internal fun SeatsPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Long
         }
     }
 
-    HeroPage("Seat management", "${seats.size} seats · ${seats.count { it !in bySeat }} free") {
+    HeroPage("Library", "${seats.size} seats · ${seats.count { it !in bySeat }} free", header = { switcher() }) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 24.dp)) {
             Spacer(Modifier.height(16.dp))
             if (rooms.isEmpty()) {

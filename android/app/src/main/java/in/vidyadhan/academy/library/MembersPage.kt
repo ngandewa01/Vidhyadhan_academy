@@ -46,7 +46,8 @@ private fun matches(f: MemberFilter, m: LibraryMember, t: Long): Boolean = when 
 
 /** "Members": counts, search, filters and the member cards. */
 @Composable
-internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: (MemberFilter) -> Unit, onAdd: () -> Unit, onOpen: (Long) -> Unit, onPlans: () -> Unit) {
+internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: (MemberFilter) -> Unit, onAdd: () -> Unit, onOpen: (Long) -> Unit, onPlans: () -> Unit,
+                         switcher: @Composable () -> Unit = {}) {
     val ctx = LocalContext.current
     val members by vm.members.collectAsStateWithLifecycle()
     val rooms by vm.rooms.collectAsStateWithLifecycle()
@@ -60,7 +61,7 @@ internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: 
         .filter { m -> q.isEmpty() || m.name.lowercase().contains(q) || m.mobile.contains(q) || m.seatNo.toString() == q || m.lockerNo.lowercase() == q }
         .let { l -> when (sort) { "Name" -> l.sortedBy { it.name.lowercase() }; "Valid till" -> l.sortedBy { it.validTill }; else -> l.sortedBy { it.seatNo } } }
 
-    HeroPage("Members", "${active.size} active · ${count(MemberFilter.Expired)} expired") {
+    HeroPage("Library", "${active.size} members · ${count(MemberFilter.Expired)} expired", header = { switcher() }) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 18.dp, 16.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

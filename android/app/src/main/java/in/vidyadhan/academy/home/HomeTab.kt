@@ -77,6 +77,8 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val seats = allSeats(rooms, AppSettings.seatCount)
     val free = seats.count { n -> active.none { it.seatNo == n } }
     val openEnq = enquiries.filter { it.status == "NEW" || it.status == "CONTACTED" }
+    val pending = students.sumOf { (it.totalFee - it.paid).coerceAtLeast(0) }
+    val overdue = students.count { it.nextDue != null && it.nextDue < t }
 
     val dues = active.filter { it.validTill < t || it.balance > 0 }.sortedBy { it.validTill }.map {
         val late = t - it.validTill
@@ -116,28 +118,29 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
             }
             Spacer(Modifier.height(18.dp))
             Text("Dashboard", style = MaterialTheme.typography.headlineMedium, color = Color.White)
-            Text("Here's what is happening today.", style = MaterialTheme.typography.bodyMedium, color = Brand.Blue200)
+            Text("Academy and library at a glance", style = MaterialTheme.typography.bodyMedium, color = Brand.Blue200)
         }
 
         Column(Modifier.offset(y = (-30).dp).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            // Academy first
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Stat("Library members", "${active.size}", Icons.Rounded.Groups, Brand.Blue600, Modifier.weight(1f)) { onGo(Go.Library, 0) }
-                Stat("Free / total seats", "$free / ${seats.size}", Icons.Rounded.EventSeat, Brand.Green600, Modifier.weight(1f)) { onGo(Go.Seats, 0) }
+                Stat("Students", "${students.size}", Icons.Rounded.School, Brand.Blue600, Modifier.weight(1f),
+                    sub = if (overdue == 0) "All fees on time" else "$overdue fee overdue") { onGo(Go.Students, 0) }
+                Stat("Fees to collect", rupees(pending), Icons.Rounded.AccountBalanceWallet, Brand.Red600, Modifier.weight(1f),
+                    sub = "${students.count { it.totalFee > it.paid }} students") { onGo(Go.Students, 0) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Stat("Income ${now.format(DateTimeFormatter.ofPattern("MMMM"))}", rupees(feesMonth + libMonth), Icons.Rounded.CurrencyRupee, Brand.Saffron600, Modifier.weight(1f)) { onGo(Go.Money, 0) }
-                Stat("Income this year", rupees(feesYear + libYear), Icons.Rounded.Savings, Brand.Violet700, Modifier.weight(1f)) { onGo(Go.Money, 0) }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Stat("Students", "${students.size}", Icons.Rounded.School, Brand.Teal700, Modifier.weight(1f)) { onGo(Go.Students, 0) }
-                Stat("Open enquiries", "${openEnq.size}", Icons.Rounded.Forum, Brand.Saffron700, Modifier.weight(1f)) { onGo(Go.Enquiries, 0) }
+                Stat("Open enquiries", "${openEnq.size}", Icons.Rounded.Forum, Brand.Saffron600, Modifier.weight(1f),
+                    sub = "${followUps.size} to call today") { onGo(Go.Enquiries, 0) }
+                Stat("Income ${now.format(DateTimeFormatter.ofPattern("MMMM"))}", rupees(feesMonth + libMonth), Icons.Rounded.CurrencyRupee, Brand.Green600, Modifier.weight(1f),
+                    sub = "This year ${rupees(feesYear + libYear)}") { onGo(Go.Money, 0) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                QuickAction("Add member", Icons.Rounded.PersonAdd, Modifier.weight(1f)) { onGo(Go.NewMember, 0) }
-                QuickAction("Add student", Icons.Rounded.School, Modifier.weight(1f)) { onGo(Go.NewStudent, 0) }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                QuickAction("Add student", Icons.Rounded.PersonAdd, Modifier.weight(1f)) { onGo(Go.NewStudent, 0) }
                 QuickAction("New enquiry", Icons.Rounded.AddComment, Modifier.weight(1f)) { onGo(Go.NewEnquiry, 0) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                QuickAction("Library member", Icons.Rounded.EventSeat, Modifier.weight(1f)) { onGo(Go.NewMember, 0) }
                 QuickAction("Add expense", Icons.Rounded.ReceiptLong, Modifier.weight(1f)) { onGo(Go.NewExpense, 0) }
             }
 
@@ -159,19 +162,28 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                 }
             }
 
-            DashCard("Payment dues", "${dues.size} member${if (dues.size == 1) "" else "s"} pending", Brand.Red600, dues, "View all dues", "No library fees pending ✓",
+            Group("Academy", Icons.Rounded.School, Brand.Blue700)
+            DashCard("Student fees", "${studentDue.size} due in the next 7 days", Brand.Blue700, studentDue, "View students", "No student fees due this week ✓",
+                onAll = { onGo(Go.Students, 0) }, onGo = onGo)
+            DashCard("Enquiry follow-ups", "${followUps.size} to call today", Brand.Saffron700, followUps, "View enquiries", "No follow-ups due today ✓",
+                onAll = { onGo(Go.Enquiries, 0) }, onGo = onGo)
+
+            Group("Library (Abhyasika)", Icons.Rounded.LocalLibrary, Brand.Teal700)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Stat("Library members", "${active.size}", Icons.Rounded.Groups, Brand.Teal700, Modifier.weight(1f)) { onGo(Go.Library, 0) }
+                Stat("Free / total seats", "$free / ${seats.size}", Icons.Rounded.EventSeat, Brand.Green600, Modifier.weight(1f)) { onGo(Go.Seats, 0) }
+            }
+            DashCard("Library fee dues", "${dues.size} member${if (dues.size == 1) "" else "s"} pending", Brand.Red600, dues, "View all dues", "No library fees pending ✓",
                 onAll = { onGo(Go.MemberDues, 0) }, onGo = onGo)
             DashCard("Ending soon", "${ending.size} member${if (ending.size == 1) "" else "s"} in the next $ENDING_DAYS days", Brand.Saffron700, ending, "View all", "No plans ending this week",
                 onAll = { onGo(Go.MemberEnding, 0) }, onGo = onGo)
-            DashCard("Student fees", "${studentDue.size} due in the next 7 days", Brand.Blue700, studentDue, "View students", "No student fees due this week",
-                onAll = { onGo(Go.Students, 0) }, onGo = onGo)
-            if (followUps.isNotEmpty()) DashCard("Enquiry follow-ups", "${followUps.size} to call today", Brand.Teal700, followUps, "View enquiries", "",
-                onAll = { onGo(Go.Enquiries, 0) }, onGo = onGo)
-            DashCard("Recent payments", "${recent.size} latest", Brand.Green700, recent.map { it.toLine() }, "View all payments", "No payments yet",
-                onAll = { onGo(Go.Money, 0) }, onGo = onGo)
-            DashCard("Today's admissions", "${joinedToday.size} new member${if (joinedToday.size == 1) "" else "s"} today", Brand.Violet700,
+            if (joinedToday.isNotEmpty()) DashCard("Joined the library today", "${joinedToday.size} new member${if (joinedToday.size == 1) "" else "s"}", Brand.Violet700,
                 joinedToday.map { Line(it.name, "Seat ${it.seatNo}" + if (it.planName.isNotBlank()) " · ${it.planName}" else "", Brand.Slate500, it.photo, Go.Member, it.id) },
-                "View members", "Nobody joined today", onAll = { onGo(Go.Library, 0) }, onGo = onGo)
+                "View members", "", onAll = { onGo(Go.Library, 0) }, onGo = onGo)
+
+            Group("Money", Icons.Rounded.AccountBalanceWallet, Brand.Green700)
+            DashCard("Recent payments", "Students and library", Brand.Green700, recent.map { it.toLine() }, "View all payments", "No payments yet",
+                onAll = { onGo(Go.Money, 0) }, onGo = onGo)
             Spacer(Modifier.height(4.dp))
         }
     }
@@ -184,12 +196,13 @@ private fun PaymentRow.toLine(): Line {
 }
 
 @Composable
-private fun Stat(label: String, value: String, icon: ImageVector, color: Color, modifier: Modifier, onClick: () -> Unit) {
+private fun Stat(label: String, value: String, icon: ImageVector, color: Color, modifier: Modifier, sub: String? = null, onClick: () -> Unit) {
     Row(modifier.softCard(RoundedCornerShape(22.dp), 8.dp).clip(RoundedCornerShape(22.dp)).pressable(onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text(label, style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, maxLines = 2)
             Spacer(Modifier.height(4.dp))
             Text(value, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (sub != null) Text(sub, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Box(Modifier.size(40.dp).clip(CircleShape).background(color.copy(alpha = 0.12f)), Alignment.Center) { Icon(icon, null, tint = color, modifier = Modifier.size(21.dp)) }
     }
@@ -240,5 +253,17 @@ private fun DashCard(title: String, subtitle: String, color: Color, lines: List<
             Spacer(Modifier.width(6.dp))
             Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
         }
+    }
+}
+
+/** Heading that separates the academy, library and money parts of the dashboard. */
+@Composable
+private fun Group(title: String, icon: ImageVector, color: Color) {
+    Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(32.dp).clip(CircleShape).background(color), Alignment.Center) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+        Spacer(Modifier.width(10.dp))
+        Text(title, style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
+        Spacer(Modifier.width(10.dp))
+        HorizontalDivider(Modifier.weight(1f), color = Brand.Line)
     }
 }

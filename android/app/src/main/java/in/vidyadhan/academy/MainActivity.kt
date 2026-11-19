@@ -74,12 +74,11 @@ class MainActivity : FragmentActivity() {
 
 private enum class Tab(val label: String, val on: ImageVector, val off: ImageVector, val inNav: Boolean = true) {
     Home("Dashboard", Icons.Rounded.Dashboard, Icons.Outlined.Dashboard),
-    Members("Members", Icons.Rounded.Groups, Icons.Outlined.Groups),
-    Seats("Seats", Icons.Rounded.EventSeat, Icons.Outlined.EventSeat),
     Students("Students", Icons.Rounded.School, Icons.Outlined.School),
+    Enquiries("Enquiries", Icons.Rounded.Forum, Icons.Outlined.Forum),
+    Library("Library", Icons.Rounded.LocalLibrary, Icons.Outlined.LocalLibrary),
     More("More", Icons.Rounded.GridView, Icons.Outlined.GridView),
     // opened from "More" (the More tab stays highlighted)
-    Enquiries("Enquiries", Icons.Rounded.Forum, Icons.Outlined.Forum, inNav = false),
     Money("Money", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, inNav = false),
 }
 
@@ -104,14 +103,13 @@ private fun AppShell(lock: LockStore) {
             Go.Broadcast -> broadcast = true
             Go.Students, Go.NewStudent, Go.Student -> tab = Tab.Students
             Go.Enquiries, Go.NewEnquiry, Go.Enquiry -> tab = Tab.Enquiries
-            Go.Library, Go.NewMember, Go.Member, Go.MemberDues, Go.MemberEnding -> tab = Tab.Members
-            Go.Seats -> tab = Tab.Seats
+            Go.Library, Go.NewMember, Go.Member, Go.MemberDues, Go.MemberEnding, Go.Seats -> tab = Tab.Library
             Go.Money, Go.NewExpense -> tab = Tab.Money
         }
         pending = g; pendingId = id
     }
     val done = { pending = null; pendingId = 0L }
-    BackHandler(enabled = tab == Tab.Enquiries || tab == Tab.Money) { tab = Tab.More }
+    BackHandler(enabled = tab == Tab.Money) { tab = Tab.More }
     CompositionLocalProvider(LocalNavHider provides hider) {
         Box(Modifier.fillMaxSize().background(Brand.Bg)) {
             Column(Modifier.fillMaxSize()) {
@@ -122,9 +120,8 @@ private fun AppShell(lock: LockStore) {
                             Tab.Students -> StudentsTab(openNew = pending == Go.NewStudent, openId = if (pending == Go.Student) pendingId else 0, onOpened = done)
                             Tab.Enquiries -> EnquiriesTab(openNew = pending == Go.NewEnquiry, openId = if (pending == Go.Enquiry) pendingId else 0, onOpened = done,
                                 onConvert = { Handoff.prefill = it; tab = Tab.Students })
-                            Tab.Members -> LibraryTab(openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0,
+                            Tab.Library -> LibraryTab(openSeats = pending == Go.Seats, openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0,
                                 startFilter = when (pending) { Go.MemberDues -> MemberFilter.Expired; Go.MemberEnding -> MemberFilter.Ending; else -> MemberFilter.All }, onOpened = done)
-                            Tab.Seats -> LibraryTab(seats = true)
                             Tab.More -> MoreTab(::go)
                             Tab.Money -> MoneyTab(openNew = pending == Go.NewExpense, onOpened = done)
                         }
@@ -177,10 +174,9 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
 /** Everything that is not on the bottom bar. */
 @Composable
 private fun MoreTab(onGo: (Go, Long) -> Unit) {
-    `in`.vidyadhan.academy.ui.HeroPage("More", "Enquiries, money, messages and settings") {
+    `in`.vidyadhan.academy.ui.HeroPage("More", "Money, messages and settings") {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Spacer(Modifier.height(6.dp))
-            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Forum, Brand.Saffron600, "Enquiries", "Follow-ups and new admissions") { onGo(Go.Enquiries, 0) }
             `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Money", "Income, expenses and reports") { onGo(Go.Money, 0) }
             `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message", "WhatsApp or Telegram to many people") { onGo(Go.Broadcast, 0) }
             `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Search, Brand.Blue600, "Search", "Students, members and enquiries") { onGo(Go.Search, 0) }

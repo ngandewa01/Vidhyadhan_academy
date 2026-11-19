@@ -45,7 +45,7 @@ class UnlockFlowTest {
         rule.activityRule.scenario.recreate()
         listOf("1", "2", "3", "4").forEach { rule.onNodeWithText(it).performClick() }
         rule.waitForIdle()
-        listOf("Members", "Seats", "Students", "More", "Dashboard").forEach {
+        listOf("Students", "Enquiries", "Library", "More", "Dashboard").forEach {
             rule.onAllNodesWithText(it).onLast().performClick(); rule.waitForIdle()
         }
     }

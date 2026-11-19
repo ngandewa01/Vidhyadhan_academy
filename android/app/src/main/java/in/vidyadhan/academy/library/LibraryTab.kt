@@ -96,11 +96,18 @@ fun libraryReminder(m: LibraryMember, t: Long): String {
 
 @Composable
 fun LibraryTab(
-    seats: Boolean = false, openNew: Boolean = false, openId: Long = 0, startFilter: MemberFilter = MemberFilter.All,
+    openSeats: Boolean = false, openNew: Boolean = false, openId: Long = 0, startFilter: MemberFilter = MemberFilter.All,
     onOpened: () -> Unit = {}, vm: LibraryViewModel = viewModel(),
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Main) }
     var memberFilter by rememberSaveable { mutableStateOf(MemberFilter.All) }
+    var seats by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(openSeats) { if (openSeats) { seats = true; screen = Screen.Main; onOpened() } }
+    LaunchedEffect(openNew, openId, startFilter) { if (openNew || openId > 0 || startFilter != MemberFilter.All) seats = false }
+    val switcher: @Composable () -> Unit = {
+        Spacer(Modifier.height(14.dp))
+        Segmented(listOf("members" to "Members", "seats" to "Seats"), if (seats) "seats" else "members", { seats = it == "seats" })
+    }
     LaunchedEffect(startFilter) { if (startFilter != MemberFilter.All) memberFilter = startFilter }
     val members by vm.members.collectAsStateWithLifecycle()
     LaunchedEffect(openNew, openId, startFilter) {
@@ -118,11 +125,11 @@ fun LibraryTab(
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "lib") { s ->
         when (s) {
-            Screen.Main -> if (seats) SeatsPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) })
+            Screen.Main -> if (seats) SeatsPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) }, switcher)
             else MembersPage(vm, memberFilter, { memberFilter = it }, onAdd = {
                 val taken = members.filter { it.active }.map { it.seatNo }.toSet()
                 screen = Screen.Form(allSeats(vm.rooms.value, AppSettings.seatCount).firstOrNull { it !in taken } ?: 0)
-            }, onOpen = { screen = Screen.Detail(it) }, onPlans = { screen = Screen.Plans })
+            }, onOpen = { screen = Screen.Detail(it) }, onPlans = { screen = Screen.Plans }, switcher = switcher)
             Screen.Plans -> PlansPage(vm) { screen = Screen.Main }
             is Screen.Form -> MemberForm(vm, s.seat, s.id, onCancel = { screen = if (s.id == 0L) Screen.Main else Screen.Detail(s.id) }, onSaved = { screen = Screen.Detail(it) })
             is Screen.Detail -> MemberDetail(vm, s.id, onBack = { screen = Screen.Main }, onOpen = { screen = Screen.Detail(it) }, onEdit = { screen = Screen.Form(0, s.id) })
