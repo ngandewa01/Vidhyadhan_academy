@@ -66,6 +66,8 @@ private data class Txn(val title: String, val subtitle: String, val amount: Long
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeTab(onGo: (Go, Long) -> Unit) {
+    var newsOpen by rememberSaveable { mutableStateOf<String?>(null) }
+    newsOpen?.let { `in`.vidyadhan.academy.ai.NewsPage(it) { newsOpen = null }; return }
     val ctx = LocalContext.current
     val db = AppDb.get(ctx)
     val now = LocalDate.now()
@@ -281,6 +283,8 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                 Quick("+ Enquiry", Icons.Rounded.AddComment, Brand.Saffron500, Brand.Saffron100, Modifier.weight(1f)) { onGo(Go.NewEnquiry, 0) }
                 Quick("+ Expense", Icons.Rounded.ReceiptLong, Brand.Red600, Brand.Red50, Modifier.weight(1f)) { onGo(Go.NewExpense, 0) }
             }
+
+            `in`.vidyadhan.academy.ai.NewsCard { newsOpen = it }
 
             Column(Modifier.longPress { arranging = true }, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (arranging) Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(18.dp), 4.dp).padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),

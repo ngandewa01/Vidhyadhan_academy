@@ -41,14 +41,14 @@ object Reminders {
         WorkManager.getInstance(ctx).enqueueUniquePeriodicWork("daily", ExistingPeriodicWorkPolicy.UPDATE, req)
     }
 
-    fun notify(ctx: Context, text: String) {
+    fun notify(ctx: Context, text: String, id: Int = 1, title: String = AppSettings.academyName) {
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val open = PendingIntent.getActivity(ctx, 0, Intent(ctx, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         val n = NotificationCompat.Builder(ctx, CH)
-            .setSmallIcon(R.drawable.ic_notify).setContentTitle(AppSettings.academyName)
+            .setSmallIcon(R.drawable.ic_notify).setContentTitle(title)
             .setContentText(text).setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setContentIntent(open).setAutoCancel(true).build()
-        NotificationManagerCompat.from(ctx).notify(1, n)
+        NotificationManagerCompat.from(ctx).notify(id, n)
     }
 }
 

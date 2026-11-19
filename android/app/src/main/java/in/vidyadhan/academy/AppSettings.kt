@@ -20,7 +20,7 @@ object AppSettings {
     // ── shared with the academy's other phones through the cloud ──
     /** Called after a setting changes (cloud sync listens). */
     var onChange: ((String) -> Unit)? = null
-    private val sharedKeys = setOf("name", "phone", "address", "rprefix", "courses", "batches", "inst", "lateFee", "lateOn", "enqDays", "seats", "lockerCount", "lockerDep", "lockerFee", "tgLink")
+    private val sharedKeys = setOf("name", "phone", "address", "rprefix", "courses", "batches", "inst", "lateFee", "lateOn", "enqDays", "seats", "lockerCount", "lockerDep", "lockerFee", "tgLink", "gemKey")
     /** Settings every phone of the academy uses (not phone-only things like the bot, reminders already sent or the dashboard order). */
     fun isShared(k: String) = k in sharedKeys || k.startsWith("cf_") || k.startsWith("tpl_")
     fun sharedValues(): Map<String, String> = s.filterKeys(::isShared).toMap()
@@ -77,6 +77,16 @@ object AppSettings {
     var botName: String get() = get("botName", ""); set(v) = put("botName", v)
     var botOffset: Long get() = get("botOffset", "0").toLong(); set(v) = put("botOffset", v.toString())
     var botOwnerChat: Long get() = get("botOwner", "0").toLong(); set(v) = put("botOwner", v.toString())
+    /** The students' Telegram group (registered by sending /students there). */
+    var botStudentsChat: Long get() = get("botStudents", "0").toLongOrNull() ?: 0; set(v) = put("botStudents", v.toString())
+    // MPSC news (AI). The key is shared with the academy's other phones through the cloud; once saved it is not edited.
+    var geminiKey: String get() = get("gemKey", ""); set(v) = put("gemKey", v)
+    var geminiModel: String get() = get("gemModel", ""); set(v) = put("gemModel", v)
+    var newsOn: Boolean get() = get("newsOn", "1") == "1"; set(v) = put("newsOn", if (v) "1" else "0")
+    var digestOn: Boolean get() = get("digestOn", "1") == "1"; set(v) = put("digestOn", if (v) "1" else "0")
+    var newsNotify: Boolean get() = get("newsNotify", "1") == "1"; set(v) = put("newsNotify", if (v) "1" else "0")
+    var newsLast: Long get() = get("newsLast", "0").toLongOrNull() ?: 0; set(v) = put("newsLast", v.toString())
+    var digestDay: Long get() = get("digestDay", "0").toLongOrNull() ?: 0; set(v) = put("digestDay", v.toString())
     var botStaffChat: Long get() = get("botStaff", "0").toLong(); set(v) = put("botStaff", v.toString())
     var tgReceipt: Boolean get() = get("tgReceipt", "true") == "true"; set(v) = put("tgReceipt", v.toString())
     var tgDue: Boolean get() = get("tgDue", "true") == "true"; set(v) = put("tgDue", v.toString())

@@ -53,6 +53,7 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     val plans = dao.plans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun member(id: Long) = dao.member(id)
     fun payments(id: Long) = dao.payments(id)
+    fun deletePayment(p: `in`.vidyadhan.academy.data.LibraryPayment) = viewModelScope.launch { dao.deletePayment(p) }
     fun seatHistory(seat: Int) = dao.seatHistory(seat)
     fun add(m: LibraryMember, pays: List<LibraryPayment>, onSaved: (Long) -> Unit = {}) = viewModelScope.launch { onSaved(dao.addMember(m, pays)) }
     fun update(m: LibraryMember, onSaved: (Long) -> Unit = {}) = viewModelScope.launch { dao.updateMember(m); onSaved(m.id) }
@@ -305,6 +306,9 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     val ctx = LocalContext.current
     val mm by remember(id) { vm.member(id) }.collectAsStateWithLifecycle(null)
     val pays by remember(id) { vm.payments(id) }.collectAsStateWithLifecycle(emptyList())
+    var deletePay by remember { mutableStateOf<`in`.vidyadhan.academy.data.LibraryPayment?>(null) }
+    deletePay?.let { p -> ConfirmDialog("Delete this payment?", "${rupees(p.amount)} on ${p.paidOn.asDate()} will be removed from the records. The paid-till date does not change; edit the member if needed.",
+        "Delete", danger = true, onConfirm = { vm.deletePayment(p); deletePay = null }, onDismiss = { deletePay = null }) }
     val types by vm.types.collectAsStateWithLifecycle()
     val rooms by vm.rooms.collectAsStateWithLifecycle()
     val plans by vm.plans.collectAsStateWithLifecycle()
@@ -423,6 +427,8 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                                 color = if (out) Brand.Red600 else Brand.Green700)
                             Spacer(Modifier.width(6.dp))
                             SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receipt(p) }
+                            Spacer(Modifier.width(6.dp))
+                            SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
                         }
                     }
                 }

@@ -103,6 +103,7 @@ interface LibraryDao {
     @Update suspend fun updateMember(m: LibraryMember)
     @Delete suspend fun deleteMember(m: LibraryMember)
     @Insert suspend fun insertPaymentRow(p: LibraryPayment): Long
+    @Delete suspend fun deletePayment(p: LibraryPayment)
     suspend fun insertPayment(p: LibraryPayment): Long = insertPaymentRow(if (p.id == 0L) p.copy(id = Ids.next("LibraryPayment")) else p)
 
     @Transaction

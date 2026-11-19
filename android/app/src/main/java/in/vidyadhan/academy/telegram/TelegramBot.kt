@@ -77,6 +77,7 @@ object TelegramBot {
                     text.startsWith("/start ") && type == "private" -> AppSettings.setTelegramChat("k_" + text.removePrefix("/start ").trim(), chatId)
                     text.startsWith("/owner") && type == "private" -> AppSettings.botOwnerChat = chatId
                     text.startsWith("/staff") && type != "private" -> AppSettings.botStaffChat = chatId
+                    text.startsWith("/students") && type != "private" -> AppSettings.botStudentsChat = chatId
                     type == "private" && user != null -> AppSettings.setTelegramChat(user, chatId)
                 }
             }
