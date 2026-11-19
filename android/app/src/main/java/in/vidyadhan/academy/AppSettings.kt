@@ -51,4 +51,11 @@ object AppSettings {
     /** "Reminded today ✓": [key] is e.g. "s12" (student) or "m7" (library member). */
     fun remindedOn(key: String, day: Long): Boolean = s["rem_$key"] == day.toString()
     fun markReminded(key: String, day: Long) = put("rem_$key", day.toString())
+
+    /** Day the birthday strip was closed with ×; it stays hidden for the rest of that day. */
+    var birthdayHiddenOn: Long get() = get("bdayHidden", "0").toLong(); set(v) = put("bdayHidden", v.toString())
+
+    /** Dashboard cards in the owner's order, and the ones they hid (long-press → arrange). */
+    var homeOrder: List<String> get() = get("homeOrder", "").split(",").filter { it.isNotBlank() }; set(v) = put("homeOrder", v.joinToString(","))
+    var homeHidden: Set<String> get() = get("homeHidden", "").split(",").filter { it.isNotBlank() }.toSet(); set(v) = put("homeHidden", v.joinToString(","))
 }

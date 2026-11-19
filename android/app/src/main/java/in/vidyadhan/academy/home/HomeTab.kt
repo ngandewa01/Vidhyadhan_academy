@@ -7,6 +7,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +27,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -129,6 +133,79 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val needsBackup = (students.isNotEmpty() || members.isNotEmpty()) && (backupDays == null || backupDays >= 7)
     val recent = (recentFees + recentLib).sortedByDescending { it.paidOn }.take(3)
 
+    var arranging by remember { mutableStateOf(false) }
+    val titles = linkedMapOf("work" to "Today's work", "nums" to "Academy numbers", "lib" to "Library", "pay" to "Recent payments")
+    val order = (AppSettings.homeOrder.filter { it in titles } + titles.keys).distinct()
+    val hidden = AppSettings.homeHidden
+    val workCard: @Composable () -> Unit = {
+                // ── today's work ──
+                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).clip(RoundedCornerShape(24.dp))) {
+                    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)) {
+                        Text("Today's work", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
+                        Text(if (todo == 0) "Nothing pending today ✓" else "$todo thing${if (todo == 1) "" else "s"} to do", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                    }
+                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        WorkTab("Fees due", fees.size, tab == "fees") { tab = "fees" }
+                        WorkTab("Calls", calls.size, tab == "calls") { tab = "calls" }
+                        WorkTab("Library", library.size, tab == "lib") { tab = "lib" }
+                    }
+                    val (list, all, allGo) = when (tab) {
+                        "calls" -> Triple(calls, "See all enquiries", Go.Enquiries)
+                        "lib" -> Triple(library, "See all library dues", Go.MemberDues)
+                        else -> Triple(fees, "See all fees due", Go.Students)
+                    }
+                    if (list.isEmpty()) Text(when (tab) { "calls" -> "No calls due today ✓"; "lib" -> "No library fees pending ✓"; else -> "No fees due today or tomorrow ✓" },
+                        Modifier.fillMaxWidth().padding(16.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+                    list.take(4).forEach { TaskRow(it, t, onGo) }
+                    if (list.isNotEmpty()) SeeAll(if (list.size > 4) "$all (${list.size})" else all) { onGo(allGo, 0) }
+                }
+
+    }
+    val numsCard: @Composable () -> Unit = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                // ── academy numbers ──
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Stat("Students", "${students.size}", if (overdue == 0) "All fees on time" else "$overdue fee${if (overdue == 1) "" else "s"} overdue",
+                        if (overdue == 0) Brand.Green700 else Brand.Red600, Icons.Rounded.School, Brand.Blue700, Modifier.weight(1f)) { onGo(Go.Students, 0) }
+                    Stat("Fees to collect", rupees(pending), "from ${students.count { it.totalFee > it.paid }} students", Brand.Slate500,
+                        Icons.Rounded.CurrencyRupee, Brand.Red600, Modifier.weight(1f)) { onGo(Go.Students, 0) }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Stat("Open enquiries", "${openEnq.size}", "${calls.size} to call today", Brand.Saffron700, Icons.Rounded.Forum, Brand.Saffron600, Modifier.weight(1f)) { onGo(Go.Enquiries, 0) }
+                    Stat("Expenses · ${now.format(DateTimeFormatter.ofPattern("MMMM"))}", rupees(spent), biggest?.let { "$it is the biggest" } ?: "Nothing spent yet", Brand.Slate500,
+                        Icons.Rounded.ReceiptLong, Brand.Violet700, Modifier.weight(1f)) { onGo(Go.Money, 0) }
+                }
+
+                }
+    }
+    val libCard: @Composable () -> Unit = {
+                // ── library at a glance ──
+                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Column {
+                        Text("Library (Abhyasika)", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
+                        Text("${seats.size} seats" + if (rooms.isNotEmpty()) " in ${rooms.size} room${if (rooms.size == 1) "" else "s"}" else "",
+                            style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Mini("$free", "Free seats", Brand.Green700, Brand.Green50, Modifier.weight(1f)) { onGo(Go.Seats, 0) }
+                        Mini("${active.size}", "Members", Brand.Blue700, Brand.Blue50, Modifier.weight(1f)) { onGo(Go.Library, 0) }
+                        Mini("${active.count { it.validTill in t..(t + ENDING_DAYS) }}", "Ending in $ENDING_DAYS days", Brand.Saffron700, Brand.Saffron50, Modifier.weight(1f)) { onGo(Go.MemberEnding, 0) }
+                    }
+                }
+
+    }
+    val payCard: @Composable () -> Unit = {
+                // ── recent payments ──
+                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).clip(RoundedCornerShape(24.dp))) {
+                    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)) {
+                        Text("Recent payments", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
+                        Text("Students and library", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                    }
+                    if (recent.isEmpty()) Text("No payments yet", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+                    recent.forEach { PaymentLine(it) }
+                    if (recent.isNotEmpty()) SeeAll("See all payments") { onGo(Go.Money, 0) }
+                }
+    }
     Box(Modifier.fillMaxSize().background(Brand.Bg)) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             // ── header ──
@@ -175,7 +252,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                     }
                     PillButton("Back up", { onGo(Go.Backup, 0) }, Brand.Amber700)
                 }
-                if (birthdays.isNotEmpty()) Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(16.dp), 4.dp).border(1.dp, Color(0xFFFECDD3), RoundedCornerShape(16.dp))
+                if (birthdays.isNotEmpty() && AppSettings.birthdayHiddenOn != t) Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(16.dp), 4.dp).border(1.dp, Color(0xFFFECDD3), RoundedCornerShape(16.dp))
                     .padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("🎂", fontSize = 18.sp); Spacer(Modifier.width(10.dp))
                     if (birthdays.size == 1) {
@@ -186,66 +263,43 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                         Text("${birthdays.size} birthdays today · $names", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         PillButton("See all", { showBirthdays = true }, Brand.Blue700)
                     }
-                }
-
-                // ── today's work ──
-                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).clip(RoundedCornerShape(24.dp))) {
-                    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)) {
-                        Text("Today's work", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
-                        Text(if (todo == 0) "Nothing pending today ✓" else "$todo thing${if (todo == 1) "" else "s"} to do", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                    }
-                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        WorkTab("Fees due", fees.size, tab == "fees") { tab = "fees" }
-                        WorkTab("Calls", calls.size, tab == "calls") { tab = "calls" }
-                        WorkTab("Library", library.size, tab == "lib") { tab = "lib" }
-                    }
-                    val (list, all, allGo) = when (tab) {
-                        "calls" -> Triple(calls, "See all enquiries", Go.Enquiries)
-                        "lib" -> Triple(library, "See all library dues", Go.MemberDues)
-                        else -> Triple(fees, "See all fees due", Go.Students)
-                    }
-                    if (list.isEmpty()) Text(when (tab) { "calls" -> "No calls due today ✓"; "lib" -> "No library fees pending ✓"; else -> "No fees due today or tomorrow ✓" },
-                        Modifier.fillMaxWidth().padding(16.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
-                    list.take(4).forEach { TaskRow(it, t, onGo) }
-                    if (list.isNotEmpty()) SeeAll(if (list.size > 4) "$all (${list.size})" else all) { onGo(allGo, 0) }
-                }
-
-                // ── academy numbers ──
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Stat("Students", "${students.size}", if (overdue == 0) "All fees on time" else "$overdue fee${if (overdue == 1) "" else "s"} overdue",
-                        if (overdue == 0) Brand.Green700 else Brand.Red600, Icons.Rounded.School, Brand.Blue700, Modifier.weight(1f)) { onGo(Go.Students, 0) }
-                    Stat("Fees to collect", rupees(pending), "from ${students.count { it.totalFee > it.paid }} students", Brand.Slate500,
-                        Icons.Rounded.CurrencyRupee, Brand.Red600, Modifier.weight(1f)) { onGo(Go.Students, 0) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Stat("Open enquiries", "${openEnq.size}", "${calls.size} to call today", Brand.Saffron700, Icons.Rounded.Forum, Brand.Saffron600, Modifier.weight(1f)) { onGo(Go.Enquiries, 0) }
-                    Stat("Expenses · ${now.format(DateTimeFormatter.ofPattern("MMMM"))}", rupees(spent), biggest?.let { "$it is the biggest" } ?: "Nothing spent yet", Brand.Slate500,
-                        Icons.Rounded.ReceiptLong, Brand.Violet700, Modifier.weight(1f)) { onGo(Go.Money, 0) }
-                }
-
-                // ── library at a glance ──
-                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Column {
-                        Text("Library (Abhyasika)", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
-                        Text("${seats.size} seats" + if (rooms.isNotEmpty()) " in ${rooms.size} room${if (rooms.size == 1) "" else "s"}" else "",
-                            style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Mini("$free", "Free seats", Brand.Green700, Brand.Green50, Modifier.weight(1f)) { onGo(Go.Seats, 0) }
-                        Mini("${active.size}", "Members", Brand.Blue700, Brand.Blue50, Modifier.weight(1f)) { onGo(Go.Library, 0) }
-                        Mini("${active.count { it.validTill in t..(t + ENDING_DAYS) }}", "Ending in $ENDING_DAYS days", Brand.Saffron700, Brand.Saffron50, Modifier.weight(1f)) { onGo(Go.MemberEnding, 0) }
+                    Box(Modifier.size(34.dp).clip(RoundedCornerShape(50)).clickable { AppSettings.birthdayHiddenOn = t }, Alignment.Center) {
+                        Icon(Icons.Rounded.Close, "Hide birthdays for today", tint = Brand.Slate400, modifier = Modifier.size(18.dp))
                     }
                 }
 
-                // ── recent payments ──
-                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).clip(RoundedCornerShape(24.dp))) {
-                    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)) {
-                        Text("Recent payments", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
-                        Text("Students and library", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                Column(Modifier.longPress { arranging = true }, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    if (arranging) Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(18.dp), 4.dp).padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Arrange your dashboard", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                            Text("Move cards with ↑ ↓. The eye hides a card.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                        }
+                        PillButton("Done", { arranging = false }, Brand.Blue700, Icons.Rounded.Check)
                     }
-                    if (recent.isEmpty()) Text("No payments yet", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
-                    recent.forEach { PaymentLine(it) }
-                    if (recent.isNotEmpty()) SeeAll("See all payments") { onGo(Go.Money, 0) }
+                    val shown = order.filter { it !in hidden }
+                    shown.forEach { key ->
+                        Arrangeable(arranging, titles.getValue(key),
+                            onMove = { d ->
+                                val o = order.toMutableList(); val i = o.indexOf(key)
+                                // jump over hidden cards so each tap visibly moves the card
+                                var j = i + d
+                                while (j in o.indices && o[j] in hidden) j += d
+                                if (j in o.indices) { o.removeAt(i); o.add(j, key); AppSettings.homeOrder = o }
+                            },
+                            onHide = { AppSettings.homeHidden = hidden + key }) {
+                            when (key) { "work" -> workCard(); "nums" -> numsCard(); "lib" -> libCard(); else -> payCard() }
+                        }
+                    }
+                    if (arranging && hidden.isNotEmpty()) Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(18.dp), 4.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Hidden cards", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                        order.filter { it in hidden }.forEach { key ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(titles.getValue(key), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+                                PillButton("Show", { AppSettings.homeHidden = hidden - key }, Brand.Blue700, Icons.Rounded.Visibility)
+                            }
+                        }
+                    }
                 }
                 Spacer(Modifier.height(70.dp))
             }
@@ -255,7 +309,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
         AnimatedVisibility(menu, enter = fadeIn(), exit = fadeOut()) {
             Box(Modifier.fillMaxSize().background(Brand.Blue950.copy(alpha = 0.45f)).clickable(remember { MutableInteractionSource() }, null) { menu = false })
         }
-        Column(Modifier.align(Alignment.BottomEnd).padding(18.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (!arranging) Column(Modifier.align(Alignment.BottomEnd).padding(18.dp), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (menu) {
                 MenuItem("Collect fee", Icons.Rounded.CurrencyRupee, Brand.Green600) { menu = false; onGo(Go.Search, 0) }
                 MenuItem("Add student", Icons.Rounded.PersonAdd, Brand.Blue600) { menu = false; onGo(Go.NewStudent, 0) }
@@ -406,5 +460,49 @@ private fun PaymentLine(p: PaymentRow) {
         }
         Text((if (out) "− " else "+ ") + rupees(p.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
             color = if (out) Brand.Red600 else Brand.Green700)
+    }
+}
+
+/**
+ * Long press anywhere on the cards → [onLong]. Listens before the cards do, and swallows the rest of that touch,
+ * so the card under the finger is not opened as well. A scroll (finger moves) is not a long press.
+ */
+private fun Modifier.longPress(onLong: () -> Unit): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        val ended = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+            while (true) {
+                val c = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id } ?: break
+                if (!c.pressed || (c.position - down.position).getDistance() > viewConfiguration.touchSlop) break
+            }
+            true
+        }
+        if (ended == null) {
+            onLong()
+            do {
+                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                ev.changes.forEach { it.consume() }
+            } while (ev.changes.any { it.pressed })
+        }
+    }
+}
+
+/** A dashboard card; in arrange mode it gets a bar with ↑ ↓ and hide, and its own buttons are switched off. */
+@Composable
+private fun Arrangeable(arranging: Boolean, title: String, onMove: (Int) -> Unit, onHide: () -> Unit, content: @Composable () -> Unit) {
+    if (!arranging) { content(); return }
+    Column(Modifier.fillMaxWidth().border(2.dp, Brand.Blue500, RoundedCornerShape(24.dp)).clip(RoundedCornerShape(24.dp))) {
+        Row(Modifier.fillMaxWidth().background(Brand.Blue700).padding(start = 14.dp, end = 6.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.DragIndicator, null, tint = Brand.Blue200, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = Color.White)
+            IconButton({ onMove(-1) }) { Icon(Icons.Rounded.ArrowUpward, "Move $title up", tint = Color.White) }
+            IconButton({ onMove(1) }) { Icon(Icons.Rounded.ArrowDownward, "Move $title down", tint = Color.White) }
+            IconButton(onHide) { Icon(Icons.Rounded.VisibilityOff, "Hide $title", tint = Color.White) }
+        }
+        Box(Modifier.padding(6.dp)) {
+            content()
+            // a cover so the card's own buttons do nothing while arranging
+            Box(Modifier.matchParentSize().background(Color.White.copy(alpha = 0.25f)).clickable(remember { MutableInteractionSource() }, null) {})
+        }
     }
 }
