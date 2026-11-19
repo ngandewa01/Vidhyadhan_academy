@@ -45,7 +45,7 @@ class UnlockFlowTest {
         rule.activityRule.scenario.recreate()
         listOf("1", "2", "3", "4").forEach { rule.onNodeWithText(it).performClick() }
         rule.waitForIdle()
-        listOf("Students", "Enquiries", "Abhyasika", "More", "Dashboard").forEach {
+        listOf("Students", "Enquiries", "Abhyasika", "Bot & More", "Dashboard").forEach {
             rule.onAllNodesWithText(it).onLast().performClick(); rule.waitForIdle()
         }
     }
@@ -61,7 +61,7 @@ class PickersTest {
         rule.activityRule.scenario.recreate()
         listOf("1", "2", "3", "4").forEach { rule.onNodeWithText(it).performClick() }
         rule.waitForIdle()
-        rule.onAllNodesWithText("More").onLast().performClick()
+        rule.onAllNodesWithText("Bot & More").onLast().performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
         rule.onNodeWithText("Settings").performScrollTo().performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()

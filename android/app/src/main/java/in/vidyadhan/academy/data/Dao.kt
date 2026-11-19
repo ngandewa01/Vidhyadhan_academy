@@ -21,7 +21,7 @@ interface StudentDao {
     @Query("SELECT * FROM StudentPayment") suspend fun paymentList(): List<StudentPayment>
 
     @Query("SELECT COALESCE(SUM(amount), 0) FROM StudentPayment WHERE paidOn BETWEEN :from AND :to") fun paidBetween(from: Long, to: Long): Flow<Long>
-    @Query("SELECT s.name AS name, p.amount AS amount, p.paidOn AS paidOn, 'STUDENT_FEE' AS kind, p.mode AS mode FROM StudentPayment p JOIN Student s ON s.id = p.studentId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
+    @Query("SELECT s.name AS name, p.amount AS amount, p.paidOn AS paidOn, 'STUDENT_FEE' AS kind, p.mode AS mode, s.course || CASE WHEN s.batch != '' THEN ' ' || s.batch ELSE '' END || CASE WHEN p.note != '' THEN ' · ' || p.note ELSE '' END AS detail FROM StudentPayment p JOIN Student s ON s.id = p.studentId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
     fun recentPaid(): Flow<List<PaymentRow>>
 
     @Insert suspend fun insert(s: Student): Long
@@ -86,7 +86,7 @@ interface LibraryDao {
     @Query("SELECT * FROM LibraryMember ORDER BY name COLLATE NOCASE") suspend fun allMembers(): List<LibraryMember>
     @Query("SELECT * FROM LibraryMember WHERE id = :id") suspend fun memberNow(id: Long): LibraryMember?
     @Query("SELECT COALESCE(SUM(amount), 0) FROM LibraryPayment WHERE kind IN ('FEE','REGISTRATION') AND paidOn BETWEEN :from AND :to") fun collectedBetween(from: Long, to: Long): Flow<Long>
-    @Query("SELECT m.name AS name, p.amount AS amount, p.paidOn AS paidOn, p.kind AS kind, p.mode AS mode FROM LibraryPayment p JOIN LibraryMember m ON m.id = p.memberId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
+    @Query("SELECT m.name AS name, p.amount AS amount, p.paidOn AS paidOn, p.kind AS kind, p.mode AS mode, 'Seat ' || m.seatNo || CASE WHEN m.seatType != '' THEN ' ' || m.seatType ELSE '' END || CASE WHEN m.lockerNo != '' THEN ' + Locker' || CASE WHEN m.lockerNo != '-' THEN ' ' || m.lockerNo ELSE '' END ELSE '' END AS detail FROM LibraryPayment p JOIN LibraryMember m ON m.id = p.memberId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
     fun recentPayments(): Flow<List<PaymentRow>>
 
     @Insert suspend fun insertMember(m: LibraryMember): Long

@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -89,6 +90,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     var showCollect by remember { mutableStateOf(false) }
     var showReminders by remember { mutableStateOf(false) }
     var showBirthdays by remember { mutableStateOf(false) }
+    var wishFor by remember { mutableStateOf<Bday?>(null) }
     var arranging by remember { mutableStateOf(false) }
 
     val active = members.filter { it.active }
@@ -120,7 +122,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
 
     val txns = (recentFees + recentLib).map {
         val label = when (it.kind) { "STUDENT_FEE" -> "Course fee"; "FEE" -> "Abhyasika fee"; "DEPOSIT" -> "Deposit"; "REGISTRATION" -> "Registration"; else -> "Deposit returned" }
-        Txn(it.name, label, it.amount, it.kind != "DEPOSIT_RETURN", it.paidOn, it.mode)
+        Txn(it.name, if (it.detail.isBlank()) label else "$label · ${it.detail}", it.amount, it.kind != "DEPOSIT_RETURN", it.paidOn, it.mode)
     } + expenses.take(5).map { Txn(it.category, it.note.ifBlank { "Expense" }, it.amount, false, it.spentOn, "") }
     val recent = txns.sortedByDescending { it.day }.take(4)
 
@@ -258,7 +260,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                     Text("Marathi wish ready to send", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500, maxLines = 1)
                 }
                 PillButton(if (birthdays.size == 1) "Wish" else "See all", {
-                    if (birthdays.size == 1) Contact.whatsapp(ctx, birthdays[0].mobile, birthdayWish(birthdays[0].name)) else showBirthdays = true
+                    if (birthdays.size == 1) wishFor = birthdays[0] else showBirthdays = true
                 }, Brand.Saffron500, Icons.AutoMirrored.Rounded.Send)
                 Box(Modifier.size(32.dp).clip(CircleShape).clickable { AppSettings.birthdayHiddenOn = t }, Alignment.Center) {
                     Icon(Icons.Rounded.Close, "Hide birthdays for today", tint = Brand.Slate400, modifier = Modifier.size(18.dp))
@@ -308,6 +310,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
         }
     }
 
+    wishFor?.let { WishSheet(it) { wishFor = null } }
     if (showCollect) QuickCollectSheet(students.filter { it.nextDue != null && it.totalFee > it.paid }.sortedBy { it.nextDue },
         active.filter { it.validTill <= t + ENDING_DAYS || it.balance > 0 }.sortedBy { it.validTill }, t) { showCollect = false }
 
@@ -335,8 +338,46 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                         Text(b.name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
                         Text(b.what, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                     }
-                    PillButton(if (b.mobile in wished) "✓ Wished" else "Wish", { wished += b.mobile; Contact.whatsapp(ctx, b.mobile, birthdayWish(b.name)) },
+                    PillButton(if (b.mobile in wished) "✓ Wished" else "Wish", { wished += b.mobile; showBirthdays = false; wishFor = b },
                         if (b.mobile in wished) Brand.Slate400 else Brand.Saffron500)
+                }
+            }
+        }
+    }
+}
+
+/** Birthday wish: a Marathi + English message the owner can change, sent by Telegram or WhatsApp. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun WishSheet(b: Bday, onClose: () -> Unit) {
+    val ctx = LocalContext.current
+    val first = b.name.substringBefore(' ')
+    var text by remember(b) {
+        mutableStateOf(birthdayWish(b.name) + "\n\n" + `in`.vidyadhan.academy.Templates.fill("birthday", false, mapOf("name" to first)))
+    }
+    ModalBottomSheet(onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+        Column(Modifier.verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(Brand.Saffron500), Alignment.Center) { Icon(Icons.Rounded.Cake, null, tint = Color.White, modifier = Modifier.size(18.dp)) }
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Send birthday wishes", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
+                    Text("${b.name} · ${b.what}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            Text("Marathi + English greeting (you can change it)", style = MaterialTheme.typography.labelLarge, color = Brand.Slate600)
+            OutlinedTextField(text, { text = it }, Modifier.fillMaxWidth(), minLines = 5, shape = RoundedCornerShape(16.dp), textStyle = MaterialTheme.typography.bodyMedium,
+                colors = OutlinedTextFieldDefaults.colors(unfocusedContainerColor = Brand.Saffron50, focusedContainerColor = Color.White, focusedBorderColor = Brand.Saffron500, unfocusedBorderColor = Brand.Line))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Color(0xFF0284C7)).clickable { Contact.telegram(ctx, text); onClose() }.padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color.White, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp))
+                    Text("Send via Telegram", style = MaterialTheme.typography.labelLarge, color = Color.White, maxLines = 1)
+                }
+                Row(Modifier.weight(1f).clip(RoundedCornerShape(14.dp)).background(Brand.Green600).clickable { Contact.whatsapp(ctx, b.mobile, text); onClose() }.padding(vertical = 12.dp),
+                    horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Rounded.Chat, null, tint = Color.White, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(6.dp))
+                    Text("Send via WhatsApp", style = MaterialTheme.typography.labelLarge, color = Color.White, maxLines = 1)
                 }
             }
         }

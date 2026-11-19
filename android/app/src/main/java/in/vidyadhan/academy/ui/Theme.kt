@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -85,8 +86,18 @@ val Mukta = FontFamily(
     Font(R.font.mukta_bold, FontWeight.Bold),
 )
 
-private fun s(size: Int, weight: FontWeight, line: Int, spacing: Double = 0.0) =
-    TextStyle(fontFamily = Jakarta, fontSize = size.sp, fontWeight = weight, lineHeight = line.sp, letterSpacing = spacing.em)
+/** Inter for body text and labels (as in the owner's prototype); one variable font file, four weights. */
+val Inter = FontFamily(
+    Font(R.font.inter_variable, FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+    Font(R.font.inter_variable, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+    Font(R.font.inter_variable, FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+    Font(R.font.inter_variable, FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+    Font(R.font.inter_variable, FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
+)
+
+/** Headings use Plus Jakarta Sans; body text and labels use Inter. */
+private fun s(size: Int, weight: FontWeight, line: Int, spacing: Double = 0.0, family: FontFamily = Jakarta) =
+    TextStyle(fontFamily = family, fontSize = size.sp, fontWeight = weight, lineHeight = line.sp, letterSpacing = spacing.em)
 
 private val AppType = Typography(
     displayLarge = s(44, FontWeight.ExtraBold, 52, -0.02),
@@ -98,12 +109,12 @@ private val AppType = Typography(
     titleLarge = s(18, FontWeight.Bold, 25, -0.005),
     titleMedium = s(16, FontWeight.SemiBold, 22),
     titleSmall = s(14, FontWeight.SemiBold, 20),
-    bodyLarge = s(16, FontWeight.Normal, 24),
-    bodyMedium = s(14, FontWeight.Normal, 20),
-    bodySmall = s(12, FontWeight.Medium, 17),
-    labelLarge = s(14, FontWeight.SemiBold, 20),
-    labelMedium = s(12, FontWeight.SemiBold, 16, 0.01),
-    labelSmall = s(11, FontWeight.SemiBold, 14, 0.02),
+    bodyLarge = s(16, FontWeight.Normal, 24, family = Inter),
+    bodyMedium = s(14, FontWeight.Normal, 20, family = Inter),
+    bodySmall = s(12, FontWeight.Medium, 17, family = Inter),
+    labelLarge = s(14, FontWeight.SemiBold, 20, family = Inter),
+    labelMedium = s(12, FontWeight.SemiBold, 16, 0.01, family = Inter),
+    labelSmall = s(11, FontWeight.SemiBold, 14, 0.02, family = Inter),
 )
 
 private val AppShapes = Shapes(

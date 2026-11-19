@@ -19,6 +19,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import `in`.vidyadhan.academy.AppSettings
 import `in`.vidyadhan.academy.enquiries.EnquiriesTab
 import `in`.vidyadhan.academy.home.Go
 import `in`.vidyadhan.academy.home.HomeTab
@@ -78,7 +81,7 @@ private enum class Tab(val label: String, val on: ImageVector, val off: ImageVec
     Students("Students", Icons.Rounded.School, Icons.Outlined.School),
     Enquiries("Enquiries", Icons.Rounded.Forum, Icons.Outlined.Forum),
     Library("Abhyasika", Icons.Rounded.EventSeat, Icons.Outlined.EventSeat),
-    More("More", Icons.Rounded.GridView, Icons.Outlined.GridView),
+    More("Bot & More", Icons.AutoMirrored.Rounded.Send, Icons.AutoMirrored.Outlined.Send),
     // opened from "More" (the More tab stays highlighted)
     Money("Money", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, inNav = false),
 }
@@ -184,9 +187,11 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
 /** Everything that is not on the bottom bar. */
 @Composable
 private fun MoreTab(onGo: (Go, Long) -> Unit) {
-    `in`.vidyadhan.academy.ui.HeroPage("More", "Money, messages and settings") {
+    `in`.vidyadhan.academy.ui.HeroPage("Bot & More", "Telegram, money, messages and settings") {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Spacer(Modifier.height(6.dp))
+            `in`.vidyadhan.academy.ui.OptionRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF0284C7), "Telegram",
+                if (AppSettings.telegramLink.isBlank()) "Add your Telegram group link (Settings → Academy details)" else AppSettings.telegramLink) { onGo(Go.Settings, 0) }
             `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Money", "Income, expenses and reports") { onGo(Go.Money, 0) }
             `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message", "WhatsApp or Telegram to many people") { onGo(Go.Broadcast, 0) }
             `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Search, Brand.Blue600, "Search", "Students, members and enquiries") { onGo(Go.Search, 0) }

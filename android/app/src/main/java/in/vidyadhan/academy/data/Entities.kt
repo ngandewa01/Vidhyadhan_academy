@@ -173,4 +173,4 @@ data class StudentWithFees(
 }
 
 /** One received payment, for "Recent payments" (not stored as its own table). */
-data class PaymentRow(val name: String, val amount: Long, val paidOn: Long, val kind: String, val mode: String = "")
+data class PaymentRow(val name: String, val amount: Long, val paidOn: Long, val kind: String, val mode: String = "", val detail: String = "")
