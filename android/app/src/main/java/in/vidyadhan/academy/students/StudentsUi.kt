@@ -191,8 +191,8 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
                     !s.current && left > 0 -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""} · ${rupees(left)} unpaid"
                     !s.current -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""}"
                     left == 0L -> "All installments cleared ✓"
-                    s.nextDue != null && s.nextDue < t -> "Overdue: ${rupees(s.nextDueAmount)} since ${s.nextDue.asDate()}"
-                    s.nextDue != null -> "Next due: ${rupees(s.nextDueAmount)} on ${s.nextDue.asDate()}"
+                    s.nextDue != null && s.nextDue < t -> "Overdue ${rupees(s.nextDueAmount)} · ${shortDate(s.nextDue)}"
+                    s.nextDue != null -> "Next due ${rupees(s.nextDueAmount)} · ${shortDate(s.nextDue)}"
                     else -> "${rupees(left)} to pay"
                 },
                 Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,

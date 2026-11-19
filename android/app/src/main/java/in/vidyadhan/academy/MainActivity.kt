@@ -188,7 +188,8 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
                             .padding(horizontal = 5.dp), style = MaterialTheme.typography.labelSmall, color = Color.White)
                 }
                 Spacer(Modifier.height(3.dp))
-                Text(t.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium), color = fg, maxLines = 1)
+                Text(t.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium, fontSize = `in`.vidyadhan.academy.ui.cappedSp(10.5f, 1.05f)),
+                    color = fg, maxLines = 1, softWrap = false)
             }
         }
     }

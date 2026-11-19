@@ -137,8 +137,8 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
             }
             HorizontalDivider(color = Brand.Line)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DigitsField("Refundable deposit", deposit, 6, { deposit = it }, prefix = "₹ ", modifier = Modifier.weight(1f))
-                if (academy) DigitsField("Advance payment", advance, 6, { advance = it }, prefix = "₹ ", modifier = Modifier.weight(1f),
+                DigitsField("Deposit", deposit, 6, { deposit = it }, prefix = "₹ ", modifier = Modifier.weight(1f))
+                if (academy) DigitsField("Advance", advance, 6, { advance = it }, prefix = "₹ ", modifier = Modifier.weight(1f),
                     isError = !advOk, supporting = if (!advOk) "More than the rest of the fee" else null)
             }
         }

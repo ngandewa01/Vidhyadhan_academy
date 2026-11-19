@@ -83,6 +83,13 @@ fun Modifier.lockBackground(): Modifier = drawBehind {
 val AccentBrush = Brush.linearGradient(listOf(Brand.Saffron500, Brand.Saffron700))
 val PrimaryBrush = Brush.linearGradient(listOf(Brand.Blue500, Brand.Blue800))
 
+/** A text size that grows with the phone's text setting only up to [cap] times (for small fixed-width labels). */
+@Composable
+fun cappedSp(base: Float, cap: Float = 1.15f): androidx.compose.ui.unit.TextUnit {
+    val fs = androidx.compose.ui.platform.LocalDensity.current.fontScale
+    return (base * minOf(fs, cap) / fs).sp
+}
+
 /** Gentle press-down effect for anything tappable. */
 @Composable
 fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier {

@@ -472,7 +472,7 @@ private fun Quick(label: String, icon: ImageVector, color: Color, bg: Color, mod
         .padding(vertical = 10.dp, horizontal = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.size(30.dp).clip(RoundedCornerShape(10.dp)).background(bg), Alignment.Center) { Icon(icon, null, tint = color, modifier = Modifier.size(16.dp)) }
         Spacer(Modifier.height(4.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Slate800, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(label, style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold, fontSize = cappedSp(12f, 1.05f)), color = Brand.Slate800, maxLines = 1, softWrap = false)
     }
 }
 

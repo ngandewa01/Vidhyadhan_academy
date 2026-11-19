@@ -304,7 +304,7 @@ private fun Chair(n: Int, m: LibraryMember?, xl: Boolean, t: Long, w: Dp, select
                 if (m?.hasLocker == true) drawCircle(Color(0xFF7E22CE), cw * 0.08f, Offset(cw * 0.9f, ch * 0.12f))
             }
             Text("$n", Modifier.padding(top = (w - 4.dp) * 0.1f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold,
-                fontSize = (w.value * 0.3f).coerceIn(9f, 14f).sp), color = if (free) Brand.Green700 else Color.White, maxLines = 1)
+                fontSize = cappedSp((w.value * 0.3f).coerceIn(9f, 14f), 1f)), color = if (free) Brand.Green700 else Color.White, maxLines = 1, softWrap = false)
         }
         if (showName) Text(m?.name?.substringBefore(' ') ?: "", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), color = Brand.Slate600, maxLines = 1)
     }
@@ -350,8 +350,8 @@ private fun WindowWall() {
 
 @Composable
 private fun Legend() {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-        verticalAlignment = Alignment.CenterVertically) {
+    FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Look.entries.forEach { l ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Canvas(Modifier.size(14.dp, 12.dp)) {
