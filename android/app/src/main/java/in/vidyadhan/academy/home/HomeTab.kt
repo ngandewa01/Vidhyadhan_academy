@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -85,7 +86,6 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val libMonth by remember(monthStart) { db.library().collectedBetween(monthStart, monthEnd) }.collectAsStateWithLifecycle(0L)
     val recentFees by db.students().recentPaid().collectAsStateWithLifecycle(emptyList())
     val recentLib by db.library().recentPayments().collectAsStateWithLifecycle(emptyList())
-    var tab by rememberSaveable { mutableStateOf("fees") }
     var menu by remember { mutableStateOf(false) }
     var showReminders by remember { mutableStateOf(false) }
     var showBirthdays by remember { mutableStateOf(false) }
@@ -116,7 +116,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     }
     val calls = openEnq.filter { it.followUpOn <= t }.sortedBy { it.followUpOn }.map {
         Task(it.name, (if (it.followUpOn < t) "Was due ${relativeDay(it.followUpOn).lowercase()}" else "Call today") + if (it.course.isNotBlank()) " · ${it.course}" else "",
-            if (it.followUpOn < t) Brand.Red600 else Brand.Saffron700, "", Go.Enquiry, it.id, it.mobile, call = true)
+            if (it.followUpOn < t) Brand.Red600 else Brand.Saffron700, "", Go.Enquiry, it.id, it.mobile, remindKey = "c${it.id}", call = true)
     }
     val library = active.filter { it.validTill <= t || it.balance > 0 }.sortedBy { it.validTill }.map {
         val late = t - it.validTill
@@ -134,82 +134,65 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val recent = (recentFees + recentLib).sortedByDescending { it.paidOn }.take(3)
 
     var arranging by remember { mutableStateOf(false) }
-    val titles = linkedMapOf("work" to "Today's work", "nums" to "Academy numbers", "lib" to "Library", "pay" to "Recent payments")
+    val titles = linkedMapOf("att" to "Needs you today", "acad" to "Academy", "lib" to "Library", "money" to "Money")
     val order = (AppSettings.homeOrder.filter { it in titles } + titles.keys).distinct()
     val hidden = AppSettings.homeHidden
-    val workCard: @Composable () -> Unit = {
-                // ── today's work ──
-                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).clip(RoundedCornerShape(24.dp))) {
-                    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)) {
-                        Text("Today's work", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
-                        Text(if (todo == 0) "Nothing pending today ✓" else "$todo thing${if (todo == 1) "" else "s"} to do", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                    }
-                    Row(Modifier.horizontalScroll(rememberScrollState()).padding(start = 12.dp, end = 12.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        WorkTab("Fees due", fees.size, tab == "fees") { tab = "fees" }
-                        WorkTab("Calls", calls.size, tab == "calls") { tab = "calls" }
-                        WorkTab("Library", library.size, tab == "lib") { tab = "lib" }
-                    }
-                    val (list, all, allGo) = when (tab) {
-                        "calls" -> Triple(calls, "See all enquiries", Go.Enquiries)
-                        "lib" -> Triple(library, "See all library dues", Go.MemberDues)
-                        else -> Triple(fees, "See all fees due", Go.Students)
-                    }
-                    if (list.isEmpty()) Text(when (tab) { "calls" -> "No calls due today ✓"; "lib" -> "No library fees pending ✓"; else -> "No fees due today or tomorrow ✓" },
-                        Modifier.fillMaxWidth().padding(16.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
-                    list.take(4).forEach { TaskRow(it, t, onGo) }
-                    if (list.isNotEmpty()) SeeAll(if (list.size > 4) "$all (${list.size})" else all) { onGo(allGo, 0) }
-                }
+    var open by rememberSaveable { mutableStateOf("") } // which line of the attention card is opened
+    val month = now.format(DateTimeFormatter.ofPattern("MMMM"))
 
+    val attCard: @Composable () -> Unit = {
+        Column(Modifier.fillMaxWidth().shadow(8.dp, RoundedCornerShape(22.dp), spotColor = Brand.Blue900.copy(alpha = 0.25f)).clip(RoundedCornerShape(22.dp)).background(Color.White)) {
+            Column(Modifier.fillMaxWidth().background(Brush.linearGradient(if (todo == 0) listOf(Brand.Green600, Brand.Teal700) else listOf(Brand.Red600, Brand.Saffron700)))
+                .padding(horizontal = 16.dp, vertical = 14.dp)) {
+                Text(if (todo == 0) "✓ All caught up" else "$todo thing${if (todo == 1) "" else "s"} need${if (todo == 1) "s" else ""} you today",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = Color.White)
+                Text(if (todo == 0) "No fees, calls or library renewals due today" else "Tap a line to see the people",
+                    style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.9f))
+            }
+            AttentionLine("fees", fees, "Student fee${if (fees.size == 1) "" else "s"} due",
+                "${rupees(fees.sumOf { it.amount ?: 0L })} · ${fees.count { it.detailColor == Brand.Red600 }} overdue", Brand.Red600, Brand.Red50, "Remind", open, { open = it }, t, onGo, Go.Students)
+            AttentionLine("calls", calls, "Enquir${if (calls.size == 1) "y" else "ies"} to call",
+                "${calls.count { it.detailColor == Brand.Red600 }} from earlier days", Brand.Saffron700, Brand.Saffron50, "Call", open, { open = it }, t, onGo, Go.Enquiries)
+            AttentionLine("lib", library, "Library renewal${if (library.size == 1) "" else "s"}",
+                "${rupees(library.sumOf { it.amount ?: 0L })} pending", Brand.Teal700, Color(0xFFCCFBF1), "Remind", open, { open = it }, t, onGo, Go.MemberDues)
+        }
     }
-    val numsCard: @Composable () -> Unit = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                // ── academy numbers ──
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Stat("Students", "${students.size}", if (overdue == 0) "All fees on time" else "$overdue fee${if (overdue == 1) "" else "s"} overdue",
-                        if (overdue == 0) Brand.Green700 else Brand.Red600, Icons.Rounded.School, Brand.Blue700, Modifier.weight(1f)) { onGo(Go.Students, 0) }
-                    Stat("Fees to collect", rupees(pending), "from ${students.count { it.totalFee > it.paid }} students", Brand.Slate500,
-                        Icons.Rounded.CurrencyRupee, Brand.Red600, Modifier.weight(1f)) { onGo(Go.Students, 0) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Stat("Open enquiries", "${openEnq.size}", "${calls.size} to call today", Brand.Saffron700, Icons.Rounded.Forum, Brand.Saffron600, Modifier.weight(1f)) { onGo(Go.Enquiries, 0) }
-                    Stat("Expenses · ${now.format(DateTimeFormatter.ofPattern("MMMM"))}", rupees(spent), biggest?.let { "$it is the biggest" } ?: "Nothing spent yet", Brand.Slate500,
-                        Icons.Rounded.ReceiptLong, Brand.Violet700, Modifier.weight(1f)) { onGo(Go.Money, 0) }
-                }
-
-                }
+    val acadCard: @Composable () -> Unit = {
+        InfoCard("Academy", Icons.Rounded.School, Brand.Blue700, { onGo(Go.Students, 0) }) {
+            Trio(
+                Triple("${students.size}", "Students", if (overdue == 0) "all on time" else "$overdue overdue") to (Brand.Blue700 to { onGo(Go.Students, 0) }),
+                Triple(rupees(pending), "To collect", "${students.count { it.totalFee > it.paid }} student${if (students.count { it.totalFee > it.paid } == 1) "" else "s"}") to (Brand.Red600 to { onGo(Go.Students, 0) }),
+                Triple("${openEnq.size}", "Enquiries", if (calls.isEmpty()) "none today" else "${calls.size} today") to (Brand.Saffron700 to { onGo(Go.Enquiries, 0) }),
+                subColor = { i -> if (i == 0) (if (overdue == 0) Brand.Green700 else Brand.Red600) else Brand.Slate500 },
+            )
+        }
     }
     val libCard: @Composable () -> Unit = {
-                // ── library at a glance ──
-                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Column {
-                        Text("Library (Abhyasika)", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
-                        Text("${seats.size} seats" + if (rooms.isNotEmpty()) " in ${rooms.size} room${if (rooms.size == 1) "" else "s"}" else "",
-                            style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Mini("$free", "Free seats", Brand.Green700, Brand.Green50, Modifier.weight(1f)) { onGo(Go.Seats, 0) }
-                        Mini("${active.size}", "Members", Brand.Blue700, Brand.Blue50, Modifier.weight(1f)) { onGo(Go.Library, 0) }
-                        Mini("${active.count { it.validTill in t..(t + ENDING_DAYS) }}", "Ending in $ENDING_DAYS days", Brand.Saffron700, Brand.Saffron50, Modifier.weight(1f)) { onGo(Go.MemberEnding, 0) }
-                    }
-                }
-
+        InfoCard("Library · ${seats.size} seats" + if (rooms.size > 1) " in ${rooms.size} rooms" else "", Icons.Rounded.LocalLibrary, Brand.Teal700, { onGo(Go.Library, 0) }) {
+            val ending = active.count { it.validTill in t..(t + ENDING_DAYS) }
+            Trio(
+                Triple("$free", "Free seats", "") to (Brand.Green700 to { onGo(Go.Seats, 0) }),
+                Triple("${active.size}", "Members", "") to ((if (active.isEmpty()) Brand.Slate400 else Brand.Blue700) to { onGo(Go.Library, 0) }),
+                Triple("$ending", "Ending soon", "in $ENDING_DAYS days") to ((if (ending == 0) Brand.Slate400 else Brand.Saffron700) to { onGo(Go.MemberEnding, 0) }),
+            )
+        }
     }
-    val payCard: @Composable () -> Unit = {
-                // ── recent payments ──
-                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).clip(RoundedCornerShape(24.dp))) {
-                    Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 8.dp)) {
-                        Text("Recent payments", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
-                        Text("Students and library", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                    }
-                    if (recent.isEmpty()) Text("No payments yet", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
-                    recent.forEach { PaymentLine(it) }
-                    if (recent.isNotEmpty()) SeeAll("See all payments") { onGo(Go.Money, 0) }
-                }
+    val moneyCard: @Composable () -> Unit = {
+        InfoCard("Money · $month", Icons.Rounded.AccountBalanceWallet, Brand.Green700, { onGo(Go.Money, 0) }) {
+            Trio(
+                Triple(rupees(income), "Income", "") to (Brand.Green700 to { onGo(Go.Money, 0) }),
+                Triple(rupees(spent), "Expenses", biggest ?: "") to ((if (spent == 0L) Brand.Slate400 else Brand.Violet700) to { onGo(Go.Money, 0) }),
+                Triple(rupees(income - spent), "Profit", "") to ((if (income >= spent) Brand.Ink else Brand.Red600) to { onGo(Go.Money, 0) }),
+            )
+            if (recent.isNotEmpty()) recent.forEach { PaymentLine(it) }
+            else { HorizontalDivider(color = Brand.Line); Text("No payments yet", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500) }
+            if (recent.isNotEmpty()) SeeAll("See all payments") { onGo(Go.Money, 0) }
+        }
     }
     Box(Modifier.fillMaxSize().background(Brand.Bg)) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             // ── header ──
-            Column(Modifier.fillMaxWidth().heroBackground().statusBarsPadding().padding(start = 18.dp, end = 16.dp, top = 12.dp, bottom = 46.dp)) {
+            Column(Modifier.fillMaxWidth().heroBackground().statusBarsPadding().padding(start = 18.dp, end = 16.dp, top = 12.dp, bottom = 40.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     LogoBadge(42.dp)
                     Spacer(Modifier.width(12.dp))
@@ -226,23 +209,29 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                             .background(Brand.Saffron500).padding(horizontal = 5.dp), style = MaterialTheme.typography.labelSmall, color = Color.White)
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    MoneyBox("Collected today", rupees(feesToday + libToday), "Students ${rupees(feesToday)} · Library ${rupees(libToday)}", Color.White, Modifier.weight(1f)) { onGo(Go.Money, 0) }
-                    MoneyBox("Profit · ${now.format(DateTimeFormatter.ofPattern("MMMM"))}", rupees(income - spent), "${rupees(income)} in − ${rupees(spent)} out",
-                        if (income >= spent) Color(0xFF86EFAC) else Color(0xFFFCA5A5), Modifier.weight(1f)) { onGo(Go.Money, 0) }
+                Spacer(Modifier.height(14.dp))
+                Row(Modifier.clickable { onGo(Go.Money, 0) }, verticalAlignment = Alignment.Bottom) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Collected today", style = MaterialTheme.typography.labelMedium, color = Brand.Blue200)
+                        Text(rupees(feesToday + libToday), style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold), color = Color.White, maxLines = 1)
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Profit · $month", style = MaterialTheme.typography.labelMedium, color = Brand.Blue200, maxLines = 1)
+                        Text(rupees(income - spent), style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+                            color = if (income >= spent) Color(0xFF86EFAC) else Color(0xFFFCA5A5), maxLines = 1)
+                    }
                 }
-                Spacer(Modifier.height(12.dp))
-                ProgressBar(if (dueThisMonth == 0L) 0f else (income.toFloat() / dueThisMonth).coerceIn(0f, 1f), color = Brand.Saffron400, track = Color.White.copy(alpha = 0.16f), height = 8.dp)
+                Spacer(Modifier.height(10.dp))
+                ProgressBar(if (dueThisMonth == 0L) 0f else (income.toFloat() / dueThisMonth).coerceIn(0f, 1f), color = Brand.Saffron400, track = Color.White.copy(alpha = 0.16f), height = 6.dp)
                 Spacer(Modifier.height(6.dp))
                 Row {
-                    Text("${rupees(income)} collected of ${rupees(dueThisMonth)} due this month", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Brand.Blue200,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("${if (dueThisMonth == 0L) 0 else income * 100 / dueThisMonth}%", style = MaterialTheme.typography.labelMedium, color = Brand.Blue200)
+                    Text("${rupees(income)} in · ${rupees(spent)} out", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Brand.Blue200, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis)
+                    Text("${if (dueThisMonth == 0L) 0 else income * 100 / dueThisMonth}% of ${rupees(dueThisMonth)} due", style = MaterialTheme.typography.labelMedium, color = Brand.Blue200, maxLines = 1)
                 }
             }
 
-            Column(Modifier.offset(y = (-32).dp).padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.offset(y = (-26).dp).padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 if (needsBackup) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Amber50).border(1.dp, Color(0xFFFDE68A), RoundedCornerShape(16.dp))
                     .clickable { onGo(Go.Backup, 0) }.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.WarningAmber, null, tint = Brand.Amber700); Spacer(Modifier.width(10.dp))
@@ -288,7 +277,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                                 if (j in o.indices) { o.removeAt(i); o.add(j, key); AppSettings.homeOrder = o }
                             },
                             onHide = { AppSettings.homeHidden = hidden + key }) {
-                            when (key) { "work" -> workCard(); "nums" -> numsCard(); "lib" -> libCard(); else -> payCard() }
+                            when (key) { "att" -> attCard(); "acad" -> acadCard(); "lib" -> libCard(); else -> moneyCard() }
                         }
                     }
                     if (arranging && hidden.isNotEmpty()) Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(18.dp), 4.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -327,9 +316,9 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     if (showReminders) ModalBottomSheet({ showReminders = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SheetTitle("Reminders", "Everything that needs you today")
-            if (fees.isNotEmpty()) OptionRow(Icons.Rounded.CurrencyRupee, Brand.Red600, "${fees.size} student fee${if (fees.size == 1) "" else "s"} due", rupees(fees.sumOf { it.amount ?: 0L })) { showReminders = false; tab = "fees" }
-            if (calls.isNotEmpty()) OptionRow(Icons.Rounded.Call, Brand.Saffron600, "${calls.size} enquir${if (calls.size == 1) "y" else "ies"} to call") { showReminders = false; tab = "calls" }
-            if (library.isNotEmpty()) OptionRow(Icons.Rounded.EventSeat, Brand.Teal700, "${library.size} library due${if (library.size == 1) "" else "s"}") { showReminders = false; tab = "lib" }
+            if (fees.isNotEmpty()) OptionRow(Icons.Rounded.CurrencyRupee, Brand.Red600, "${fees.size} student fee${if (fees.size == 1) "" else "s"} due", rupees(fees.sumOf { it.amount ?: 0L })) { showReminders = false; open = "fees" }
+            if (calls.isNotEmpty()) OptionRow(Icons.Rounded.Call, Brand.Saffron600, "${calls.size} enquir${if (calls.size == 1) "y" else "ies"} to call") { showReminders = false; open = "calls" }
+            if (library.isNotEmpty()) OptionRow(Icons.Rounded.EventSeat, Brand.Teal700, "${library.size} library due${if (library.size == 1) "" else "s"}") { showReminders = false; open = "lib" }
             if (birthdays.isNotEmpty()) OptionRow(Icons.Rounded.Cake, Color(0xFFE11D48), "${birthdays.size} birthday${if (birthdays.size == 1) "" else "s"} today") { showReminders = false; showBirthdays = true }
             if (needsBackup) OptionRow(Icons.Rounded.WarningAmber, Brand.Amber700, if (backupDays == null) "No backup yet" else "Backup is $backupDays days old", "Back up to Google Drive") {
                 showReminders = false; onGo(Go.Backup, 0)
@@ -357,27 +346,6 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
 }
 
 @Composable
-private fun MoneyBox(label: String, value: String, sub: String, valueColor: Color, modifier: Modifier, onClick: () -> Unit) {
-    Column(modifier.clip(RoundedCornerShape(16.dp)).background(Color.White.copy(alpha = 0.08f)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
-        .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 10.dp)) {
-        Text(label, style = MaterialTheme.typography.labelMedium, color = Brand.Blue200, maxLines = 1)
-        Text(value, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = valueColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(sub, style = MaterialTheme.typography.labelSmall, color = Brand.Blue200, maxLines = 1, overflow = TextOverflow.Ellipsis)
-    }
-}
-
-@Composable
-private fun WorkTab(label: String, count: Int, selected: Boolean, onClick: () -> Unit) {
-    Row(Modifier.clip(RoundedCornerShape(50)).background(if (selected) Brand.Blue700 else Color.White)
-        .border(1.dp, if (selected) Brand.Blue700 else Brand.Line, RoundedCornerShape(50)).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Text(label, style = MaterialTheme.typography.labelLarge, color = if (selected) Color.White else Brand.Slate600)
-        Spacer(Modifier.width(5.dp))
-        Text("$count", style = MaterialTheme.typography.labelLarge, color = if (selected) Brand.Blue100 else Brand.Slate400)
-    }
-}
-
-@Composable
 private fun TaskRow(task: Task, t: Long, onGo: (Go, Long) -> Unit) {
     val ctx = LocalContext.current
     val reminded = task.remindKey.isNotBlank() && AppSettings.remindedOn(task.remindKey, t)
@@ -387,7 +355,7 @@ private fun TaskRow(task: Task, t: Long, onGo: (Go, Long) -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(task.name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(if (reminded) "${task.detail} · Reminded today ✓" else task.detail, style = MaterialTheme.typography.bodySmall,
+            Text(if (reminded) "${task.detail} · ${if (task.call) "Called" else "Reminded"} today ✓" else task.detail, style = MaterialTheme.typography.bodySmall,
                 color = if (reminded) Brand.Green700 else task.detailColor, maxLines = 2)
         }
         task.amount?.takeIf { it > 0 }?.let {
@@ -396,7 +364,9 @@ private fun TaskRow(task: Task, t: Long, onGo: (Go, Long) -> Unit) {
         }
         Spacer(Modifier.width(8.dp))
         when {
-            task.call -> SmallIconButton(Icons.Rounded.Call, "Call ${task.name}", Brand.Blue600) { Contact.call(ctx, task.mobile) }
+            task.call -> SmallIconButton(Icons.Rounded.Call, "Call ${task.name}", if (reminded) Brand.Green700 else Brand.Blue600) {
+                AppSettings.markReminded(task.remindKey, t); Contact.call(ctx, task.mobile)
+            }
             reminded -> SmallIconButton(Icons.Rounded.Check, "Reminded. Send again to ${task.name}", Brand.Green700) { Contact.whatsapp(ctx, task.mobile, task.message) }
             task.message.isNotBlank() -> SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send reminder to ${task.name}", Brand.WhatsAppDark) {
                 AppSettings.markReminded(task.remindKey, t); Contact.whatsapp(ctx, task.mobile, task.message)
@@ -412,27 +382,6 @@ private fun SeeAll(text: String, onClick: () -> Unit) {
         Text(text, style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
         Spacer(Modifier.width(6.dp))
         Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
-    }
-}
-
-@Composable
-private fun Stat(label: String, value: String, sub: String, subColor: Color, icon: ImageVector, color: Color, modifier: Modifier, onClick: () -> Unit) {
-    Row(modifier.softCard(RoundedCornerShape(20.dp), 6.dp).clip(RoundedCornerShape(20.dp)).pressable(onClick = onClick).padding(13.dp), verticalAlignment = Alignment.Top) {
-        Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.10f)), Alignment.Center) { Icon(icon, null, tint = color, modifier = Modifier.size(19.dp)) }
-        Spacer(Modifier.width(10.dp))
-        Column {
-            Text(label, style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(value, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(sub, style = MaterialTheme.typography.labelSmall, color = subColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-@Composable
-private fun Mini(value: String, label: String, color: Color, bg: Color, modifier: Modifier, onClick: () -> Unit) {
-    Column(modifier.clip(RoundedCornerShape(16.dp)).background(bg).clickable(onClick = onClick).padding(vertical = 10.dp, horizontal = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = color)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -503,6 +452,78 @@ private fun Arrangeable(arranging: Boolean, title: String, onMove: (Int) -> Unit
             content()
             // a cover so the card's own buttons do nothing while arranging
             Box(Modifier.matchParentSize().background(Color.White.copy(alpha = 0.25f)).clickable(remember { MutableInteractionSource() }, null) {})
+        }
+    }
+}
+
+/**
+ * One line of the attention card: count, what it is, and one button that reminds (or calls) the next person
+ * not yet done today. Tapping the line opens the people under it.
+ */
+@Composable
+private fun AttentionLine(
+    key: String, tasks: List<Task>, title: String, sub: String, color: Color, bg: Color, action: String,
+    open: String, setOpen: (String) -> Unit, t: Long, onGo: (Go, Long) -> Unit, allGo: Go,
+) {
+    if (tasks.isEmpty()) return
+    val ctx = LocalContext.current
+    val next = tasks.firstOrNull { !AppSettings.remindedOn(it.remindKey, t) }
+    val isOpen = open == key
+    HorizontalDivider(color = Brand.Line)
+    Row(Modifier.fillMaxWidth().clickable { setOpen(if (isOpen) "" else key) }.padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(bg), Alignment.Center) {
+            Text("${tasks.size}", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = color)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = Brand.Ink, maxLines = 2)
+            Text(sub, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Spacer(Modifier.width(8.dp))
+        if (next == null) StatusChip("Done ✓", Tone.Good)
+        else PillButton(action, {
+            AppSettings.markReminded(next.remindKey, t)
+            if (next.call) Contact.call(ctx, next.mobile) else Contact.whatsapp(ctx, next.mobile, next.message)
+        }, if (next.call) Brand.Blue600 else Brand.WhatsAppDark)
+        Icon(if (isOpen) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, if (isOpen) "Hide people" else "Show people", tint = Brand.Slate400, modifier = Modifier.padding(start = 4.dp))
+    }
+    if (isOpen) {
+        tasks.take(6).forEach { TaskRow(it, t, onGo) }
+        SeeAll(if (tasks.size > 6) "See all (${tasks.size})" else "Open the full list") { onGo(allGo, 0) }
+    }
+}
+
+/** Card with a small coloured heading and an "Open" link. */
+@Composable
+private fun InfoCard(title: String, icon: ImageVector, color: Color, onOpen: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 5.dp).clip(RoundedCornerShape(22.dp))) {
+        Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(start = 14.dp, end = 10.dp, top = 12.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(28.dp).clip(RoundedCornerShape(9.dp)).background(color), Alignment.Center) { Icon(icon, null, tint = Color.White, modifier = Modifier.size(16.dp)) }
+            Spacer(Modifier.width(10.dp))
+            Text(title, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("Open", style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
+            Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(18.dp))
+        }
+        content()
+    }
+}
+
+/** Three numbers side by side: (value, label, small line) and (colour, what happens on tap). */
+@Composable
+private fun Trio(
+    vararg items: Pair<Triple<String, String, String>, Pair<Color, () -> Unit>>,
+    subColor: (Int) -> Color = { Brand.Slate500 },
+) {
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        items.forEachIndexed { i, (text, look) ->
+            if (i > 0) VerticalDivider(Modifier.padding(vertical = 10.dp), color = Brand.Line)
+            Column(Modifier.weight(1f).clickable(onClick = look.second).padding(vertical = 10.dp, horizontal = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text.first, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = look.first, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Text(text.second, style = MaterialTheme.typography.labelMedium, color = Brand.Slate600, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (text.third.isNotBlank()) Text(text.third, style = MaterialTheme.typography.labelSmall, color = subColor(i), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
