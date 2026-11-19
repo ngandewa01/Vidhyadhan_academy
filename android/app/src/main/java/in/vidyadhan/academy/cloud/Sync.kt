@@ -151,6 +151,9 @@ object Sync {
                 for ((wt, doc) in retry) if (!save(w, k, wt, columns(d, wt), doc)) synchronized(waiting) { waiting += wt to doc }
             })
         } finally { pulling = false }
+        // make sure every open screen shows what just came from the other phone
+        runCatching { d.invalidationTracker.refreshVersionsAsync() }
+        runCatching { d.invalidationTracker.notifyObserversByTableNames(t) }
         Cloud.synced(0)
     }
 
