@@ -103,6 +103,15 @@ class ScreenshotTest {
                 "FEE RECEIPT  /  फी पावती", "Rohan Deshmukh", listOf("Mobile" to "+91 98220 01122", "Course" to "MPSC · Evening", "Payment mode" to "UPI", "Note" to "Installment 2 of 3"),
                 8800, listOf("Total fee" to "₹25,000", "Paid so far" to "₹21,000", "Balance" to "₹4,000"), footnote = "Next installment ₹4,000 on 10 Dec 2026"))
             File(out, "18-receipt.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            // the monthly report, both pages
+            val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+            val rep = runBlocking { `in`.vidyadhan.academy.money.loadReport(ctx, java.time.YearMonth.now()) }
+            listOf<(android.graphics.Canvas) -> Unit>({ `in`.vidyadhan.academy.money.drawReportPage1(ctx, it, rep) }, { `in`.vidyadhan.academy.money.drawReportPage2(ctx, it, rep) })
+                .forEachIndexed { i, draw ->
+                    val b = android.graphics.Bitmap.createBitmap(1190, 1684, android.graphics.Bitmap.Config.ARGB_8888)
+                    val cv2 = android.graphics.Canvas(b); cv2.drawColor(android.graphics.Color.WHITE); cv2.scale(2f, 2f); draw(cv2)
+                    File(out, "19-report-${i + 1}.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                }
         }
         nav("Students")
         rule.waitUntil(10_000) { rule.onAllNodesWithText("Rohan Deshmukh").fetchSemanticsNodes().isNotEmpty() } // the list loads from the database

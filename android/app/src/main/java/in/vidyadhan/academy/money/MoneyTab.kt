@@ -96,6 +96,7 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
     val last6 = (5 downTo 0).map { monthMoney(month.minusMonths(it.toLong()), sp, lp, ex) }
     val monthLabel = month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
 
+    val reportScope = rememberCoroutineScope()
     HeroPage("Reports", "Income, expenses, profit and monthly PDF", header = {
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.11f)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(50)),
@@ -165,7 +166,7 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                                 }
                             }
                         }
-                        PrimaryButton("Share $monthLabel report (PDF)", { shareReport(ctx, cur, enq.filter { it.createdOn in month.range() }) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PictureAsPdf)
+                        PrimaryButton("Share $monthLabel report (PDF)", { reportScope.launch { runCatching { shareMonthlyReport(ctx, month) } } }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PictureAsPdf)
                     } else {
                         val list = ex.filter { it.spentOn in month.range() }
                         if (list.isEmpty()) EmptyState(Icons.Rounded.ReceiptLong, "No expenses in $monthLabel", "Note rent, electricity, salaries and more to see your profit.",
