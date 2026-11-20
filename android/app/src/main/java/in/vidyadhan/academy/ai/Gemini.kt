@@ -61,6 +61,12 @@ object Gemini {
         (preferred + lite + full).distinct().ifEmpty { throw Problem("This key has no Gemini Flash model") }
     }
 
+    /** Seconds Google asks us to wait (RetryInfo "retryDelay": "37s"), if any. */
+    private fun retryAfter(body: String): Long? = Regex(""""retryDelay"\s*:\s*"(\d+)(?:\.\d+)?s"""").find(body)?.groupValues?.get(1)?.toLongOrNull()
+
+    /** The model has no free allowance at all (or for the day), so waiting will not help. */
+    private fun zeroQuota(body: String) = "limit: 0" in body || "PerDay" in body || "per day" in body.lowercase()
+
     /** The first model to try. */
     suspend fun pickModel(key: String): String = models(key).first()
 
@@ -82,14 +88,21 @@ object Gemini {
         val order = (listOf(AppSettings.geminiModel).filter { it.isNotBlank() } + models(key)).distinct().take(8)
         var last = "Gemini did not answer"
         for (m in order) {
-            val r = http.newCall(Request.Builder().url("$BASE/models/$m:generateContent").header("x-goog-api-key", key)
-                .post(body.toRequestBody("application/json".toMediaType())).build()).execute()
-            val b = r.use { it.body.string() }
-            if (r.isSuccessful) { AppSettings.geminiModel = m; return@withContext parse(json.parseToJsonElement(b).jsonObject) }
-            last = "$m: " + errorOf(r.code, b)
+            var code: Int; var b: String; var tries = 0
+            while (true) {
+                val r = http.newCall(Request.Builder().url("$BASE/models/$m:generateContent").header("x-goog-api-key", key)
+                    .post(body.toRequestBody("application/json".toMediaType())).build()).execute()
+                code = r.code; b = r.use { it.body.string() }
+                if (r.isSuccessful) { AppSettings.geminiModel = m; return@withContext parse(json.parseToJsonElement(b).jsonObject) }
+                // a per-minute limit: wait as long as Google asks (at most a minute), then try again, twice at most
+                val wait = retryAfter(b)
+                if (code == 429 && !zeroQuota(b) && tries < 2) { tries++; kotlinx.coroutines.delay((wait ?: (15L shl tries)).coerceIn(5, 60) * 1000); continue }
+                break
+            }
+            last = "$m: " + errorOf(code, b)
             val msg = messageOf(b).orEmpty()
-            val tryNext = r.code == 404 || (r.code == 429 && ("limit: 0" in msg || "free_tier" in msg || "FreeTier" in msg || "quota" in msg.lowercase())) ||
-                (r.code == 400 && ("not supported" in msg || "Search" in msg))
+            // each model has its own free allowance, so a limit on one is a reason to try the next
+            val tryNext = code == 404 || code == 429 || (code == 400 && ("not supported" in msg || "Search" in msg))
             if (!tryNext) break
         }
         throw Problem(last)

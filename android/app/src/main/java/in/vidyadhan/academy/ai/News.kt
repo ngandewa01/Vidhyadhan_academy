@@ -184,6 +184,7 @@ MR: the same in simple Marathi
             }
         }
         if (AppSettings.digestOn && (force || AppSettings.digestDay != t)) {
+            if (AppSettings.newsOn) kotlinx.coroutines.delay(8_000) // space the two requests (free plan per-minute limit)
             val pts = check(Gemini.ask(digestPrompt()), CA, t).distinctBy { it.id }
             AppSettings.digestDay = t
             if (pts.isNotEmpty()) { save(pts + _items.value.filter { !(it.kind == CA && it.day == t) }); added += pts.size }
