@@ -9,6 +9,7 @@ import `in`.vidyadhan.academy.students.studentsWithFeesNow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
@@ -28,6 +29,8 @@ object TelegramBot {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     val connected: Boolean get() = AppSettings.botToken.isNotBlank() && AppSettings.botName.isNotBlank()
+    /** Set by the app at start, so the bot can look people up by mobile number. */
+    @Volatile var app: Context? = null
     val link: String get() = "https://t.me/${AppSettings.botName}"
 
     private fun call(method: String, form: Map<String, String> = emptyMap(), file: java.io.File? = null): JsonObject {
@@ -73,8 +76,15 @@ object TelegramBot {
                 val type = chat["type"]?.jsonPrimitive?.contentOrNull ?: "private"
                 val text = msg["text"]?.jsonPrimitive?.contentOrNull ?: ""
                 val user = msg["from"]?.jsonObject?.get("username")?.jsonPrimitive?.contentOrNull
+                val fromId = msg["from"]?.jsonObject?.get("id")?.jsonPrimitive?.longOrNull
+                val contact = msg["contact"]?.jsonObject
                 when {
-                    text.startsWith("/start ") && type == "private" -> AppSettings.setTelegramChat("k_" + text.removePrefix("/start ").trim(), chatId)
+                    contact != null && type == "private" -> linkByPhone(chatId, fromId, contact)
+                    text.startsWith("/start ") && type == "private" && text.removePrefix("/start ").trim() != "join" -> {
+                        AppSettings.setTelegramChat("k_" + text.removePrefix("/start ").trim(), chatId)
+                        reply(chatId, "✅ Connected to <b>${esc(AppSettings.academyName)}</b>. Your fee receipts and reminders will come here.")
+                    }
+                    (text.trim() == "/start" || text.trim() == "/start join") && type == "private" -> askPhone(chatId)
                     text.startsWith("/owner") && type == "private" -> AppSettings.botOwnerChat = chatId
                     text.startsWith("/staff") && type != "private" -> AppSettings.botStaffChat = chatId
                     text.startsWith("/students") && type != "private" -> AppSettings.botStudentsChat = chatId
@@ -84,6 +94,35 @@ object TelegramBot {
         }
         linkedCount()
     }
+
+    private fun reply(chat: Long, text: String, markup: String? = null) {
+        runCatching { call("sendMessage", buildMap { put("chat_id", "$chat"); put("text", text); put("parse_mode", "HTML"); if (markup != null) put("reply_markup", markup) }) }
+    }
+
+    /** Someone opened the common bot link: ask them to share their phone number (a Telegram button). */
+    private fun askPhone(chat: Long) = reply(chat,
+        "Namaskar 🙏 Welcome to <b>${esc(AppSettings.academyName)}</b>.\nTo get your fee receipts and reminders here, tap <b>📱 Share my phone number</b> below.",
+        """{"keyboard":[[{"text":"📱 Share my phone number","request_contact":true}]],"one_time_keyboard":true,"resize_keyboard":true}""")
+
+    /** A shared phone number: connect every student, Abhyasika member and open enquiry with that mobile. */
+    private suspend fun linkByPhone(chat: Long, fromId: Long?, contact: JsonObject) {
+        val done = """{"remove_keyboard":true}"""
+        val owner = contact["user_id"]?.jsonPrimitive?.longOrNull
+        if (owner == null || owner != fromId) { reply(chat, "Please share <b>your own</b> number with the button.", done); return }
+        val mobile = contact["phone_number"]?.jsonPrimitive?.contentOrNull.orEmpty().filter(Char::isDigit).takeLast(10)
+        val ctx = app ?: return
+        val db = AppDb.get(ctx)
+        val names = mutableListOf<String>()
+        db.students().allStudents().filter { it.mobile.takeLast(10) == mobile && mobile.length == 10 }.forEach { AppSettings.setTelegramChat("k_s${it.id}", chat); names += it.name }
+        db.library().allMembers().filter { it.active && it.mobile.takeLast(10) == mobile && mobile.length == 10 }.forEach { AppSettings.setTelegramChat("k_m${it.id}", chat); names += it.name }
+        db.enquiries().all().first().filter { it.mobile.takeLast(10) == mobile && mobile.length == 10 && it.status in listOf("NEW", "CONTACTED") }
+            .forEach { AppSettings.setTelegramChat("k_e${it.id}", chat); names += it.name }
+        if (names.isEmpty()) reply(chat, "We could not find +91 $mobile in ${esc(AppSettings.academyName)} records. Please ask the office to add or correct your mobile number, then tap /start again.", done)
+        else reply(chat, "✅ Connected: <b>${esc(names.distinct().joinToString(", "))}</b>.\nYour fee receipts, reminders and academy updates will come here.", done)
+    }
+
+    /** The one link for everyone: students press Start and share their phone number to be connected. */
+    val joinLink: String get() = "$link?start=join"
 
     fun linkedCount() = AppSettings.telegramChats().keys.count { it.startsWith("k_") }
     fun isLinked(key: String) = AppSettings.telegramChat("k_$key") != null

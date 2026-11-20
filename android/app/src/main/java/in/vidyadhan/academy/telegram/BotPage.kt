@@ -42,7 +42,7 @@ fun BotPage(onGo: (Go, Long) -> Unit) {
     val students by db.students().students().collectAsStateWithLifecycle(emptyList())
     var token by remember { mutableStateOf(AppSettings.botToken) }
     var status by remember { mutableStateOf<String?>(null) }
-    var linked by remember { mutableIntStateOf(AppSettings.telegramChats().size) }
+    var linked by remember { mutableIntStateOf(TelegramBot.linkedCount()) }
     var preview by remember { mutableStateOf("receipt") }
     val connected = TelegramBot.connected
     LaunchedEffect(connected) { if (connected) linked = TelegramBot.refresh() }
@@ -57,7 +57,7 @@ fun BotPage(onGo: (Go, Long) -> Unit) {
             if (!connected) Card("Connect your Telegram bot") {
                 Text("1. In Telegram, open @BotFather and send /newbot. Give it a name, e.g. Vidyadhan Academy Bot.\n" +
                     "2. BotFather replies with a token (a long code). Copy it and paste it here.\n" +
-                    "3. Ask each student to open your bot's link and press Start once. Their @username must be saved on their student record.",
+                    "3. Share your bot's join link in the students' group. Each student presses Start and taps “Share my phone number”; the app matches it to their mobile and connects them.",
                     style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
                 Field(token, { token = it.trim() }, "Bot token", Icons.Rounded.Key)
                 PrimaryButton("Connect", {
@@ -67,14 +67,14 @@ fun BotPage(onGo: (Go, Long) -> Unit) {
             } else Card("Your bot", trailing = { Text("Live Bot API", Modifier.clip(RoundedCornerShape(50)).background(Brand.Green50).padding(horizontal = 8.dp, vertical = 2.dp),
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Green700) }) {
                 val withTg = students.count { it.leftOn == null && it.telegram.isNotBlank() }
-                Text("$linked student${if (linked == 1) "" else "s"} linked · $withTg with a Telegram username", style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
+                Text("$linked connected on Telegram · new ones are picked up every 15 minutes", style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
                 Text(if (AppSettings.botOwnerChat != 0L) "Test messages come to you ✓" else "Send /owner to your bot to get the test messages yourself.",
                     style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                 Text(if (AppSettings.botStaffChat != 0L) "Staff group connected ✓" else "For the staff digest: add the bot to your staff group and send /staff there.",
                     style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SoftButton("Share bot link", {
-                        val msg = "Please open ${TelegramBot.link} and press Start to get your fee receipts and reminders from ${AppSettings.academyName}."
+                        val msg = "${AppSettings.academyName}: get your fee receipts, reminders and MPSC updates on Telegram. Open ${TelegramBot.joinLink}, press Start, then tap “Share my phone number”."
                         runCatching { ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
                             .putExtra(android.content.Intent.EXTRA_TEXT, msg), "Share bot link")) }
                     },
