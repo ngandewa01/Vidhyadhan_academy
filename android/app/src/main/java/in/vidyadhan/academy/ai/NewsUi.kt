@@ -105,20 +105,12 @@ fun NewsPage(start: String, onBack: () -> Unit) {
     var filter by remember { mutableStateOf("All") }
     var open by remember { mutableStateOf<NewsItem?>(null) }
     var postText by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf<String?>(null) }
+    val busy by News.busy.collectAsStateWithLifecycle()
+    val status by News.status.collectAsStateWithLifecycle()
+    DisposableEffect(Unit) { News.pageOpen = true; onDispose { News.pageOpen = false } }
     val all by News.items.collectAsStateWithLifecycle()
     BackHandler(onBack = onBack)
-    fun check(only: String? = null) {
-        busy = true
-        status = when (only) { News.NEWS -> "Searching for MPSC announcements…"; News.CA -> "Making today's current affairs…"; else -> "Checking MPSC and current affairs…" }
-        scope.launch {
-            status = runCatching { News.refresh(ctx, force = true, only = only) }.fold({
-                if (it > 0) "$it new item${if (it == 1) "" else "s"} ✓" else if (only == News.CA) "No new points found ✓" else "No new MPSC announcement right now ✓"
-            }, { it.message ?: "Could not check" })
-            busy = false
-        }
-    }
+    fun check(only: String? = null) = News.checkNow(ctx, only)
     HeroPage("MPSC News", "AI summaries · every line cites its source · MPSC only", onBack = onBack) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

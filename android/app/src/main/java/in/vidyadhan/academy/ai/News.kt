@@ -5,6 +5,7 @@ import androidx.work.*
 import `in`.vidyadhan.academy.AppSettings
 import `in`.vidyadhan.academy.students.today
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -167,6 +168,28 @@ MR: the same in simple Marathi
     // ───────────── running ─────────────
 
     /** Looks for new MPSC news (and makes today's digest if it is not made yet). Returns how many new items. */
+    // ── a check started from a button keeps going in the background (switching tabs does not stop it) ──
+    private val bg = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO)
+    private val _busy = MutableStateFlow(false); val busy: StateFlow<Boolean> = _busy
+    private val _status = MutableStateFlow<String?>(null); val status: StateFlow<String?> = _status
+    /** True while the MPSC News page is open (then no notification is needed when the check finishes). */
+    @Volatile var pageOpen = false
+
+    fun checkNow(ctx: Context, only: String? = null) {
+        if (_busy.value) return
+        val app = ctx.applicationContext
+        _busy.value = true
+        _status.value = when (only) { NEWS -> "Searching for MPSC announcements…"; CA -> "Making today's current affairs…"; else -> "Checking MPSC and current affairs…" }
+        bg.launch {
+            val msg = runCatching { refresh(app, force = true, only = only) }.fold({
+                if (it > 0) "$it new item${if (it == 1) "" else "s"} ✓" else if (only == CA) "No new points found ✓" else "No new MPSC announcement right now ✓"
+            }, { it.message ?: "Could not check" })
+            _status.value = msg; _busy.value = false
+            if (!pageOpen) `in`.vidyadhan.academy.notify.Reminders.notify(app, msg, id = 8,
+                title = if (only == CA) "Current affairs" else "MPSC News")
+        }
+    }
+
     /** [only]: NEWS or CA to check just one of them (the buttons); null = both (the automatic check). */
     suspend fun refresh(ctx: Context, force: Boolean = false, only: String? = null): Int = lock.withLock {
         if (file == null) load(ctx)
