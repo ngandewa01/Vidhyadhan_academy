@@ -47,16 +47,18 @@ object Gemini {
         }
     }
 
-    /** All Gemini Flash models this key can use: newest first, "lite" ones after the full ones of the same version. */
+    /** All Gemini Flash models this key can use: Flash-Lite first (largest free allowance), newest first. */
     suspend fun models(key: String): List<String> = withContext(Dispatchers.IO) {
         fun ver(n: String) = Regex("""gemini-(\d+(?:\.\d+)?)""").find(n)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
         val all = get("models?pageSize=200", key)["models"]?.jsonArray.orEmpty().map { it.jsonObject }
             .filter { m -> m["supportedGenerationMethods"]?.jsonArray?.any { it.jsonPrimitive.content == "generateContent" } == true }
             .map { it["name"]!!.jsonPrimitive.content.removePrefix("models/") }
             .filter { n -> n.startsWith("gemini") && "flash" in n && listOf("image", "tts", "audio", "live", "thinking", "exp", "preview").none { it in n } }
-        val latest = all.filter { it.endsWith("-latest") }.sortedBy { "lite" in it }
-        val rest = (all - latest.toSet()).sortedWith(compareByDescending<String> { ver(it) }.thenBy { "lite" in it }.thenBy { it.length })
-        (latest + rest).distinct().ifEmpty { throw Problem("This key has no Gemini Flash model") }
+        // Flash-Lite first: it has the largest free allowance; then the full Flash models, newest first
+        val preferred = listOf("gemini-3.5-flash-lite").filter { it in all }
+        val lite = all.filter { "lite" in it }.sortedWith(compareByDescending<String> { ver(it) }.thenBy { it.endsWith("-latest") }.thenBy { it.length })
+        val full = all.filter { "lite" !in it }.sortedWith(compareByDescending<String> { ver(it) }.thenBy { it.endsWith("-latest") }.thenBy { it.length })
+        (preferred + lite + full).distinct().ifEmpty { throw Problem("This key has no Gemini Flash model") }
     }
 
     /** The first model to try. */
