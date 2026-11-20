@@ -67,6 +67,12 @@ object Gemini {
     /** The model has no free allowance at all (or for the day), so waiting will not help. */
     private fun zeroQuota(body: String) = "limit: 0" in body || "PerDay" in body || "per day" in body.lowercase()
 
+    @Volatile private var cached: Pair<String, List<String>>? = null
+    /** The model list, fetched once per key while the app runs. */
+    private suspend fun modelsCached(key: String): List<String> = cached?.takeIf { it.first == key }?.second ?: models(key).also { cached = key to it }
+
+    private fun lazyModels(key: String): List<String> = kotlinx.coroutines.runBlocking { modelsCached(key) }
+
     /** The first model to try. */
     suspend fun pickModel(key: String): String = models(key).first()
 
@@ -80,23 +86,30 @@ object Gemini {
     suspend fun ask(prompt: String): Grounded = withContext(Dispatchers.IO) {
         val key = AppSettings.geminiKey
         if (key.isBlank()) throw Problem("Add your Gemini key in Settings → MPSC News")
-        val body = buildJsonObject {
+        fun body(think: Boolean) = buildJsonObject {
             putJsonArray("contents") { addJsonObject { put("role", "user"); putJsonArray("parts") { addJsonObject { put("text", prompt) } } } }
             putJsonArray("tools") { addJsonObject { putJsonObject("google_search") {} } }
-            putJsonObject("generationConfig") { put("temperature", 0.2) }
+            putJsonObject("generationConfig") {
+                put("temperature", 0.2)
+                if (!think) putJsonObject("thinkingConfig") { put("thinkingBudget", 0) } // summaries need no long thinking: much faster
+            }
         }.toString()
-        val order = (listOf(AppSettings.geminiModel).filter { it.isNotBlank() } + models(key)).distinct().take(8)
+        // the saved model first; the list is only fetched when that one does not work
+        val saved = AppSettings.geminiModel
+        val order = if (saved.isNotBlank()) sequence { yield(saved); yieldAll(lazyModels(key).filter { it != saved }) } else lazyModels(key).asSequence()
         var last = "Gemini did not answer"
-        for (m in order) {
-            var code: Int; var b: String; var tries = 0
+        for (m in order.take(8)) {
+            var code: Int; var b: String; var tries = 0; var think = false
             while (true) {
                 val r = http.newCall(Request.Builder().url("$BASE/models/$m:generateContent").header("x-goog-api-key", key)
-                    .post(body.toRequestBody("application/json".toMediaType())).build()).execute()
+                    .post(body(think).toRequestBody("application/json".toMediaType())).build()).execute()
                 code = r.code; b = r.use { it.body.string() }
                 if (r.isSuccessful) { AppSettings.geminiModel = m; return@withContext parse(json.parseToJsonElement(b).jsonObject) }
-                // a per-minute limit: wait as long as Google asks (at most a minute), then try again, twice at most
+                // a model that does not accept "no thinking": ask again the normal way
+                if (code == 400 && !think && "thinking" in b.lowercase()) { think = true; continue }
+                // a per-minute limit: wait as long as Google asks (at most 20 seconds), once
                 val wait = retryAfter(b)
-                if (code == 429 && !zeroQuota(b) && tries < 2) { tries++; kotlinx.coroutines.delay((wait ?: (15L shl tries)).coerceIn(5, 60) * 1000); continue }
+                if (code == 429 && !zeroQuota(b) && tries < 1) { tries++; kotlinx.coroutines.delay((wait ?: 10L).coerceIn(3, 20) * 1000); continue }
                 break
             }
             last = "$m: " + errorOf(code, b)

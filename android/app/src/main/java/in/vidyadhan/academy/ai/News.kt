@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.*
 import `in`.vidyadhan.academy.AppSettings
 import `in`.vidyadhan.academy.students.today
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
@@ -172,10 +173,18 @@ MR: the same in simple Marathi
         val t = today()
         var added = 0
         val now = System.currentTimeMillis()
-        if (AppSettings.newsOn && (force || now - AppSettings.newsLast > 10 * 3_600_000L)) {
-            val have = _items.value.filter { it.kind == NEWS }
-            val fresh = check(Gemini.ask(newsPrompt(have.take(25).map { "${it.exam}: ${it.title}" })), NEWS, t)
-                .filter { n -> have.none { it.id == n.id } }.distinctBy { it.id }
+        val doNews = AppSettings.newsOn && (force || now - AppSettings.newsLast > 10 * 3_600_000L)
+        val doDigest = AppSettings.digestOn && (force || AppSettings.digestDay != t)
+        val have = _items.value.filter { it.kind == NEWS }
+        // both questions go to Gemini at the same time
+        val (newsAns, digestAns) = kotlinx.coroutines.coroutineScope {
+            val a = if (doNews) async { runCatching { Gemini.ask(newsPrompt(have.take(25).map { "${it.exam}: ${it.title}" })) } } else null
+            val b = if (doDigest) async { runCatching { Gemini.ask(digestPrompt()) } } else null
+            a?.await() to b?.await()
+        }
+        (newsAns?.exceptionOrNull() ?: digestAns?.exceptionOrNull())?.takeIf { (newsAns?.isFailure ?: true) && (digestAns?.isFailure ?: true) }?.let { throw it }
+        if (newsAns?.isSuccess == true) {
+            val fresh = check(newsAns.getOrThrow(), NEWS, t).filter { n -> have.none { it.id == n.id } }.distinctBy { it.id }
             AppSettings.newsLast = now
             if (fresh.isNotEmpty()) {
                 save(fresh + _items.value); added += fresh.size
@@ -183,9 +192,8 @@ MR: the same in simple Marathi
                     fresh.joinToString("\n") { "• ${it.type}: ${it.title}" }, id = 7, title = "MPSC News · ${fresh.size} new")
             }
         }
-        if (AppSettings.digestOn && (force || AppSettings.digestDay != t)) {
-            if (AppSettings.newsOn) kotlinx.coroutines.delay(8_000) // space the two requests (free plan per-minute limit)
-            val pts = check(Gemini.ask(digestPrompt()), CA, t).distinctBy { it.id }
+        if (digestAns?.isSuccess == true) {
+            val pts = check(digestAns.getOrThrow(), CA, t).distinctBy { it.id }
             AppSettings.digestDay = t
             if (pts.isNotEmpty()) { save(pts + _items.value.filter { !(it.kind == CA && it.day == t) }); added += pts.size }
         }

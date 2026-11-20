@@ -91,10 +91,6 @@ fun BotPage(onGo: (Go, Long) -> Unit, onBack: () -> Unit = {}, onMessages: () ->
                 Toggle("Counselor enquiry follow-up digest", "Notify staff Telegram group of today's follow-ups", AppSettings.tgEnquiry) { AppSettings.tgEnquiry = it }
             }
 
-            Card("Messages") {
-                OptionRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message wording & tests", "One wording for WhatsApp, SMS and Telegram · send a test to yourself", onMessages)
-                OptionRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message to many", "Telegram bot, students' group, WhatsApp or SMS") { onGo(Go.Broadcast, 0) }
-            }
             Spacer(Modifier.height(12.dp))
         }
     }
