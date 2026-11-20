@@ -54,7 +54,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Library seats"), Backup("Backup & export"), Updates("App updates"), Cloud("Cloud sync"), Telegram("Telegram & WhatsApp"), News("MPSC News & AI") }
+private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Abhyasika seats & lockers"), Backup("Backup & export"), Updates("App updates"), Cloud("Cloud sync"), Telegram("Telegram & WhatsApp"), News("MPSC News & AI") }
 
 @Composable
 fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}, onClose: () -> Unit = {}, asTab: Boolean = false,
@@ -149,12 +149,14 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
             Spacer(Modifier.height(2.dp))
             Group("Academy") {
                 SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses, batches & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
-                    if (AppSettings.lateFeeOn) " · late fee on" else "", divider = false) { open(Page.Courses) }
+                    if (AppSettings.lateFeeOn) " · late fee on" else "") { open(Page.Courses) }
+                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Abhyasika seats & lockers", "Rooms, plans · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
             }
             Group("Telegram & WhatsApp") {
                 SettingRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Telegram bot",
                     if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) "@${AppSettings.botName} · ${`in`.vidyadhan.academy.telegram.TelegramBot.linkedCount()} connected" else "Not connected") { open(Page.Telegram) }
                 SettingRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message wording", "Fee, Abhyasika, enquiry and birthday messages · tests") { open(Page.Messages) }
+                SettingRow(Icons.Rounded.NotificationsActive, Brand.Red600, "Reminders", "Follow up after ${AppSettings.enquiryDays} days · daily at %02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)) { open(Page.Reminders) }
                 SettingRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message to many", "Telegram, students' group, WhatsApp or SMS", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Broadcast, 0) }
             }
             Group("MPSC News & AI") {
@@ -163,10 +165,6 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
             }
             Group("Reports") {
                 SettingRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Monthly reports", "Income, expenses, profit · PDF report", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Money, 0) }
-            }
-            Group("Daily work") {
-                SettingRow(Icons.Rounded.NotificationsActive, Brand.Red600, "Reminders", "Follow up after ${AppSettings.enquiryDays} days · daily at %02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)) { open(Page.Reminders) }
-                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Library seats", "Rooms, plans · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
             }
             Group("Security") {
                 SettingRow(Icons.Rounded.Password, Brand.Violet700, "Change PIN", "4-digit PIN to open the app") { pinDialog = true }
