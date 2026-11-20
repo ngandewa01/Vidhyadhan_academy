@@ -167,14 +167,15 @@ MR: the same in simple Marathi
     // ───────────── running ─────────────
 
     /** Looks for new MPSC news (and makes today's digest if it is not made yet). Returns how many new items. */
-    suspend fun refresh(ctx: Context, force: Boolean = false): Int = lock.withLock {
+    /** [only]: NEWS or CA to check just one of them (the buttons); null = both (the automatic check). */
+    suspend fun refresh(ctx: Context, force: Boolean = false, only: String? = null): Int = lock.withLock {
         if (file == null) load(ctx)
         if (AppSettings.geminiKey.isBlank()) return 0
         val t = today()
         var added = 0
         val now = System.currentTimeMillis()
-        val doNews = AppSettings.newsOn && (force || now - AppSettings.newsLast > 10 * 3_600_000L)
-        val doDigest = AppSettings.digestOn && (force || AppSettings.digestDay != t)
+        val doNews = (only ?: NEWS) == NEWS && (only == NEWS || AppSettings.newsOn) && (force || now - AppSettings.newsLast > 10 * 3_600_000L)
+        val doDigest = (only ?: CA) == CA && (only == CA || AppSettings.digestOn) && (force || AppSettings.digestDay != t)
         val have = _items.value.filter { it.kind == NEWS }
         // both questions go to Gemini at the same time
         val (newsAns, digestAns) = kotlinx.coroutines.coroutineScope {

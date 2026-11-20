@@ -109,10 +109,13 @@ fun NewsPage(start: String, onBack: () -> Unit) {
     var status by remember { mutableStateOf<String?>(null) }
     val all by News.items.collectAsStateWithLifecycle()
     BackHandler(onBack = onBack)
-    fun check() {
-        busy = true; status = "Searching for MPSC news… (about 30 seconds)"
+    fun check(only: String? = null) {
+        busy = true
+        status = when (only) { News.NEWS -> "Searching for MPSC announcements…"; News.CA -> "Making today's current affairs…"; else -> "Checking MPSC and current affairs…" }
         scope.launch {
-            status = runCatching { News.refresh(ctx, force = true) }.fold({ if (it > 0) "$it new item${if (it == 1) "" else "s"} ✓" else "Nothing new right now ✓" }, { it.message ?: "Could not check" })
+            status = runCatching { News.refresh(ctx, force = true, only = only) }.fold({
+                if (it > 0) "$it new item${if (it == 1) "" else "s"} ✓" else if (only == News.CA) "No new points found ✓" else "No new MPSC announcement right now ✓"
+            }, { it.message ?: "Could not check" })
             busy = false
         }
     }
@@ -146,12 +149,14 @@ fun NewsPage(start: String, onBack: () -> Unit) {
                             }
                         }
                     }
-                    if (AppSettings.geminiKey.isNotBlank()) SoftButton(if (busy) "Checking…" else "Check now", { if (!busy) check() }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Refresh, enabled = !busy)
+                    if (AppSettings.geminiKey.isNotBlank()) SoftButton(if (busy) "Checking…" else "Check MPSC now", { if (!busy) check(News.NEWS) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Refresh, enabled = !busy)
                 }
                 News.CA -> {
                     val byDay = all.filter { it.kind == News.CA }.groupBy { it.day }.toSortedMap(compareByDescending { it })
-                    if (byDay.isEmpty()) Text(if (AppSettings.geminiKey.isBlank()) "Add your Gemini key in Settings to start." else "Today's points are made in the morning check.",
+                    if (byDay.isEmpty()) Text(if (AppSettings.geminiKey.isBlank()) "Add your Gemini key in Settings to start." else "Today's points are made automatically in the first check of the day.",
                         style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+                    if (AppSettings.geminiKey.isNotBlank()) SoftButton(if (busy) "Working…" else "Get current affairs now", { if (!busy) check(News.CA) }, Modifier.fillMaxWidth(),
+                        icon = Icons.Rounded.Refresh, enabled = !busy)
                     byDay.entries.take(7).forEach { (day, pts) ->
                         Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 4.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -172,7 +177,7 @@ fun NewsPage(start: String, onBack: () -> Unit) {
                         }
                     }
                 }
-                else -> NewsSettings(busy, ::check)
+                else -> NewsSettings(busy) { check() }
             }
             Text("AI summaries come only from the cited pages; a line without a trusted source is never shown. Still, check dates in the official notice before sharing.",
                 style = MaterialTheme.typography.bodySmall, color = Brand.Slate400)
@@ -329,7 +334,7 @@ private fun NewsSettings(busy: Boolean, onCheck: () -> Unit) {
             }
         }
     }
-    if (AppSettings.geminiKey.isNotBlank()) PrimaryButton(if (busy) "Checking…" else "Check now", { if (!busy) onCheck() }, Modifier.fillMaxWidth(), enabled = !busy, icon = Icons.Rounded.Refresh)
+    if (AppSettings.geminiKey.isNotBlank()) PrimaryButton(if (busy) "Checking…" else "Check both now", { if (!busy) onCheck() }, Modifier.fillMaxWidth(), enabled = !busy, icon = Icons.Rounded.Refresh)
 }
 
 @Composable
