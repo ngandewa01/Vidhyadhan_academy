@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,20 +54,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Library seats"), Backup("Backup & export"), Updates("App updates"), Cloud("Cloud sync") }
+private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Library seats"), Backup("Backup & export"), Updates("App updates"), Cloud("Cloud sync"), Telegram("Telegram & WhatsApp"), News("MPSC News & AI") }
 
 @Composable
-fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}, onClose: () -> Unit = {}) {
-    var page by remember { mutableStateOf(Page.Main) }
+fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}, onClose: () -> Unit = {}, asTab: Boolean = false,
+                onGo: (`in`.vidyadhan.academy.home.Go, Long) -> Unit = { _, _ -> }) {
+    var page by rememberSaveable { mutableStateOf(Page.Main) }
     LaunchedEffect(openBackup) { if (openBackup) { page = Page.Backup; onOpened() } }
-    HideBottomNav()
-    BackHandler { if (page != Page.Main) page = Page.Main else onClose() }
+    if (!asTab || page != Page.Main) HideBottomNav()
+    BackHandler(enabled = !asTab || page != Page.Main) { if (page != Page.Main) page = Page.Main else onClose() }
     AnimatedContent(page, transitionSpec = {
         if (targetState == Page.Main) (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { it / 5 } + fadeOut())
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "settings") { p ->
         when (p) {
-            Page.Main -> MainPage(lock, onClose) { page = it }
+            Page.Main -> MainPage(lock, if (asTab) null else onClose, onGo) { page = it }
+            Page.Telegram -> `in`.vidyadhan.academy.telegram.BotPage(onGo, onBack = { page = Page.Main }, onMessages = { page = Page.Messages })
+            Page.News -> `in`.vidyadhan.academy.ai.NewsPage("SET") { page = Page.Main }
             else -> HeroPage(p.title, onBack = { page = Page.Main }) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Spacer(Modifier.height(4.dp))
@@ -79,7 +83,7 @@ fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Un
                         Page.Backup -> BackupPage()
                         Page.Updates -> UpdatesPage()
                         Page.Cloud -> CloudPage()
-                        Page.Main -> {}
+                        Page.Main, Page.Telegram, Page.News -> {}
                     }
                     Spacer(Modifier.height(20.dp))
                 }
@@ -118,7 +122,7 @@ private fun SettingRow(icon: ImageVector, color: Color, title: String, subtitle:
 }
 
 @Composable
-private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit) {
+private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyadhan.academy.home.Go, Long) -> Unit, open: (Page) -> Unit) {
     val ctx = LocalContext.current
     val types by viewModel<LibraryViewModel>().types.collectAsStateWithLifecycle()
     var bio by remember { mutableStateOf(lock.biometricOn) }
@@ -144,13 +148,21 @@ private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit)
         Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Spacer(Modifier.height(2.dp))
             Group("Academy") {
-                SettingRow(Icons.Rounded.Apartment, Brand.Blue600, "Academy details", "Name, phone, address, receipt number") { open(Page.Academy) }
                 SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses, batches & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
                     if (AppSettings.lateFeeOn) " · late fee on" else "", divider = false) { open(Page.Courses) }
             }
-            Group("Messages") {
-                SettingRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message wording", "Fee, library, enquiry and birthday messages") { open(Page.Messages) }
-                SettingRow(Icons.Rounded.Groups, Color(0xFF229ED9), "Telegram group", AppSettings.telegramLink.ifBlank { "Add your group or channel link" }, divider = false) { open(Page.Academy) }
+            Group("Telegram & WhatsApp") {
+                SettingRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Telegram bot",
+                    if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) "@${AppSettings.botName} · ${`in`.vidyadhan.academy.telegram.TelegramBot.linkedCount()} connected" else "Not connected") { open(Page.Telegram) }
+                SettingRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message wording", "Fee, Abhyasika, enquiry and birthday messages · tests") { open(Page.Messages) }
+                SettingRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message to many", "Telegram, students' group, WhatsApp or SMS", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Broadcast, 0) }
+            }
+            Group("MPSC News & AI") {
+                SettingRow(Icons.Rounded.AutoAwesome, Brand.Violet700, "MPSC News & current affairs",
+                    if (AppSettings.geminiKey.isBlank()) "Add the Gemini key" else "Key locked · checks twice a day", divider = false) { open(Page.News) }
+            }
+            Group("Reports") {
+                SettingRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Monthly reports", "Income, expenses, profit · PDF report", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Money, 0) }
             }
             Group("Daily work") {
                 SettingRow(Icons.Rounded.NotificationsActive, Brand.Red600, "Reminders", "Follow up after ${AppSettings.enquiryDays} days · daily at %02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)) { open(Page.Reminders) }
@@ -214,7 +226,7 @@ private fun AcademyPage() {
         Field(AppSettings.receiptPrefix, { AppSettings.receiptPrefix = it.take(6).uppercase() }, "Receipt number starts with", Icons.Rounded.Tag,
             supporting = "Receipts look like ${AppSettings.receiptPrefix}-00012")
     }
-    FormCard("Telegram", Icons.Rounded.Groups, Color(0xFF229ED9)) {
+    if (false) FormCard("Telegram", Icons.Rounded.Groups, Color(0xFF229ED9)) {
         Field(AppSettings.telegramLink, { AppSettings.telegramLink = it }, "Group or channel link, e.g. https://t.me/…", Icons.Rounded.Link, keyboard = KeyboardType.Uri,
             supporting = "Used by “Send a message” to open your group")
     }

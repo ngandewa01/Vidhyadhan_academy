@@ -34,7 +34,7 @@ private val Sky700 = Color(0xFF0369A1); private val Sky50 = Color(0xFFF0F9FF); p
 
 /** "Telegram Bot & Settings" (the prototype's last tab), plus the rest of "More". */
 @Composable
-fun BotPage(onGo: (Go, Long) -> Unit) {
+fun BotPage(onGo: (Go, Long) -> Unit, onBack: () -> Unit = {}, onMessages: () -> Unit = {}) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     val db = remember { AppDb.get(ctx) }
@@ -47,7 +47,7 @@ fun BotPage(onGo: (Go, Long) -> Unit) {
     val connected = TelegramBot.connected
     LaunchedEffect(connected) { if (connected) linked = TelegramBot.refresh() }
 
-    HeroPage("Telegram Bot & Settings", if (connected) "@${AppSettings.botName} · Connected ✓" else "Bot not connected yet",
+    HeroPage("Telegram & WhatsApp", if (connected) "@${AppSettings.botName} · Connected ✓" else "Bot not connected yet", onBack = onBack,
         actions = {
             Box(Modifier.size(40.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x400EA5E9)).border(1.dp, Color(0x4D7DD3FC), RoundedCornerShape(14.dp)), Alignment.Center) {
                 Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Sky200, modifier = Modifier.size(20.dp))
@@ -91,20 +91,9 @@ fun BotPage(onGo: (Go, Long) -> Unit) {
                 Toggle("Counselor enquiry follow-up digest", "Notify staff Telegram group of today's follow-ups", AppSettings.tgEnquiry) { AppSettings.tgEnquiry = it }
             }
 
-            Text("Edit and test the bot's messages in Settings → Message wording.", Modifier.padding(horizontal = 6.dp),
-                style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-
-            Card("Course, seat & locker tariffs") {
-                AppSettings.courseList.forEach { c -> Tariff(c, AppSettings.courseFee(c).takeIf { it > 0 }?.let { rupees(it) } ?: "Set on first admission", Brand.Slate800) }
-                types.forEach { ty -> Tariff("Abhyasika ${ty.name} seat", "${rupees(ty.fee)} / mo", if (ty.icon == "LEGROOM") Brand.Violet700 else Brand.Slate800) }
-                Tariff("Separate personal locker", "${rupees(AppSettings.lockerFee.toLong())} / mo", Color(0xFF4338CA))
-            }
-
-            Card("More") {
-                OptionRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Money", "Income, expenses and reports") { onGo(Go.Money, 0) }
-                OptionRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message", "WhatsApp or Telegram to many people") { onGo(Go.Broadcast, 0) }
-                OptionRow(Icons.Rounded.Search, Brand.Blue600, "Search", "Students, members and enquiries") { onGo(Go.Search, 0) }
-                OptionRow(Icons.Rounded.Settings, Brand.Slate600, "Settings", "Academy details, fees, seat types, backup, updates") { onGo(Go.Settings, 0) }
+            Card("Messages") {
+                OptionRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message wording & tests", "One wording for WhatsApp, SMS and Telegram · send a test to yourself", onMessages)
+                OptionRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message to many", "Telegram bot, students' group, WhatsApp or SMS") { onGo(Go.Broadcast, 0) }
             }
             Spacer(Modifier.height(12.dp))
         }

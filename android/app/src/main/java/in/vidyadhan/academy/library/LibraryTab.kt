@@ -92,7 +92,7 @@ fun kindLabel(k: String) = when (k) {
 /** WhatsApp reminder for a member: the fee when it is due, otherwise the balance. */
 fun libraryReminder(m: LibraryMember, t: Long): String {
     val amount = when { m.validTill < t -> m.monthlyFee + m.balance; m.balance > 0 -> m.balance; else -> m.monthlyFee }
-    return `in`.vidyadhan.academy.Templates.fill("library", true, mapOf("name" to m.name, "amount" to rupees(amount), "date" to m.validTill.asDate()))
+    return `in`.vidyadhan.academy.Templates.fill("library", true, mapOf("name" to m.name, "amount" to rupees(amount), "date" to m.validTill.asDate(), "seat" to "${m.seatNo}"))
 }
 
 @Composable

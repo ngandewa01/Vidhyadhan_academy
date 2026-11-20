@@ -114,7 +114,7 @@ class ScreenshotTest {
         rule.onNodeWithText("Course fee").performTextInput("25000"); settle()
         rule.onNodeWithText("Equal plan").performScrollTo().performClick(); shot("06b-student-plan")
         backButton()
-        nav("Bot & More"); shot("07-more")
+        nav("Settings"); shot("07-more")
         nav("Enquiries"); shot("07b-enquiries")
 
         // Seats: no room yet → create one → edit → view
@@ -144,15 +144,15 @@ class ScreenshotTest {
         rule.onNodeWithText("Renew", substring = true).performScrollTo().performClick(); shot("12-renew-sheet"); back()
         backButton()
 
-        nav("Bot & More"); rule.onNodeWithText("Money").performScrollTo().performClick(); shot("13-money")
+        nav("Settings"); rule.onNodeWithText("Monthly reports").performScrollTo().performClick(); shot("13-money")
         rule.onNodeWithText("Expenses (3)").performClick(); shot("13b-expenses")
-        nav("Bot & More"); rule.onNodeWithText("Send a message").performScrollTo().performClick(); shot("14-broadcast")
+        nav("Settings"); rule.onNodeWithText("Send a message to many").performScrollTo().performClick(); shot("14-broadcast")
         backButton()
         nav("Dashboard"); shot("15-dashboard")
         rule.onNodeWithContentDescription("Search").performClick(); settle()
         rule.onNodeWithText("Name, mobile, seat or locker no.").performTextInput("sh"); shot("16-search")
         backButton()
-        nav("Bot & More"); rule.onNodeWithText("Settings").performScrollTo().performClick(); shot("17-settings")
+        nav("Settings"); rule.onNodeWithText("Telegram bot").performScrollTo().performClick(); shot("17-settings")
         back()
 
         // the same main screens with large text, as on the owner's phone (catches cut-off and overflowing text)
@@ -166,6 +166,6 @@ class ScreenshotTest {
         rule.onNodeWithText("Course fee").performTextInput("45000"); settle()
         rule.onNodeWithText("Unequal plan").performScrollTo(); shot("L5-admission-plan")
         nav("Abhyasika"); shot("L6-room")
-        nav("Bot & More"); shot("L7-bot")
+        nav("Settings"); shot("L7-bot")
     }
 }

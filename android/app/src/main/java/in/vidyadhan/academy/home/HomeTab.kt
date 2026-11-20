@@ -196,11 +196,6 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                     Text(AppSettings.academyName, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("Abhyasika Kendra · ${now.format(DateTimeFormatter.ofPattern("EEE, d MMM"))}", style = MaterialTheme.typography.labelMedium, color = Brand.Blue100.copy(alpha = 0.85f), maxLines = 1)
                 }
-                if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) {
-                    Text("TG BOT ON", Modifier.clip(RoundedCornerShape(5.dp)).background(Color.White.copy(alpha = 0.15f))
-                        .padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
-                    Spacer(Modifier.width(8.dp))
-                }
                 GlassIconButton(Icons.Rounded.Search, "Search", { onGo(Go.Search, 0) })
                 Spacer(Modifier.width(8.dp))
                 Box {

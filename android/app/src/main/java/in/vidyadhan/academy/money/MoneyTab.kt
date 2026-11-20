@@ -96,7 +96,7 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
     val last6 = (5 downTo 0).map { monthMoney(month.minusMonths(it.toLong()), sp, lp, ex) }
     val monthLabel = month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
 
-    HeroPage("Money", "Income, expenses and profit", header = {
+    HeroPage("Reports", "Income, expenses, profit and monthly PDF", header = {
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.11f)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(50)),
             verticalAlignment = Alignment.CenterVertically) {

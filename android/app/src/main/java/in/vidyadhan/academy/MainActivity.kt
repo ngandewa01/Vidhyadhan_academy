@@ -88,9 +88,9 @@ private enum class Tab(val label: String, val on: ImageVector, val off: ImageVec
     Students("Students", Icons.Outlined.School, Icons.Outlined.School),
     Enquiries("Enquiries", Icons.Outlined.PersonAddAlt, Icons.Outlined.PersonAddAlt),
     Library("Abhyasika", Icons.Outlined.Chair, Icons.Outlined.Chair),
-    More("Bot & More", Icons.AutoMirrored.Outlined.Send, Icons.AutoMirrored.Outlined.Send),
+    More("Settings", Icons.Outlined.Settings, Icons.Outlined.Settings),
     // opened from "More" (the More tab stays highlighted)
-    Money("Money", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, inNav = false),
+    Money("Reports", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, inNav = false),
 }
 
 @Composable
@@ -109,7 +109,7 @@ private fun AppShell(lock: LockStore) {
     }
     fun go(g: Go, id: Long) {
         when (g) {
-            Go.Settings, Go.Backup -> settings = true
+            Go.Settings, Go.Backup -> tab = Tab.More
             Go.Search -> search = true
             Go.Broadcast -> broadcast = true
             Go.Students, Go.Student -> tab = Tab.Students
@@ -142,7 +142,7 @@ private fun AppShell(lock: LockStore) {
                                 onAdmitted = { kind, id -> if (kind == "student") go(Go.Student, id) else go(Go.Member, id) })
                             Tab.Library -> LibraryTab(openSeats = pending == Go.Seats, openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0,
                                 startFilter = when (pending) { Go.MemberDues -> MemberFilter.Expired; Go.MemberEnding -> MemberFilter.Ending; else -> MemberFilter.All }, onOpened = done)
-                            Tab.More -> `in`.vidyadhan.academy.telegram.BotPage(::go)
+                            Tab.More -> SettingsTab(lock, openBackup = pending == Go.Backup, onOpened = done, asTab = true, onGo = ::go)
                             Tab.Money -> MoneyTab(openNew = pending == Go.NewExpense, onOpened = done)
                         }
                     }

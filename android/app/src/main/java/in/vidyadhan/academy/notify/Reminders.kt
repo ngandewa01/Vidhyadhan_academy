@@ -82,12 +82,12 @@ class DailyWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
         val rupees = { v: Long -> `in`.vidyadhan.academy.students.rupees(v) }
         if (AppSettings.tgDue) {
             all.filter { bot.isLinked("s${it.id}") && it.nextDue != null && (it.nextDue == today || it.nextDue == today + 3) }.forEach {
-                bot.sendToKey("s${it.id}", `in`.vidyadhan.academy.Templates.bot("tg_due", mapOf("name" to it.name.substringBefore(' '), "course" to it.course,
+                bot.sendToKey("s${it.id}", `in`.vidyadhan.academy.Templates.bot("fee", mapOf("name" to it.name.substringBefore(' '), "course" to it.course,
                     "amount" to rupees(it.nextDueAmount), "date" to `in`.vidyadhan.academy.students.shortDate(it.nextDue!!))))
             }
             db.library().allMembers().filter { it.active && (it.validTill == today || it.validTill == today + 3) }.forEach { m ->
                 val key = if (bot.isLinked("m${m.id}")) "m${m.id}" else m.studentId?.let { "s$it" }.orEmpty()
-                if (key.isNotBlank()) bot.sendToKey(key, `in`.vidyadhan.academy.Templates.bot("tg_seat", mapOf("name" to m.name.substringBefore(' '),
+                if (key.isNotBlank()) bot.sendToKey(key, `in`.vidyadhan.academy.Templates.bot("library", mapOf("name" to m.name.substringBefore(' '),
                     "seat" to "${m.seatNo}" + (if (m.hasLocker) " + locker" else ""), "date" to `in`.vidyadhan.academy.students.shortDate(m.validTill), "amount" to rupees(m.monthlyFee))))
             }
         }
