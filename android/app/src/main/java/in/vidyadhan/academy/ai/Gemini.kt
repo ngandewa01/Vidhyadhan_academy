@@ -35,48 +35,62 @@ object Gemini {
         r.use { val b = it.body.string(); if (!it.isSuccessful) throw Problem(errorOf(it.code, b)); return json.parseToJsonElement(b).jsonObject }
     }
 
+    private fun messageOf(body: String): String? =
+        runCatching { json.parseToJsonElement(body).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content }.getOrNull()
+
     private fun errorOf(code: Int, body: String): String {
-        val m = runCatching { json.parseToJsonElement(body).jsonObject["error"]?.jsonObject?.get("message")?.jsonPrimitive?.content }.getOrNull()
+        val m = messageOf(body)
         return when (code) {
             400, 403 -> if (m?.contains("API key", true) == true) "The Gemini key is not valid" else (m ?: "Gemini refused the request ($code)")
-            429 -> "Free Gemini limit reached for now; it will try again later"
+            429 -> "Gemini free limit reached. Google says: " + (m ?: "too many requests").take(300)
             else -> m ?: "Gemini error $code"
         }
     }
 
-    /** The newest "Flash" model this key can use (fast, and on the free plan). */
-    suspend fun pickModel(key: String): String = withContext(Dispatchers.IO) {
-        val models = get("models?pageSize=200", key)["models"]?.jsonArray.orEmpty().map { it.jsonObject }
+    /** All Gemini Flash models this key can use: newest first, "lite" ones after the full ones of the same version. */
+    suspend fun models(key: String): List<String> = withContext(Dispatchers.IO) {
+        fun ver(n: String) = Regex("""gemini-(\d+(?:\.\d+)?)""").find(n)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+        val all = get("models?pageSize=200", key)["models"]?.jsonArray.orEmpty().map { it.jsonObject }
             .filter { m -> m["supportedGenerationMethods"]?.jsonArray?.any { it.jsonPrimitive.content == "generateContent" } == true }
             .map { it["name"]!!.jsonPrimitive.content.removePrefix("models/") }
-            .filter { n -> n.startsWith("gemini") && "flash" in n && listOf("image", "tts", "audio", "live", "lite", "thinking", "exp").none { it in n } }
-        models.firstOrNull { it == "gemini-flash-latest" }
-            ?: models.maxByOrNull { n -> Regex("""gemini-(\d+(?:\.\d+)?)""").find(n)?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0 }
-            ?: throw Problem("This key has no Gemini Flash model")
+            .filter { n -> n.startsWith("gemini") && "flash" in n && listOf("image", "tts", "audio", "live", "thinking", "exp", "preview").none { it in n } }
+        val latest = all.filter { it.endsWith("-latest") }.sortedBy { "lite" in it }
+        val rest = (all - latest.toSet()).sortedWith(compareByDescending<String> { ver(it) }.thenBy { "lite" in it }.thenBy { it.length })
+        (latest + rest).distinct().ifEmpty { throw Problem("This key has no Gemini Flash model") }
     }
 
-    /** Checks the key works; returns the model it will use. */
+    /** The first model to try. */
+    suspend fun pickModel(key: String): String = models(key).first()
+
+    /** Checks the key works; returns the model it will use first. */
     suspend fun test(key: String): String = pickModel(key)
 
-    /** Asks Gemini with Google Search turned on. */
+    /**
+     * Asks Gemini with Google Search turned on. If a model has no free quota (or no Search grounding) it moves on
+     * to the next Flash model and remembers the one that worked.
+     */
     suspend fun ask(prompt: String): Grounded = withContext(Dispatchers.IO) {
         val key = AppSettings.geminiKey
         if (key.isBlank()) throw Problem("Add your Gemini key in Settings → MPSC News")
-        var model = AppSettings.geminiModel.ifBlank { pickModel(key).also { AppSettings.geminiModel = it } }
         val body = buildJsonObject {
             putJsonArray("contents") { addJsonObject { put("role", "user"); putJsonArray("parts") { addJsonObject { put("text", prompt) } } } }
             putJsonArray("tools") { addJsonObject { putJsonObject("google_search") {} } }
             putJsonObject("generationConfig") { put("temperature", 0.2) }
         }.toString()
-        fun call(m: String) = http.newCall(Request.Builder().url("$BASE/models/$m:generateContent").header("x-goog-api-key", key)
-            .post(body.toRequestBody("application/json".toMediaType())).build()).execute()
-        var r = call(model)
-        if (r.code == 404) { r.close(); model = pickModel(key).also { AppSettings.geminiModel = it }; r = call(model) } // the model was retired
-        r.use {
-            val b = it.body.string()
-            if (!it.isSuccessful) throw Problem(errorOf(it.code, b))
-            parse(json.parseToJsonElement(b).jsonObject)
+        val order = (listOf(AppSettings.geminiModel).filter { it.isNotBlank() } + models(key)).distinct().take(8)
+        var last = "Gemini did not answer"
+        for (m in order) {
+            val r = http.newCall(Request.Builder().url("$BASE/models/$m:generateContent").header("x-goog-api-key", key)
+                .post(body.toRequestBody("application/json".toMediaType())).build()).execute()
+            val b = r.use { it.body.string() }
+            if (r.isSuccessful) { AppSettings.geminiModel = m; return@withContext parse(json.parseToJsonElement(b).jsonObject) }
+            last = "$m: " + errorOf(r.code, b)
+            val msg = messageOf(b).orEmpty()
+            val tryNext = r.code == 404 || (r.code == 429 && ("limit: 0" in msg || "free_tier" in msg || "FreeTier" in msg || "quota" in msg.lowercase())) ||
+                (r.code == 400 && ("not supported" in msg || "Search" in msg))
+            if (!tryNext) break
         }
+        throw Problem(last)
     }
 
     internal fun parse(o: JsonObject): Grounded {
