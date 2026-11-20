@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import `in`.vidyadhan.academy.AppSettings
+import kotlinx.coroutines.launch
 import `in`.vidyadhan.academy.data.*
 import `in`.vidyadhan.academy.ui.*
 import java.time.Instant
@@ -362,6 +363,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     var refund by remember { mutableStateOf(false) }
     var resplit by remember { mutableStateOf(false) }
     var remind by remember { mutableStateOf(false) }
+    var tgMessage by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var deletePay by remember { mutableStateOf<StudentPayment?>(null) }
     var saved by remember { mutableStateOf<StudentPayment?>(null) }
@@ -466,6 +468,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                         if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) Contact.whatsapp(ctx, st.mobile, `in`.vidyadhan.academy.telegram.TelegramBot.invite("s${st.id}"))
                         else android.widget.Toast.makeText(ctx, "Connect your Telegram bot first: Bot & More", android.widget.Toast.LENGTH_LONG).show()
                     }, Color(0xFF0284C7))
+                    else PillButton("Message", { tgMessage = true }, Color(0xFF0284C7), Icons.AutoMirrored.Rounded.Send)
                 }
                 HorizontalDivider(color = Brand.Line)
                 InfoRow(Icons.Rounded.School, "Course", st.course + (if (st.batch.isNotBlank()) " · ${st.batch}" else "") + " · joined ${st.joinedOn.asDate()}")
@@ -546,6 +549,30 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
             text = { Text("Share a receipt with ${st.name}?", color = Brand.Slate500) },
             confirmButton = { TextButton({ receipt(p); saved = null }) { Text("Share receipt", fontWeight = FontWeight.Bold) } },
             dismissButton = { TextButton({ saved = null }) { Text("Done") } })
+    }
+    if (tgMessage) {
+        var msg by remember { mutableStateOf("") }
+        var sending by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        ModalBottomSheet({ tgMessage = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+            Column(Modifier.imePadding().padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                SheetTitle("Message on Telegram", "To ${st.name} · sent by your bot")
+                Field(msg, { msg = it }, "Type your message", singleLine = false, minLines = 4)
+                PrimaryButton(if (sending) "Sending…" else "Send", {
+                    sending = true
+                    scope.launch {
+                        val ok = `in`.vidyadhan.academy.telegram.TelegramBot.sendToKey("s${st.id}",
+                            `in`.vidyadhan.academy.telegram.TelegramBot.esc(msg.trim()) + "\n\n— " + `in`.vidyadhan.academy.telegram.TelegramBot.esc(AppSettings.academyName))
+                        sending = false
+                        android.widget.Toast.makeText(ctx, if (ok) "Sent on Telegram ✓" else "Could not send. Check the bot in Bot & More.", android.widget.Toast.LENGTH_LONG).show()
+                        if (ok) tgMessage = false
+                    }
+                }, Modifier.fillMaxWidth(), enabled = msg.isNotBlank() && !sending, icon = Icons.AutoMirrored.Rounded.Send,
+                    custom = Brush.linearGradient(listOf(Color(0xFF229ED9), Color(0xFF1C86BB))))
+                Text("Replies from the student are not shown in the app; they see your message in their Telegram chat with the bot.",
+                    style = MaterialTheme.typography.bodySmall, color = Brand.Slate400)
+            }
+        }
     }
     if (remind && next != null) {
         var marathi by remember { mutableStateOf(true) }
