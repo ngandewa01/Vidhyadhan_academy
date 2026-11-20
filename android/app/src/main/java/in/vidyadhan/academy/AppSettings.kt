@@ -81,6 +81,8 @@ object AppSettings {
     var botStudentsChat: Long get() = get("botStudents", "0").toLongOrNull() ?: 0; set(v) = put("botStudents", v.toString())
     // MPSC news (AI). The key is shared with the academy's other phones through the cloud; once saved it is not edited.
     var geminiKey: String get() = get("gemKey", ""); set(v) = put("gemKey", v)
+    /** True when the key came from the Firebase console (Remote Config). */
+    var geminiFromFirebase: Boolean get() = get("gemFb", "") == "1"; set(v) = put("gemFb", if (v) "1" else "")
     var geminiModel: String get() = get("gemModel", ""); set(v) = put("gemModel", v)
     var newsOn: Boolean get() = get("newsOn", "1") == "1"; set(v) = put("newsOn", if (v) "1" else "0")
     var digestOn: Boolean get() = get("digestOn", "1") == "1"; set(v) = put("digestOn", if (v) "1" else "0")

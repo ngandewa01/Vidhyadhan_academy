@@ -275,7 +275,7 @@ private fun NewsSettings(busy: Boolean, onCheck: () -> Unit) {
         Text("Gemini key", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
         val saved = AppSettings.geminiKey
         if (saved.isBlank()) {
-            Text("Free key: open aistudio.google.com → Get API key → Create. Paste it here. Once it works it is saved and locked.",
+            Text("Best: put the key in the Firebase console (Remote Config → parameter gemini_key); every phone then gets it by itself, also after a reinstall. Or paste it here; once it works it is saved and locked.",
                 style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
             Field(key, { key = it.trim() }, "Paste your Gemini key", Icons.Rounded.Key)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -296,7 +296,8 @@ private fun NewsSettings(busy: Boolean, onCheck: () -> Unit) {
                 Icon(Icons.Rounded.Lock, null, tint = Brand.Green600, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(saved.take(4) + "••••••••••••" + saved.takeLast(3), style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
-                    Text("Saved and locked · ${AppSettings.geminiModel.ifBlank { "Gemini Flash" }}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                    Text((if (AppSettings.geminiFromFirebase) "From Firebase · locked" else "Saved and locked") + " · ${AppSettings.geminiModel.ifBlank { "Gemini Flash" }}",
+                        style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                 }
             }
         }
