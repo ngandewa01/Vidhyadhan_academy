@@ -95,7 +95,9 @@ class ScreenshotTest {
             ld.allMembers().first { it.name == "Priya Gaikwad" }.let { ld.updateMember(it.copy(balance = 300, planName = "3 months")) }
         }
         shot("02-home")
-        nav("Students"); shot("04-students")
+        nav("Students")
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("Rohan Deshmukh").fetchSemanticsNodes().isNotEmpty() } // the list loads from the database
+        shot("04-students")
         rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("05-student-detail")
         rule.onNodeWithText("Record a payment").performScrollTo().performClick(); shot("05b-payment-sheet"); back()
         backButton()
