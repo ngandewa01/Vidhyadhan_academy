@@ -155,12 +155,13 @@ fun BroadcastScreen(onClose: () -> Unit) {
                             android.widget.Toast.makeText(ctx, "Sent to $sent on Telegram" + if (sent < withTg.size) " · ${withTg.size - sent} could not be sent" else " ✓", android.widget.Toast.LENGTH_LONG).show()
                         }
                     }
-                    if (AppSettings.botStaffChat != 0L) OptionRow(Icons.Rounded.Groups, Color(0xFF229ED9), "Post in the Telegram group", "The bot posts it in your group") {
-                        tgScope.launch {
-                            val ok = `in`.vidyadhan.academy.telegram.TelegramBot.send(AppSettings.botStaffChat, `in`.vidyadhan.academy.telegram.TelegramBot.esc(forEveryone(text, marathi)))
-                            android.widget.Toast.makeText(ctx, if (ok) "Posted in the group ✓" else "Could not post", android.widget.Toast.LENGTH_LONG).show()
-                        }
+                    fun post(chat: Long, where: String) = tgScope.launch {
+                        val ok = `in`.vidyadhan.academy.telegram.TelegramBot.send(chat, `in`.vidyadhan.academy.telegram.TelegramBot.esc(forEveryone(text, marathi)))
+                        android.widget.Toast.makeText(ctx, if (ok) "Posted in the $where ✓" else "Could not post. Is the bot still in the $where?", android.widget.Toast.LENGTH_LONG).show()
                     }
+                    if (AppSettings.botStudentsChat != 0L) OptionRow(Icons.Rounded.Groups, Color(0xFF229ED9), "Post in the students' group", "The bot posts it once in your students' Telegram group") { post(AppSettings.botStudentsChat, "students' group") }
+                    else OptionRow(Icons.Rounded.Groups, Brand.Slate400, "Students' group not linked", "Add the bot to the group and send /students there once") {}
+                    if (AppSettings.botStaffChat != 0L) OptionRow(Icons.Rounded.Groups, Color(0xFF0369A1), "Post in the staff group", "The bot posts it in your staff Telegram group") { post(AppSettings.botStaffChat, "staff group") }
                 } else OptionRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Telegram", "Connect your Telegram bot first (Bot & More)") {
                     android.widget.Toast.makeText(ctx, "Connect your Telegram bot first: Bot & More → Connect", android.widget.Toast.LENGTH_LONG).show()
                 }
