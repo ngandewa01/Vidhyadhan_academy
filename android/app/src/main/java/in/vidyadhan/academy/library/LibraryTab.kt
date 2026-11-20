@@ -325,12 +325,16 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     HideBottomNav()
     val remindText = libraryReminder(m, t)
 
-    fun receipt(p: LibraryPayment) = shareReceipt(ctx, ReceiptData(
+    var receiptFor by remember { mutableStateOf<LibraryPayment?>(null) }
+    fun receipt(p: LibraryPayment) { receiptFor = p }
+    fun receiptOf(p: LibraryPayment) = (ReceiptData(
         "${AppSettings.receiptPrefix}-L${p.id.toString().padStart(5, '0')}", p.paidOn,
         if (p.kind == "DEPOSIT_RETURN") "DEPOSIT REFUND  /  अनामत परत" else "LIBRARY RECEIPT  /  लायब्ररी पावती", m.name,
         listOf("Mobile" to "+91 ${m.mobile}", "Seat" to listOfNotNull("${m.seatNo}", roomOf(m.seatNo, rooms)?.name, m.seatType.ifBlank { null }).joinToString(" · "), "For" to kindLabel(p.kind), "Payment mode" to p.mode.ifBlank { "—" }),
         p.amount, if (p.kind == "FEE") listOfNotNull("Valid up to" to m.validTill.asDate(), m.planName.takeIf { it.isNotBlank() }?.let { "Plan" to it },
             m.balance.takeIf { it > 0 }?.let { "Balance left" to rupees(it) }) else emptyList()))
+    receiptFor?.let { p -> ReceiptActions(receiptOf(p), m.mobile, m.studentId?.takeIf { !`in`.vidyadhan.academy.telegram.TelegramBot.isLinked("m${m.id}") }?.let { "s$it" } ?: "m${m.id}",
+        onDelete = { deletePay = p }, onDismiss = { receiptFor = null }) }
 
     Column(Modifier.fillMaxSize().background(Brand.Bg)) {
         ProfileHero(m.name, onBack,
@@ -426,7 +430,9 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                             Text((if (out) "− " else "+ ") + rupees(p.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
                                 color = if (out) Brand.Red600 else Brand.Green700)
                             Spacer(Modifier.width(6.dp))
-                            SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receipt(p) }
+                            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send receipt on WhatsApp", Brand.WhatsAppDark) { whatsappReceipt(ctx, receiptOf(p), m.mobile) }
+                            Spacer(Modifier.width(6.dp))
+                            SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receiptFor = p }
                             Spacer(Modifier.width(6.dp))
                             SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
                         }

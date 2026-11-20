@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.rounded.Login
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
@@ -222,8 +223,26 @@ private fun AcademyPage() {
 
 @Composable
 private fun MessagesPage() {
-    Text("Words in {curly brackets} are filled in by the app, e.g. {name} becomes the student's name. Keep them in your text.",
+    val scope = rememberCoroutineScope()
+    val bot = `in`.vidyadhan.academy.telegram.TelegramBot
+    val canTest = bot.connected && AppSettings.botOwnerChat != 0L
+    var tested by remember { mutableStateOf<String?>(null) }
+    fun test(text: String) = scope.launch { tested = if (bot.send(AppSettings.botOwnerChat, text)) "Test sent to your Telegram ✓" else "Could not send the test" }
+    Text("Words in {curly brackets} are filled in by the app, e.g. {name} becomes the student's name. Keep them in your text. " +
+        "Telegram messages are sent in Marathi and English together.",
         style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, modifier = Modifier.padding(horizontal = 6.dp))
+    if (!canTest) Text("To test messages on your own Telegram: connect the bot in Bot & More and send /owner to it.",
+        style = MaterialTheme.typography.bodySmall, color = Brand.Amber700, modifier = Modifier.padding(horizontal = 6.dp))
+    else SoftButton("Send a test fee receipt to my Telegram", {
+        scope.launch {
+            val ctx2 = `in`.vidyadhan.academy.telegram.TelegramBot.app ?: return@launch
+            val f = `in`.vidyadhan.academy.ui.receiptPdf(ctx2, `in`.vidyadhan.academy.ui.ReceiptData("${AppSettings.receiptPrefix}-TEST", `in`.vidyadhan.academy.students.today(),
+                "FEE RECEIPT  /  फी पावती", "Rohan Deshmukh", listOf("Mobile" to "+91 98220 01122", "Course" to "MPSC · Evening", "Payment mode" to "UPI"), 9000,
+                listOf("Total fee" to "₹25,000", "Paid so far" to "₹21,000", "Balance" to "₹4,000"), footnote = "Next installment ₹4,000 on 10 Dec"))
+            tested = if (bot.sendDocument(AppSettings.botOwnerChat, f, "🧾 Test receipt")) "Test receipt sent to your Telegram ✓" else "Could not send the test"
+        }
+    }, Modifier.fillMaxWidth(), icon = Icons.Rounded.ReceiptLong)
+    tested?.let { StatusChip(it, if (it.endsWith("✓")) Tone.Good else Tone.Bad) }
     `in`.vidyadhan.academy.Templates.all.forEach { t ->
         var mr by remember { mutableStateOf(`in`.vidyadhan.academy.Templates.text(t.key, true)) }
         var en by remember { mutableStateOf(`in`.vidyadhan.academy.Templates.text(t.key, false)) }
@@ -233,6 +252,8 @@ private fun MessagesPage() {
             Field(en, { en = it; AppSettings.setTemplate(t.key, false, it) }, "English", singleLine = false, minLines = 3)
             SoftButton("Reset to original", { mr = t.mr; en = t.en; AppSettings.setTemplate(t.key, true, ""); AppSettings.setTemplate(t.key, false, "") },
                 color = Brand.Slate600, icon = Icons.Rounded.Refresh)
+            if (canTest) SoftButton("Send a test to my Telegram", { test(`in`.vidyadhan.academy.Templates.bot(t.key, `in`.vidyadhan.academy.Templates.sample)) },
+                color = Color(0xFF0284C7), icon = Icons.AutoMirrored.Rounded.Send)
         }
     }
 }

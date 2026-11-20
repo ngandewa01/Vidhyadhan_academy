@@ -95,6 +95,15 @@ class ScreenshotTest {
             ld.allMembers().first { it.name == "Priya Gaikwad" }.let { ld.updateMember(it.copy(balance = 300, planName = "3 months")) }
         }
         shot("02-home")
+        // the receipt, drawn as a picture (same drawing as the PDF)
+        run {
+            val bmp = android.graphics.Bitmap.createBitmap(840, 1190, android.graphics.Bitmap.Config.ARGB_8888)
+            val cv = android.graphics.Canvas(bmp); cv.drawColor(android.graphics.Color.WHITE); cv.scale(2f, 2f)
+            `in`.vidyadhan.academy.ui.drawReceipt(ApplicationProvider.getApplicationContext(), cv, `in`.vidyadhan.academy.ui.ReceiptData("VA-S00042", LocalDate.now().toEpochDay(),
+                "FEE RECEIPT  /  फी पावती", "Rohan Deshmukh", listOf("Mobile" to "+91 98220 01122", "Course" to "MPSC · Evening", "Payment mode" to "UPI", "Note" to "Installment 2 of 3"),
+                8800, listOf("Total fee" to "₹25,000", "Paid so far" to "₹21,000", "Balance" to "₹4,000"), footnote = "Next installment ₹4,000 on 10 Dec 2026"))
+            File(out, "18-receipt.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        }
         nav("Students")
         rule.waitUntil(10_000) { rule.onAllNodesWithText("Rohan Deshmukh").fetchSemanticsNodes().isNotEmpty() } // the list loads from the database
         shot("04-students")

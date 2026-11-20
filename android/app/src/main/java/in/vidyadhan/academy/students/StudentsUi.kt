@@ -378,12 +378,15 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     val next = statuses.firstOrNull { !it.fullyPaid }
     val frac = if (st.totalFee == 0L) 0f else paid.toFloat() / st.totalFee
 
-    fun receipt(p: StudentPayment) {
+    var receiptFor by remember { mutableStateOf<StudentPayment?>(null) }
+    fun receipt(p: StudentPayment) { receiptFor = p }
+    fun receiptOf(p: StudentPayment): ReceiptData {
         val upTo = payments.filter { it.paidOn < p.paidOn || (it.paidOn == p.paidOn && it.id <= p.id) }.sumOf { it.amount }
-        shareReceipt(ctx, ReceiptData("${AppSettings.receiptPrefix}-S${p.id.toString().padStart(5, '0')}", p.paidOn, "FEE RECEIPT  /  फी पावती", st.name,
+        return ReceiptData("${AppSettings.receiptPrefix}-S${p.id.toString().padStart(5, '0')}", p.paidOn, "FEE RECEIPT  /  फी पावती", st.name,
             listOf("Mobile" to "+91 ${st.mobile}", "Course" to (st.course + if (st.batch.isNotBlank()) " · ${st.batch}" else ""), "Payment mode" to p.mode.ifBlank { "—" }) +
                 (if (p.note.isNotBlank()) listOf("Note" to p.note) else emptyList()),
-            p.amount, listOf("Total fee" to rupees(st.totalFee), "Paid so far" to rupees(upTo), "Balance" to rupees((st.totalFee - upTo).coerceAtLeast(0)))))
+            p.amount, listOf("Total fee" to rupees(st.totalFee), "Paid so far" to rupees(upTo), "Balance" to rupees((st.totalFee - upTo).coerceAtLeast(0))),
+            footnote = next?.let { "Next installment ${rupees(it.remaining)} on ${it.inst.dueOn.asDate()}" }.orEmpty())
     }
 
     val m = seat
@@ -493,7 +496,9 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                                 Text(p.paidOn.asDate() + (if (p.mode.isNotBlank()) " · ${p.mode}" else "") + (if (p.note.isNotBlank()) " · ${p.note}" else ""),
                                     style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
                             }
-                            SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receipt(p) }
+                            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send receipt on WhatsApp", Brand.WhatsAppDark) { whatsappReceipt(ctx, receiptOf(p), st.mobile) }
+                            Spacer(Modifier.width(6.dp))
+                            SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receiptFor = p }
                             Spacer(Modifier.width(6.dp))
                             SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
                         }
@@ -624,6 +629,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     }
     if (resplit) ConfirmDialog("Re-split the balance equally?", "Paid installments stay. The ${rupees(balance)} still due is divided equally over the ${statuses.count { !it.fullyPaid }} unpaid installments, on their dates.",
         "Re-split", onConfirm = { vm.resplit(st, plan, paid); resplit = false }, onDismiss = { resplit = false })
+    receiptFor?.let { p -> ReceiptActions(receiptOf(p), st.mobile, "s${st.id}", onDelete = { deletePay = p }, onDismiss = { receiptFor = null }) }
     deletePay?.let { p -> ConfirmDialog("Delete this payment?", "${rupees(p.amount)} received on ${p.paidOn.asDate()} will be removed.", "Delete", danger = true,
         onConfirm = { vm.deletePayment(p); deletePay = null }, onDismiss = { deletePay = null }) }
     if (confirmDelete) ConfirmDialog("Delete ${st.name}?", "This removes the student, their installments and payments. It cannot be undone.", "Delete", danger = true,

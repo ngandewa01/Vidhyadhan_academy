@@ -137,6 +137,12 @@ object TelegramBot {
         connected && chat != 0L && runCatching { call("sendMessage", mapOf("chat_id" to "$chat", "text" to text, "parse_mode" to "HTML")) }.isSuccess
     }
 
+    /** Sends a receipt PDF to a connected person (s12 / m3). */
+    suspend fun sendReceipt(key: String, file: java.io.File, caption: String): Boolean {
+        val chat = AppSettings.telegramChat("k_$key") ?: return false
+        return sendDocument(chat, file, caption)
+    }
+
     suspend fun sendDocument(chat: Long, file: java.io.File, caption: String): Boolean = withContext(Dispatchers.IO) {
         connected && chat != 0L && runCatching { call("sendDocument", mapOf("chat_id" to "$chat", "caption" to caption, "parse_mode" to "HTML"), file) }.isSuccess
     }

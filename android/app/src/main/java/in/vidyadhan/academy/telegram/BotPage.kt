@@ -91,40 +91,8 @@ fun BotPage(onGo: (Go, Long) -> Unit) {
                 Toggle("Counselor enquiry follow-up digest", "Notify staff Telegram group of today's follow-ups", AppSettings.tgEnquiry) { AppSettings.tgEnquiry = it }
             }
 
-            Card("Test Telegram bot preview", trailing = { Text("Live Bot API", Modifier.clip(RoundedCornerShape(50)).background(Brand.Green50).padding(horizontal = 8.dp, vertical = 2.dp),
-                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Green700) }) {
-                val s = students.firstOrNull { it.leftOn == null }
-                val name = s?.name ?: "Rohan Deshmukh"
-                val first = name.substringBefore(' ')
-                val texts = mapOf(
-                    "receipt" to TelegramBot.receiptText("${AppSettings.receiptPrefix}-S00904", name, 15000, "UPI", s?.course ?: "MPSC", 45000, 35000,
-                        java.time.LocalDate.now().plusMonths(1).toEpochDay(), 10000),
-                    "reminder" to "Installment reminder ⏰\nNamaskar $name, your ${s?.course ?: "MPSC"} installment of ${rupees(9000)} is due on 22 Nov. Please pay on time. — ${AppSettings.academyName}",
-                    "birthday" to `in`.vidyadhan.academy.home.birthdayWish(name) + "\n\n" + `in`.vidyadhan.academy.Templates.fill("birthday", false, mapOf("name" to first)),
-                    "expiry" to "Abhyasika renewal alert 📚\nHi $name, seat 6 + locker 7 expires on 21 Nov (${rupees(1000)}/mo). Reply YES to renew.",
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    PreviewButton("1. Fee receipt", preview == "receipt", Sky700, Sky50, Modifier.weight(1f)) { preview = "receipt" }
-                    PreviewButton("2. Installment due", preview == "reminder", Brand.Amber700, Brand.Amber50, Modifier.weight(1f)) { preview = "reminder" }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    PreviewButton("3. Birthday wish", preview == "birthday", Brand.Saffron600, Brand.Saffron50, Modifier.weight(1f)) { preview = "birthday" }
-                    PreviewButton("4. Seat + locker due", preview == "expiry", Brand.Violet700, Color(0xFFF5F3FF), Modifier.weight(1f)) { preview = "expiry" }
-                }
-                // a Telegram-like message bubble
-                Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFE6EEF5)).border(1.dp, Brand.Slate300.copy(alpha = 0.7f), RoundedCornerShape(16.dp)).padding(10.dp)) {
-                    Column(Modifier.clip(RoundedCornerShape(topStart = 4.dp, topEnd = 16.dp, bottomEnd = 16.dp, bottomStart = 16.dp)).background(Color.White).padding(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("${AppSettings.academyName} Bot 🤖", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
-                        Text(texts.getValue(preview).replace(Regex("<[^>]+>"), "").replace("&lt;", "<").replace("&gt;", ">").replace("&amp;", "&"),
-                            style = MaterialTheme.typography.bodySmall, color = Brand.Slate800)
-                        Text("${LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))} ✓✓", Modifier.align(Alignment.End), style = MaterialTheme.typography.labelSmall, color = Brand.Slate400)
-                    }
-                }
-                if (connected && AppSettings.botOwnerChat != 0L) SoftButton("Send this test to me", {
-                    scope.launch { status = if (TelegramBot.send(AppSettings.botOwnerChat, texts.getValue(preview))) "Test sent ✓" else "Could not send" }
-                }, Modifier.fillMaxWidth(), icon = Icons.AutoMirrored.Rounded.Send)
-            }
+            Text("Edit and test the bot's messages in Settings → Message wording.", Modifier.padding(horizontal = 6.dp),
+                style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
 
             Card("Course, seat & locker tariffs") {
                 AppSettings.courseList.forEach { c -> Tariff(c, AppSettings.courseFee(c).takeIf { it > 0 }?.let { rupees(it) } ?: "Set on first admission", Brand.Slate800) }

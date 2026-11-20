@@ -82,13 +82,13 @@ class DailyWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
         val rupees = { v: Long -> `in`.vidyadhan.academy.students.rupees(v) }
         if (AppSettings.tgDue) {
             all.filter { bot.isLinked("s${it.id}") && it.nextDue != null && (it.nextDue == today || it.nextDue == today + 3) }.forEach {
-                bot.sendToKey("s${it.id}", "Installment reminder ⏰\nNamaskar ${bot.esc(it.name)}, your ${it.course} installment of ${rupees(it.nextDueAmount)} is due on " +
-                    "${`in`.vidyadhan.academy.students.shortDate(it.nextDue!!)}. Please pay on time. — ${AppSettings.academyName}")
+                bot.sendToKey("s${it.id}", `in`.vidyadhan.academy.Templates.bot("tg_due", mapOf("name" to it.name.substringBefore(' '), "course" to it.course,
+                    "amount" to rupees(it.nextDueAmount), "date" to `in`.vidyadhan.academy.students.shortDate(it.nextDue!!))))
             }
             db.library().allMembers().filter { it.active && (it.validTill == today || it.validTill == today + 3) }.forEach { m ->
                 val key = if (bot.isLinked("m${m.id}")) "m${m.id}" else m.studentId?.let { "s$it" }.orEmpty()
-                if (key.isNotBlank()) bot.sendToKey(key, "Abhyasika renewal alert 📚\nHi ${bot.esc(m.name)}, seat ${m.seatNo}" + (if (m.hasLocker) " + locker" else "") +
-                    " expires on ${`in`.vidyadhan.academy.students.shortDate(m.validTill)} (${rupees(m.monthlyFee)}/mo). Reply YES to renew.")
+                if (key.isNotBlank()) bot.sendToKey(key, `in`.vidyadhan.academy.Templates.bot("tg_seat", mapOf("name" to m.name.substringBefore(' '),
+                    "seat" to "${m.seatNo}" + (if (m.hasLocker) " + locker" else ""), "date" to `in`.vidyadhan.academy.students.shortDate(m.validTill), "amount" to rupees(m.monthlyFee))))
             }
         }
         if (AppSettings.tgBirthday) all.filter { bot.isLinked("s${it.id}") && `in`.vidyadhan.academy.home.isBirthday(it.dob, now) }.forEach {

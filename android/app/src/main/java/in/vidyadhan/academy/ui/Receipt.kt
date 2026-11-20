@@ -23,6 +23,8 @@ data class ReceiptData(
     val rows: List<Pair<String, String>>, // label to value
     val amount: Long,
     val summary: List<Pair<String, String>> = emptyList(),
+    /** One line under the fee boxes, e.g. "Next installment ₹4,000 on 10 Dec 2026". */
+    val footnote: String = "",
 )
 
 /** 15000 → "Fifteen Thousand"; Indian system (lakh, crore). */
@@ -45,73 +47,96 @@ fun amountInWords(n: Long): String {
     return parts.joinToString(" ")
 }
 
-/** One-page A5 receipt (system fonts, so Marathi names print correctly). Returns the PDF file. */
+/**
+ * One-page A5 receipt in the "payment app" style: tick and amount first, then the details and the fee position.
+ * System fonts are used so Marathi names print correctly. Returns the PDF file.
+ */
 fun receiptPdf(ctx: Context, r: ReceiptData): File {
     val doc = PdfDocument()
     val page = doc.startPage(PdfDocument.PageInfo.Builder(420, 595, 1).create())
-    val c = page.canvas
-    val teal = Color.parseColor("#0F4C5C"); val tealLight = Color.parseColor("#E0F2F5"); val marigold = Color.parseColor("#E07A2B")
-    val ink = Color.parseColor("#0F172A"); val grey = Color.parseColor("#64748B"); val line = Color.parseColor("#E2E8F0")
-    fun paint(size: Float, bold: Boolean = false, color: Int = ink, align: Paint.Align = Paint.Align.LEFT) =
-        Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = size; this.color = color; typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; textAlign = align }
-    val fill = { col: Int -> Paint(Paint.ANTI_ALIAS_FLAG).apply { color = col } }
-
-    // header: logo, academy, receipt number
-    runCatching { BitmapFactory.decodeResource(ctx.resources, R.drawable.logo) }.getOrNull()?.let { c.drawBitmap(it, null, RectF(24f, 22f, 74f, 72f), null) }
-    c.drawText(AppSettings.academyName, 84f, 42f, paint(17f, true, teal))
-    val contact = listOf(AppSettings.academyAddress, AppSettings.academyPhone.takeIf { it.isNotBlank() }?.let { "Ph: $it" } ?: "").filter { it.isNotBlank() }
-    contact.take(2).forEachIndexed { i, s -> c.drawText(s.take(48), 84f, 58f + i * 13f, paint(9.5f, false, grey)) }
-    c.drawRect(0f, 86f, 420f, 90f, fill(marigold))
-    c.drawRect(0f, 90f, 420f, 122f, fill(teal))
-    c.drawText(r.title, 24f, 111f, paint(12.5f, true, Color.WHITE))
-    c.drawText("No. ${r.number}   ·   ${r.date.asDate()}", 396f, 111f, paint(10.5f, false, Color.WHITE, Paint.Align.RIGHT))
-
-    // who and what
-    c.drawText("Received with thanks from", 24f, 148f, paint(10f, false, grey))
-    c.drawText(r.name, 24f, 168f, paint(16f, true))
-    var y = 190f
-    r.rows.forEachIndexed { i, (k, v) ->
-        if (i % 2 == 0) c.drawRect(24f, y - 13f, 396f, y + 7f, fill(Color.parseColor("#F8FAFC")))
-        c.drawText(k, 32f, y, paint(10.5f, false, grey))
-        c.drawText(v.take(46), 388f, y, paint(11f, true, ink, Paint.Align.RIGHT))
-        y += 20f
-    }
-
-    // amount
-    y += 10f
-    c.drawRoundRect(RectF(24f, y, 396f, y + 70f), 12f, 12f, fill(teal))
-    c.drawText("AMOUNT RECEIVED", 38f, y + 22f, paint(9.5f, true, Color.parseColor("#B3DCE4")))
-    c.drawText(rupees(r.amount), 38f, y + 50f, paint(24f, true, Color.WHITE))
-    c.drawText("Rupees ${amountInWords(r.amount)} only", 382f, y + 50f, paint(9.5f, false, Color.parseColor("#E0F2F5"), Paint.Align.RIGHT).apply {
-        // keep long words inside the box
-        if (measureText("Rupees ${amountInWords(r.amount)} only") > 200f) textSize = 8f
-    })
-    y += 88f
-
-    // fee position
-    if (r.summary.isNotEmpty()) {
-        val w = (372f - (r.summary.size - 1) * 8f) / r.summary.size
-        r.summary.forEachIndexed { i, (k, v) ->
-            val x = 24f + i * (w + 8f)
-            c.drawRoundRect(RectF(x, y, x + w, y + 48f), 10f, 10f, fill(tealLight))
-            c.drawText(k.uppercase(), x + w / 2, y + 18f, paint(8.5f, true, teal, Paint.Align.CENTER))
-            c.drawText(v, x + w / 2, y + 37f, paint(13f, true, if (k.contains("Balance", true)) marigold else ink, Paint.Align.CENTER))
-        }
-        y += 64f
-    }
-
-    // footer
-    c.drawLine(24f, 520f, 396f, 520f, paint(1f, false, line))
-    c.drawText("Thank you!  धन्यवाद!", 24f, 540f, paint(12f, true, teal))
-    c.drawText("Computer-generated receipt.", 24f, 556f, paint(8.5f, false, grey))
-    c.drawLine(280f, 552f, 396f, 552f, paint(1f, false, Color.parseColor("#CBD5E1")))
-    c.drawText("Authorised signature", 338f, 566f, paint(9f, false, grey, Paint.Align.CENTER))
+    drawReceipt(ctx, page.canvas, r)
     doc.finishPage(page)
-
     val f = File(ctx.cacheDir, "receipt-${r.number}.pdf")
     f.outputStream().use { doc.writeTo(it) }
     doc.close()
     return f
+}
+
+/** Draws the receipt on a 420 × 595 canvas (the PDF page, or a picture in tests). */
+fun drawReceipt(ctx: Context, c: android.graphics.Canvas, r: ReceiptData) {
+    val W = 420f; val H = 595f
+    val teal = Color.parseColor("#0F4C5C"); val tealLight = Color.parseColor("#E0F2F5"); val marigold = Color.parseColor("#E07A2B")
+    val ink = Color.parseColor("#0F172A"); val grey = Color.parseColor("#64748B"); val light = Color.parseColor("#94A3B8"); val line = Color.parseColor("#E2E8F0")
+    val green = Color.parseColor("#16A34A"); val greenLight = Color.parseColor("#DCFCE7"); val soft = Color.parseColor("#F1F5F9")
+    fun paint(size: Float, bold: Boolean = false, color: Int = ink, align: Paint.Align = Paint.Align.LEFT) =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = size; this.color = color; typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; textAlign = align }
+    val fill = { col: Int -> Paint(Paint.ANTI_ALIAS_FLAG).apply { color = col } }
+    fun fit(p: Paint, text: String, max: Float): Paint { while (p.measureText(text) > max && p.textSize > 7f) p.textSize -= 0.5f; return p }
+    val cx = W / 2
+    val mobile = r.rows.firstOrNull { it.first == "Mobile" }?.second.orEmpty()
+    val details = listOf("Date" to r.date.asDate()) + r.rows.filter { it.first != "Mobile" }
+
+    // academy: logo + name
+    val nameP = fit(paint(15f, true, teal), AppSettings.academyName, 300f)
+    val nameW = nameP.measureText(AppSettings.academyName)
+    val left = cx - (nameW + 44f) / 2
+    runCatching { BitmapFactory.decodeResource(ctx.resources, R.drawable.logo) }.getOrNull()?.let { c.drawBitmap(it, null, RectF(left, 22f, left + 34f, 56f), null) }
+    c.drawText(AppSettings.academyName, left + 44f, 44f, nameP)
+
+    // tick and amount
+    c.drawCircle(cx, 104f, 30f, fill(greenLight))
+    c.drawPath(android.graphics.Path().apply { moveTo(cx - 13f, 104f); lineTo(cx - 4f, 114f); lineTo(cx + 14f, 93f) },
+        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = green; style = Paint.Style.STROKE; strokeWidth = 6f; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND })
+    c.drawText(rupees(r.amount), cx, 172f, paint(34f, true, ink, Paint.Align.CENTER))
+    val words = "Rupees ${amountInWords(r.amount)} only"
+    c.drawText(words, cx, 190f, fit(paint(10f, false, grey, Paint.Align.CENTER), words, 360f))
+    val from = "Received from " ; val who = r.name; val tail = if (mobile.isNotBlank()) "  ·  $mobile" else ""
+    val pf = paint(11.5f, false, Color.parseColor("#475569")); val pb = paint(11.5f, true, teal)
+    val total = pf.measureText(from) + pb.measureText(who) + pf.measureText(tail)
+    var x = cx - total / 2
+    c.drawText(from, x, 212f, pf); x += pf.measureText(from)
+    c.drawText(who, x, 212f, pb); x += pb.measureText(who)
+    c.drawText(tail, x, 212f, pf)
+    val chip = "${r.title.replace("  /  ", " · ")}  ·  No. ${r.number}"
+    val chipP = fit(paint(9.5f, true, teal, Paint.Align.CENTER), chip, 340f)
+    val cw = chipP.measureText(chip) + 22f
+    c.drawRoundRect(RectF(cx - cw / 2, 222f, cx + cw / 2, 240f), 9f, 9f, fill(tealLight))
+    c.drawText(chip, cx, 234.5f, chipP)
+
+    // a torn-ticket edge
+    fun perforation(y: Float) { var px = 6f; while (px < W) { c.drawCircle(px, y, 4.5f, fill(Color.parseColor("#E5EAF0"))); px += 13f } }
+    perforation(258f)
+
+    // details
+    var y = 284f
+    details.take(7).forEach { (k, v) ->
+        c.drawText(k, 30f, y, paint(10.5f, false, grey))
+        c.drawText(v, W - 30f, y, fit(paint(11f, true, ink, Paint.Align.RIGHT), v, 250f))
+        c.drawLine(30f, y + 8f, W - 30f, y + 8f, paint(1f, false, line))
+        y += 25f
+    }
+
+    // fee position: up to three boxes
+    if (r.summary.isNotEmpty()) {
+        y += 4f
+        val n = r.summary.size.coerceAtMost(3)
+        val bw = (W - 60f - (n - 1) * 8f) / n
+        r.summary.take(3).forEachIndexed { i, (k, v) ->
+            val bx = 30f + i * (bw + 8f)
+            c.drawRoundRect(RectF(bx, y, bx + bw, y + 44f), 10f, 10f, fill(soft))
+            c.drawText(k.uppercase(), bx + bw / 2, y + 16f, fit(paint(8f, true, grey, Paint.Align.CENTER), k.uppercase(), bw - 8f))
+            val col = when { k.contains("Balance", true) -> marigold; k.contains("Paid", true) -> green; else -> ink }
+            c.drawText(v, bx + bw / 2, y + 34f, fit(paint(12.5f, true, col, Paint.Align.CENTER), v, bw - 8f))
+        }
+        y += 58f
+    }
+    if (r.footnote.isNotBlank()) { c.drawText(r.footnote, cx, y, fit(paint(10.5f, false, Color.parseColor("#475569"), Paint.Align.CENTER), r.footnote, 360f)); y += 14f }
+
+    // footer
+    perforation(H - 62f)
+    c.drawText("Thank you!  धन्यवाद!  ·  Computer-generated, no signature needed", cx, H - 38f, paint(9.5f, false, grey, Paint.Align.CENTER))
+    val contact = listOf(AppSettings.academyAddress, AppSettings.academyPhone).filter { it.isNotBlank() }.joinToString("  ·  ")
+    if (contact.isNotBlank()) c.drawText(contact, cx, H - 24f, fit(paint(8.5f, false, light, Paint.Align.CENTER), contact, 380f))
 }
 
 /** Shares the receipt PDF (WhatsApp, Drive, print…). */
@@ -123,4 +148,27 @@ fun shareReceipt(ctx: Context, r: ReceiptData) {
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     ctx.startActivity(Intent.createChooser(send, "Share receipt").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
+private fun uriOf(ctx: Context, r: ReceiptData) = FileProvider.getUriForFile(ctx, "${ctx.packageName}.files", receiptPdf(ctx, r))
+
+/** Opens WhatsApp straight in [mobile]'s chat with the receipt attached (WhatsApp, then WhatsApp Business; else the share menu). */
+fun whatsappReceipt(ctx: Context, r: ReceiptData, mobile: String) {
+    val uri = uriOf(ctx, r)
+    val jid = "91${mobile.filter(Char::isDigit).takeLast(10)}@s.whatsapp.net"
+    for (pkg in listOf("com.whatsapp", "com.whatsapp.w4b")) {
+        val i = Intent(Intent.ACTION_SEND).setType("application/pdf").setPackage(pkg)
+            .putExtra(Intent.EXTRA_STREAM, uri).putExtra("jid", jid)
+            .putExtra(Intent.EXTRA_TEXT, "Receipt ${r.number} — ${AppSettings.academyName}")
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (runCatching { ctx.startActivity(i) }.isSuccess) return
+    }
+    shareReceipt(ctx, r)
+}
+
+/** Opens the receipt to look at or print. */
+fun viewReceipt(ctx: Context, r: ReceiptData) {
+    val i = Intent(Intent.ACTION_VIEW).setDataAndType(uriOf(ctx, r), "application/pdf")
+        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+    if (runCatching { ctx.startActivity(i) }.isFailure) shareReceipt(ctx, r)
 }
