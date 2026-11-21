@@ -17,6 +17,7 @@ interface StudentDao {
     @Query("SELECT * FROM StudentPayment WHERE studentId = :id ORDER BY paidOn DESC, id DESC") fun payments(id: Long): Flow<List<StudentPayment>>
 
     @Query("SELECT * FROM Student ORDER BY name COLLATE NOCASE") suspend fun allStudents(): List<Student>
+    @Query("UPDATE Student SET mobile = :mobile WHERE khataKey = :key AND mobile = ''") suspend fun fillKhataMobile(key: String, mobile: String)
     @Query("SELECT * FROM Installment") suspend fun installmentList(): List<Installment>
     @Query("SELECT * FROM StudentPayment") suspend fun paymentList(): List<StudentPayment>
 
@@ -125,6 +126,8 @@ interface KhataDao {
     @Query("UPDATE KhataEntry SET mobile = :mobile WHERE key = :key") suspend fun setMobile(key: String, mobile: String)
     @Query("UPDATE KhataEntry SET type = :type WHERE key = :key") suspend fun setType(key: String, type: String)
     @Query("UPDATE KhataEntry SET review = :review WHERE key = :key") suspend fun setReview(key: String, review: String)
+    @Query("SELECT * FROM KhataEntry WHERE kind = 'LEDGER'") suspend fun ledgerList(): List<KhataEntry>
+    @Query("DELETE FROM KhataEntry WHERE kind = 'LEDGER'") suspend fun clearLedger()
     @Insert suspend fun add(e: KhataEntry)
     @Query("SELECT * FROM KhataEntry WHERE kind = 'PAYMENT' ORDER BY date, id") fun payments(): Flow<List<KhataEntry>>
 }

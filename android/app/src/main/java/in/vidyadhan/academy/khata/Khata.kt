@@ -46,7 +46,7 @@ object Khata {
             val date = runCatching { LocalDate.parse(c[1]).toEpochDay() }.getOrNull() ?: return@mapNotNull null
             KhataEntry(key = keyOf(c[0]), name = c[0].trim(), date = date, type = guessType(c[0]),
                 debit = c[2].trim().toLongOrNull() ?: 0, credit = c[3].trim().toLongOrNull() ?: 0,
-                details = c.getOrElse(4) { "" }.trim())
+                details = c.getOrElse(4) { "" }.trim(), mobile = mobileDigits(c.getOrElse(5) { "" }))
         }
 
     private fun splitCsv(line: String): List<String> {
@@ -82,6 +82,16 @@ object Khata {
 
     /** Over ₹20,000 paid plus due is a likely course student, so it is pre-picked in the review. */
     fun suggested(p: Person): String? = if (p.paidPlusDue > 20_000) COURSE else null
+
+    /** Re-importing the book: each new line keeps the type, confirmation and number already given to the same person. Payments recorded in the app are not touched. */
+    fun carryOver(old: List<KhataEntry>, fresh: List<KhataEntry>): List<KhataEntry> {
+        val before = old.groupBy { it.key }
+        return fresh.map { e ->
+            val prev = before[e.key]?.firstOrNull() ?: return@map e
+            val mobile = e.mobile.ifBlank { before[e.key].orEmpty().map { it.mobile }.firstOrNull { it.isNotBlank() }.orEmpty() }
+            e.copy(type = prev.type, review = prev.review, mobile = mobile)
+        }
+    }
 
     /** Totals for the import preview. */
     data class Summary(val people: Int, val owing: Int, val owed: Long, val advance: Long, val debit: Long, val credit: Long)

@@ -78,7 +78,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
     val all by vm.list.collectAsStateWithLifecycle()
     val members by vm.members.collectAsStateWithLifecycle()
     val khataEntries by vm.khataEntries.collectAsStateWithLifecycle()
-    val khataBal = remember(khataEntries) { khataEntries.groupBy { it.key }.mapValues { (_, v) -> v.sumOf { it.debit - it.credit } } }
+    val khataBal = remember(khataEntries) { khataEntries.groupBy { it.key }.mapValues { (_, v) -> v.sumOf { it.debit - it.credit } to v.sumOf { it.credit } } }
     var filter by rememberSaveable { mutableStateOf("All") }
     val t = today()
     val current = all.filter { it.current }
@@ -123,7 +123,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
                 if (all.isEmpty()) "Tap “Admit” to add your first student." else if (filter == "Former") "Students who finish or leave are kept here with their records." else "Try a different name or filter.",
                 action = null, onAction = onAdd)
             else LazyColumn(contentPadding = PaddingValues(14.dp, 16.dp, 14.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(shown, key = { it.id }) { s -> StudentCard(s, seatOf[s.id], t, khataBal[s.khataKey]?.takeIf { s.khataKey.isNotBlank() && it != 0L }) { onOpen(s.id) } }
+                items(shown, key = { it.id }) { s -> StudentCard(s, seatOf[s.id], t, khataBal[s.khataKey]?.takeIf { s.khataKey.isNotBlank() }) { onOpen(s.id) } }
                 items(libShown, key = { "m${it.id}" }) { m -> MemberLedgerCard(m, t) { onOpenMember(m.id) } }
             }
         }
@@ -140,12 +140,12 @@ private fun Pill(text: String, fg: Color, bg: Color) {
 }
 
 @Composable
-private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata: Long?, onClick: () -> Unit) {
+private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata: Pair<Long, Long>?, onClick: () -> Unit) {
     val left = (s.totalFee - s.paid).coerceAtLeast(0)
     val advance = s.advance
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
         .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (khata != null && khata != 0L) StatusChip(if (khata > 0) "Old khata owes ${rupees(khata)}" else "Old khata advance ${rupees(-khata)}", if (khata > 0) Tone.Warn else Tone.Info)
+        if (khata != null && khata.first != 0L) { val b = khata.first; StatusChip(if (b > 0) "Old khata owes ${rupees(b)}" else "Old khata advance ${rupees(-b)}", if (b > 0) Tone.Warn else Tone.Info) }
         Row(verticalAlignment = Alignment.Top) {
             if (s.photo.isNotBlank()) Avatar(s.name, 42.dp, photo = s.photo)
             else Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brand.Blue100), Alignment.Center) {
@@ -160,6 +160,8 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata
                     Text(rollNo(s.id, s.joinedOn), style = MaterialTheme.typography.labelSmall, color = Brand.Slate400, maxLines = 1)
                 }
                 Text(s.course + if (s.batch.isNotBlank()) " · ${s.batch}" else "", style = MaterialTheme.typography.labelMedium, color = Brand.Blue700, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val info = listOfNotNull(s.mobile.takeIf { it.isNotBlank() }?.let { "+91 $it" }, khata?.let { "Old khata paid ${rupees(it.second)}" }).joinToString(" · ")
+                if (info.isNotBlank()) Text(info, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (s.telegram.isNotBlank()) {
                 Spacer(Modifier.width(6.dp))
@@ -275,7 +277,10 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
     }
     val planTotal = rows.sumOf { it.amount.toLongOrNull() ?: 0L }
     val planOk = rows.isNotEmpty() && rows.all { (it.amount.toLongOrNull() ?: 0) > 0 } && planTotal == feeN
-    val valid = name.isNotBlank() && mobile.length == 10 && (aadhaar.isEmpty() || aadhaar.length == 12) && feeN > 0 && planOk
+    // students imported from the old khata may have no number and no fee yet: their money is on the khata
+    val khataLinked = existing?.khataKey?.isNotBlank() == true
+    val valid = name.isNotBlank() && (mobile.length == 10 || (mobile.isEmpty() && khataLinked)) && (aadhaar.isEmpty() || aadhaar.length == 12) &&
+        ((feeN > 0 && planOk) || (khataLinked && feeN == 0L))
     val photoPicker = rememberPhotoPicker("Student photo", photo.isNotBlank(), { photo = it }, { photo = "" })
     val aadhaarPicker = rememberPhotoPicker("Aadhaar card photo", aadhaarPhoto.isNotBlank(), { aadhaarPhoto = it }, { aadhaarPhoto = "" })
     HideBottomNav()

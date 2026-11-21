@@ -26,6 +26,20 @@ class KhataReviewTest {
         assertEquals(Khata.COURSE, Khata.suggested(p))
     }
 
+    @Test fun csvMobileColumnIsRead() {
+        val e = Khata.parseCsv("name,date,debit,credit,details,mobile\nRahul Shinde,2023-05-01,5000,,,\"9876 543 210\"").single()
+        assertEquals("9876543210", e.mobile)
+    }
+
+    @Test fun reimportKeepsConfirmationTypeAndNumber() {
+        val old = listOf(KhataEntry(key = "a", name = "A", date = 1, debit = 5000, type = Khata.LIBRARY, review = "DONE", mobile = "9000000001"),
+            KhataEntry(key = "a", name = "A", date = 1, kind = "PAYMENT", credit = 1000))
+        val fresh = listOf(KhataEntry(key = "a", name = "A", date = 1, debit = 5000), KhataEntry(key = "b", name = "B", date = 2, debit = 1000))
+        val out = Khata.carryOver(old, fresh)
+        assertEquals(Khata.LIBRARY, out[0].type); assertEquals("DONE", out[0].review); assertEquals("9000000001", out[0].mobile)
+        assertEquals("", out[1].review)
+    }
+
     @Test fun onlyConfirmedPeopleLeaveThePending() {
         val people = Khata.people(listOf(line("d", debit = 5000), line("e", debit = 5000, review = "DONE"), line("f", debit = 5000, review = "SKIP")))
         assertEquals(listOf("d", "f"), people.filter { it.pending }.map { it.key })

@@ -301,20 +301,11 @@ private fun PersonPage(p: Khata.Person, onRecord: () -> Unit, onBack: () -> Unit
 private fun ReviewPage(list: List<Khata.Person>, onBack: () -> Unit) {
     val db = AppDb.get(LocalContext.current)
     val scope = rememberCoroutineScope()
+    // skipped people go to the end of the queue, in the order they were skipped
     val skipped = remember { mutableStateListOf<String>() }
-    val queue = list.filter { it.key !in skipped }
+    val queue = list.filter { it.key !in skipped } + skipped.mapNotNull { k -> list.firstOrNull { it.key == k } }
     val p = queue.firstOrNull()
-    if (p == null) {
-        if (skipped.isEmpty()) { LaunchedEffect(Unit) { onBack() }; return }
-        HideBottomNav()
-        HeroPage("Confirm people", "${skipped.size} skipped", onBack = onBack) {
-            Column(Modifier.weight(1f).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Only the people you skipped are left. They stay in Old khata for review.", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate600)
-                PrimaryButton("Review skipped again", { skipped.clear() }, Modifier.fillMaxWidth())
-            }
-        }
-        return
-    }
+    if (p == null) { LaunchedEffect(Unit) { onBack() }; return }
     var choice by remember(p.key) { mutableStateOf(Khata.suggested(p)) }
     HideBottomNav()
     HeroPage("Confirm people", "${queue.size} to go", onBack = onBack) {
@@ -342,7 +333,7 @@ private fun ReviewPage(list: List<Khata.Person>, onBack: () -> Unit) {
             }
             val c = choice
             PrimaryButton(if (c == Khata.SKIP) "Skip for now" else "Confirm & next", {
-                if (c == Khata.SKIP) skipped.add(p.key) else if (c != null) scope.launch { confirmKhata(db, p, c) }
+                if (c == Khata.SKIP) { skipped.remove(p.key); skipped.add(p.key) } else if (c != null) scope.launch { confirmKhata(db, p, c) }
             }, Modifier.fillMaxWidth(), enabled = c != null, icon = Icons.Rounded.Check)
             Spacer(Modifier.height(20.dp))
         }
@@ -382,7 +373,7 @@ fun KhataStudentSection(khataKey: String, entries: List<KhataEntry>) {
         SectionHeader("Old khata")
         Text(when { p.balance > 0 -> "Still owes ${rupees(p.balance)}"; p.balance < 0 -> "Advance ${rupees(-p.balance)}"; else -> "Settled" },
             style = MaterialTheme.typography.titleMedium, color = if (p.balance > 0) Brand.Saffron700 else Brand.Ink)
-        p.entries.takeLast(6).forEach { e ->
+        p.entries.forEach { e ->
             androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(e.date.asDate(), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, modifier = Modifier.weight(1f))
                 Text(if (e.debit > 0) "Charged ${rupees(e.debit)}" else "Paid ${rupees(e.credit)}",
@@ -392,4 +383,54 @@ fun KhataStudentSection(khataKey: String, entries: List<KhataEntry>) {
         if (p.balance > 0) PrimaryButton("Record payment", { paying = true }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Payments)
     }
     if (paying) RecordPaymentSheet(p) { paying = false }
+}
+
+/** Replaces the old book lines with the file, keeping what the owner has done: payments in the app, confirmations, types and numbers. */
+suspend fun importLedger(db: AppDb, fresh: List<KhataEntry>) {
+    val merged = Khata.carryOver(db.khata().ledgerList(), fresh)
+    db.khata().clearLedger()
+    db.khata().insertAll(merged)
+    merged.filter { it.mobile.isNotBlank() }.map { it.key to it.mobile }.distinct().forEach { (k, m) -> db.students().fillKhataMobile(k, m) }
+}
+
+/** Shows what the file contains before anything is saved. */
+@Composable
+fun KhataImportDialog(text: String, onClose: () -> Unit) {
+    val db = AppDb.get(LocalContext.current)
+    val scope = rememberCoroutineScope()
+    val entries = remember(text) { Khata.parseCsv(text) }
+    val s = remember(entries) { Khata.summary(entries) }
+    var existing by remember { mutableStateOf(-1) }
+    LaunchedEffect(Unit) { existing = db.khata().countNow() }
+    var done by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onClose, containerColor = Color.White, shape = RoundedCornerShape(28.dp),
+        icon = { IconTile(Icons.Rounded.UploadFile, Brand.Saffron600, 52.dp) },
+        title = { Text("Import old Khatabook", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                when {
+                    entries.isEmpty() -> Text("No Khatabook entries found in this file. Use the CSV file made for the app.", color = Brand.Red600)
+                    done -> Text("Imported ${entries.size} entries ✓", color = Brand.Green700)
+                    else -> {
+                        Text("${s.people} people · ${entries.size} entries", style = MaterialTheme.typography.titleSmall)
+                        Text("${s.owing} people still owe ${rupees(s.owed)}")
+                        Text("${rupees(s.advance)} paid in advance")
+                        Text("Total charged ${rupees(s.debit)} · total paid ${rupees(s.credit)}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                        Text("Payments recorded in the app, confirmations, types and numbers already entered are kept.",
+                            style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                        if (existing > 0) Text("The old book is already here (${existing} entries). Importing again replaces the book lines.",
+                            style = MaterialTheme.typography.bodySmall, color = Brand.Red600)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (entries.isNotEmpty() && !done) TextButton(onClick = {
+                scope.launch { importLedger(db, entries); done = true }
+            }) { Text("Import", color = Brand.Saffron700, fontWeight = FontWeight.Bold) }
+            else TextButton(onClick = onClose) { Text("Close") }
+        },
+        dismissButton = { if (entries.isNotEmpty() && !done) TextButton(onClick = onClose) { Text("Cancel", color = Brand.Slate500) } },
+    )
 }
