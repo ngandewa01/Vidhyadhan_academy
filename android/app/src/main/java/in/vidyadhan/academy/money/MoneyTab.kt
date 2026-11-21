@@ -96,7 +96,22 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
     var edit by remember { mutableStateOf<Expense?>(null) }
     LaunchedEffect(openNew) { if (openNew) { view = "expenses"; edit = Expense(category = "", amount = 0, spentOn = today()); onOpened() } }
     val kh by db.khata().payments().collectAsStateWithLifecycle(emptyList())
+    var period by rememberSaveable { mutableStateOf("month") }
     val cur = monthMoney(month, sp, lp, ex, kh)
+    // the months in the chosen period: one month, the months of a year, or every month since the first record
+    val periodMonths: List<YearMonth> = when (period) {
+        "year" -> (1..12).map { YearMonth.of(month.year, it) }.filter { it <= YearMonth.now() }
+        "all" -> {
+            val first = listOfNotNull(sp.minOfOrNull { it.paidOn }, lp.minOfOrNull { it.paidOn }, ex.minOfOrNull { it.spentOn }, kh.minOfOrNull { it.date }).minOrNull()
+            val start = first?.let { YearMonth.from(java.time.LocalDate.ofEpochDay(it)) } ?: YearMonth.now()
+            generateSequence(start) { it.plusMonths(1) }.takeWhile { it <= YearMonth.now() }.toList()
+        }
+        else -> listOf(month)
+    }
+    val pm = periodMonths.map { monthMoney(it, sp, lp, ex, kh) }
+    val pCollected = pm.sumOf { it.collected }
+    val pSpent = pm.sumOf { it.expenses }
+    val pProfit = pCollected - pSpent
     val last6 = (5 downTo 0).map { monthMoney(month.minusMonths(it.toLong()), sp, lp, ex, kh) }
     val monthLabel = month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
 
@@ -105,25 +120,32 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.11f)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(50)),
             verticalAlignment = Alignment.CenterVertically) {
-            IconButton({ monthText = month.minusMonths(1).toString() }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Previous month", tint = Color.White) }
-            Text(monthLabel, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = Color.White, textAlign = TextAlign.Center)
-            IconButton({ if (month < YearMonth.now()) monthText = month.plusMonths(1).toString() }) {
-                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Next month", tint = if (month < YearMonth.now()) Color.White else Color.White.copy(alpha = 0.3f))
+            if (period == "all") Text("All time", Modifier.weight(1f).padding(vertical = 12.dp), style = MaterialTheme.typography.titleMedium, color = Color.White, textAlign = TextAlign.Center)
+            else {
+                IconButton({ monthText = (if (period == "year") month.minusYears(1) else month.minusMonths(1)).toString() }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Previous", tint = Color.White) }
+                Text(if (period == "year") "${month.year}" else monthLabel, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = Color.White, textAlign = TextAlign.Center)
+                val canNext = if (period == "year") month.year < YearMonth.now().year else month < YearMonth.now()
+                IconButton({ if (canNext) monthText = (if (period == "year") month.plusYears(1) else month.plusMonths(1)).toString() }) {
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Next", tint = if (canNext) Color.White else Color.White.copy(alpha = 0.3f))
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassStat("Collected", rupees(cur.collected), Modifier.weight(1f))
-            GlassStat("Spent", rupees(cur.expenses), Modifier.weight(1f), valueColor = Brand.Saffron200)
-            GlassStat(if (cur.profit >= 0) "Profit" else "Loss", rupees(kotlin.math.abs(cur.profit)), Modifier.weight(1f), valueColor = if (cur.profit >= 0) Color(0xFF86EFAC) else Color(0xFFFCA5A5))
+            GlassStat("Collected", rupees(pCollected), Modifier.weight(1f))
+            GlassStat("Spent", rupees(pSpent), Modifier.weight(1f), valueColor = Brand.Saffron200)
+            GlassStat(if (pProfit >= 0) "Profit" else "Loss", rupees(kotlin.math.abs(pProfit)), Modifier.weight(1f), valueColor = if (pProfit >= 0) Color(0xFF86EFAC) else Color(0xFFFCA5A5))
         }
     }) {
         Box(Modifier.fillMaxSize()) {
             Column {
-                Segmented(listOf("overview" to "Report", "expenses" to "Expenses (${ex.count { it.spentOn in month.range() }})"), view, { view = it },
+                Segmented(listOf("month" to "Month", "year" to "Year", "all" to "All time"), period, { period = it; view = "overview" },
+                    Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
+                if (period == "month") Segmented(listOf("overview" to "Report", "expenses" to "Expenses (${ex.count { it.spentOn in month.range() }})"), view, { view = it },
                     Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    if (view == "overview") {
+                    if (period != "month") PeriodCard(period, pm)
+                    else if (view == "overview") {
                         Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp)) {
                             Text("Last 6 months", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
                             Row(Modifier.padding(top = 4.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -216,6 +238,29 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                         scope.launch { if (e.id == 0L) db.expenses().insert(n) else db.expenses().update(n) }; edit = null
                     }, Modifier.weight(1.6f), enabled = cat.isNotBlank() && (amount.toLongOrNull() ?: 0) > 0, icon = Icons.Rounded.Check)
                 }
+            }
+        }
+    }
+}
+
+private data class PeriodLine(val label: String, val collected: Long, val spent: Long)
+
+/** Year: each month of the year. All time: each year. Shows money in, money out and profit. */
+@Composable
+private fun PeriodCard(period: String, pm: List<MonthMoney>) {
+    val lines = if (period == "year") pm.map { PeriodLine(it.month.format(DateTimeFormatter.ofPattern("MMMM")), it.collected, it.expenses) }
+        else pm.groupBy { it.month.year }.toSortedMap().map { (y, l) -> PeriodLine("$y", l.sumOf { it.collected }, l.sumOf { it.expenses }) }
+    Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp)) {
+        Text(if (period == "year") "Month by month" else "Year by year", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
+        lines.reversed().forEachIndexed { i, ln ->
+            if (i > 0) HorizontalDivider(color = Brand.Line)
+            val p = ln.collected - ln.spent
+            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(ln.label, style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                    Text("In ${rupees(ln.collected)} · Out ${rupees(ln.spent)}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                }
+                Text(rupees(p), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = if (p >= 0) Brand.Green700 else Brand.Red600)
             }
         }
     }
