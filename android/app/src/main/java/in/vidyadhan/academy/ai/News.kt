@@ -31,8 +31,8 @@ data class NewsItem(
 )
 
 /**
- * MPSC news and the daily current-affairs digest, made by Claude with web search (trusted sites only) and checked by the app:
- * a line is kept only when a cited page backs it, and only pages from
+ * MPSC news and the daily current-affairs digest, made by Gemini with Google Search and checked by the app:
+ * a line is kept only when Google's grounding data shows a page that backs it, and only pages from
  * government sites and trusted newspapers count. Anything not about MPSC exams is dropped.
  */
 object News {
@@ -70,7 +70,7 @@ object News {
     private val fmt = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH)
 
     private fun newsPrompt(known: List<String>) = """
-Today is ${LocalDate.now().format(fmt)}. Search the web for announcements made by MPSC (Maharashtra Public Service Commission) in the last 7 days.
+Today is ${LocalDate.now().format(fmt)}. Use Google Search to find announcements made by MPSC (Maharashtra Public Service Commission) in the last 7 days.
 Only these kinds count: new exam advertisements, results, answer keys, exam timetables or date changes, admit cards / hall tickets, and important notices about MPSC exams (syllabus or pattern changes, exam postponed).
 Search mpsc.gov.in first. Newspaper reports are fine only when they report an MPSC announcement.
 Leave out: other commissions and exams (UPSC, SSC, banking, police bharti not conducted by MPSC), tenders, MPSC staff matters, opinions, coaching-class ads, rumours.
@@ -89,7 +89,7 @@ If there is nothing new, answer only: NONE
 """.trim()
 
     private fun digestPrompt() = """
-Today is ${LocalDate.now().format(fmt)}. Search the web to pick 3 to 6 current-affairs facts from the last 2 days that MPSC exam students should know.
+Today is ${LocalDate.now().format(fmt)}. Use Google Search to pick 3 to 6 current-affairs facts from the last 2 days that MPSC exam students should know.
 Only topics in the MPSC syllabus: Maharashtra state decisions and schemes, Indian polity and governance, economy (RBI, budget, reports and indices), government schemes, environment and ecology, science and technology, important appointments, awards of national importance, international relations that affect India.
 Leave out: sports scores, films and celebrities, crime, party politics and statements, opinion pieces.
 Prefer government sources (gov.in, pib.gov.in, rbi.org.in, maharashtra.gov.in) and major newspapers. Write only facts found in the results.
@@ -193,17 +193,17 @@ MR: the same in simple Marathi
     /** [only]: NEWS or CA to check just one of them (the buttons); null = both (the automatic check). */
     suspend fun refresh(ctx: Context, force: Boolean = false, only: String? = null): Int = lock.withLock {
         if (file == null) load(ctx)
-        if (AppSettings.claudeKey.isBlank()) return 0
+        if (AppSettings.geminiKey.isBlank()) return 0
         val t = today()
         var added = 0
         val now = System.currentTimeMillis()
         val doNews = (only ?: NEWS) == NEWS && (only == NEWS || AppSettings.newsOn) && (force || now - AppSettings.newsLast > 10 * 3_600_000L)
         val doDigest = (only ?: CA) == CA && (only == CA || AppSettings.digestOn) && (force || AppSettings.digestDay != t)
         val have = _items.value.filter { it.kind == NEWS }
-        // both questions go to Claude at the same time
+        // both questions go to Gemini at the same time
         val (newsAns, digestAns) = kotlinx.coroutines.coroutineScope {
-            val a = if (doNews) async { runCatching { Claude.ask(newsPrompt(have.take(25).map { "${it.exam}: ${it.title}" })) } } else null
-            val b = if (doDigest) async { runCatching { Claude.ask(digestPrompt()) } } else null
+            val a = if (doNews) async { runCatching { Gemini.ask(newsPrompt(have.take(25).map { "${it.exam}: ${it.title}" })) } } else null
+            val b = if (doDigest) async { runCatching { Gemini.ask(digestPrompt()) } } else null
             a?.await() to b?.await()
         }
         (newsAns?.exceptionOrNull() ?: digestAns?.exceptionOrNull())?.takeIf { (newsAns?.isFailure ?: true) && (digestAns?.isFailure ?: true) }?.let { throw it }
@@ -263,6 +263,6 @@ MR: the same in simple Marathi
 class NewsWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
     override suspend fun doWork(): Result = try {
         News.refresh(applicationContext); Result.success()
-    } catch (e: Claude.Problem) { Result.success() } // a bad key or the limit: try at the next run
+    } catch (e: Gemini.Problem) { Result.success() } // a bad key or the free limit: try at the next run
     catch (e: Exception) { if (runAttemptCount < 2) Result.retry() else Result.success() }
 }
