@@ -132,7 +132,7 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
         }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassStat("Collected", rupees(pCollected), Modifier.weight(1f))
+            GlassStat(if (period == "all") "Collected*" else "Collected", rupees(pCollected), Modifier.weight(1f))
             GlassStat("Spent", rupees(pSpent), Modifier.weight(1f), valueColor = Brand.Saffron200)
             GlassStat(if (pProfit >= 0) "Profit" else "Loss", rupees(kotlin.math.abs(pProfit)), Modifier.weight(1f), valueColor = if (pProfit >= 0) Color(0xFF86EFAC) else Color(0xFFFCA5A5))
         }
@@ -263,6 +263,8 @@ private fun PeriodCard(period: String, pm: List<MonthMoney>, onShare: () -> Unit
                 Text(rupees(p), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = if (p >= 0) Brand.Green700 else Brand.Red600)
             }
         }
+        if (period == "all") Text("* Includes every payment received, in the month it was paid.", Modifier.padding(top = 6.dp),
+            style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
         Spacer(Modifier.height(8.dp))
         PrimaryButton(if (period == "year") "Share ${pm.firstOrNull()?.month?.year ?: ""} report (PDF)" else "Share all-time report (PDF)", onShare,
             Modifier.fillMaxWidth(), icon = Icons.Rounded.PictureAsPdf)

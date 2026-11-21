@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import `in`.vidyadhan.academy.AppSettings
-import `in`.vidyadhan.academy.khata.KhataStudentSection
 import kotlinx.coroutines.launch
 import `in`.vidyadhan.academy.data.*
 import `in`.vidyadhan.academy.ui.*
@@ -42,7 +41,11 @@ import java.time.ZoneOffset
 
 /** Details handed over from an enquiry that has joined. */
 data class Prefill(val name: String, val mobile: String, val course: String)
-object Handoff { var prefill by mutableStateOf<Prefill?>(null) }
+object Handoff {
+    var prefill by mutableStateOf<Prefill?>(null)
+    /** A filter to open the Students list with (from the dashboard). */
+    var studentFilter by mutableStateOf<String?>(null)
+}
 
 private sealed interface Screen {
     data object List : Screen
@@ -77,9 +80,8 @@ fun StudentsTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit
 private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long) -> Unit, onOpenMember: (Long) -> Unit) {
     val all by vm.list.collectAsStateWithLifecycle()
     val members by vm.members.collectAsStateWithLifecycle()
-    val khataEntries by vm.khataEntries.collectAsStateWithLifecycle()
-    val khataBal = remember(khataEntries) { khataEntries.groupBy { it.key }.mapValues { (_, v) -> KhataFig(v.sumOf { it.debit }, v.sumOf { it.credit }) } }
     var filter by rememberSaveable { mutableStateOf("All") }
+    LaunchedEffect(Handoff.studentFilter) { Handoff.studentFilter?.let { filter = it; Handoff.studentFilter = null } }
     val t = today()
     val current = all.filter { it.current }
     val former = all.filter { !it.current }
@@ -100,7 +102,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
             when (filter) {
                 "All", "Former" -> true
                 "Abhyasika" -> false
-                "Fees due" -> it.totalFee > it.paid
+                "Fees due" -> it.dueNow > 0
                 "Paid" -> it.totalFee <= it.paid
                 else -> it.course == filter
             }
@@ -126,7 +128,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
                 if (all.isEmpty()) "Tap “Admit” to add your first student." else if (filter == "Former") "Students who finish or leave are kept here with their records." else "Try a different name or filter.",
                 action = null, onAction = onAdd)
             else LazyColumn(contentPadding = PaddingValues(14.dp, 16.dp, 14.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(shown, key = { it.id }) { s -> StudentCard(s, seatOf[s.id], t, khataBal[s.khataKey]?.takeIf { s.khataKey.isNotBlank() }) { onOpen(s.id) } }
+                items(shown, key = { it.id }) { s -> StudentCard(s, seatOf[s.id], t) { onOpen(s.id) } }
                 items(libShown, key = { "m${it.id}" }) { m -> MemberLedgerCard(m, t) { onOpenMember(m.id) } }
             }
         }
@@ -143,7 +145,7 @@ private fun Pill(text: String, fg: Color, bg: Color) {
 }
 
 @Composable
-private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata: KhataFig?, onClick: () -> Unit) {
+private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onClick: () -> Unit) {
     val left = (s.totalFee - s.paid).coerceAtLeast(0)
     val advance = s.advance
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
@@ -154,8 +156,8 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata
                 else Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brand.Blue100), Alignment.Center) {
                     Text(initials(s.name), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Blue700)
                 }
-                // red dot: these figures come from the old book
-                if (khata != null) Box(Modifier.align(Alignment.TopEnd).size(12.dp).clip(CircleShape).background(Brand.Red600).border(2.dp, Color.White, CircleShape))
+                // red dot: this student came from the old book
+                if (s.khataKey.isNotBlank()) Box(Modifier.align(Alignment.TopEnd).size(12.dp).clip(CircleShape).background(Brand.Red600).border(2.dp, Color.White, CircleShape))
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
@@ -189,12 +191,8 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata
             if (advance > 0) Pill("Advance +${rupees(advance)}", Brand.Amber700, Brand.Amber50)
         }
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp)).padding(vertical = 7.dp)) {
-            val kb = khata?.balance ?: 0L
-            listOf(
-                if (khata != null) Triple("Charged", rupees(khata.charged), Brand.Ink) else Triple("Total plan", rupees(s.totalFee), Brand.Ink),
-                if (khata != null) Triple("Paid", rupees(khata.paid), Brand.Green600) else Triple("Paid", rupees(minOf(s.paid, s.totalFee)), Brand.Green600),
-                if (khata != null) Triple("Balance", rupees(kb), if (kb > 0) Brand.Saffron500 else Brand.Green600) else Triple("Balance", rupees(left), if (left > 0) Brand.Saffron500 else Brand.Green600),
-            ).forEach { (l, v, c) ->
+            listOf(Triple("Total plan", rupees(s.totalFee), Brand.Ink), Triple("Paid", rupees(minOf(s.paid, s.totalFee)), Brand.Green600),
+                Triple("Balance", rupees(left), if (left > 0) Brand.Saffron500 else Brand.Green600)).forEach { (l, v, c) ->
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(l, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
                     Text(v, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = c, maxLines = 1)
@@ -202,12 +200,11 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata
             }
         }
         HorizontalDivider(color = Brand.Line)
-        if (khata != null) KhataFoot(khata.balance) else Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 when {
                     !s.current && left > 0 -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""} · ${rupees(left)} unpaid"
                     !s.current -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""}"
-                    left == 0L && s.khataKey.isNotBlank() -> "Money is on the old book"
                     left == 0L -> "All installments cleared ✓"
                     s.nextDue != null && s.nextDue < t -> "Overdue ${rupees(s.nextDueAmount)} · ${shortDate(s.nextDue)}"
                     s.nextDue != null -> "Next due ${rupees(s.nextDueAmount)} · ${shortDate(s.nextDue)}"
@@ -380,7 +377,6 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     val s by remember(id) { vm.student(id) }.collectAsStateWithLifecycle(null)
     val plan by remember(id) { vm.installments(id) }.collectAsStateWithLifecycle(emptyList())
     val payments by remember(id) { vm.payments(id) }.collectAsStateWithLifecycle(emptyList())
-    val khataEntries by vm.khataEntries.collectAsStateWithLifecycle()
     val seat by remember(id) { vm.memberFor(id) }.collectAsStateWithLifecycle(null)
     val members by vm.members.collectAsStateWithLifecycle()
     var payFor by remember { mutableStateOf<Long?>(null) } // suggested amount
@@ -391,6 +387,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     var tgMessage by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var deletePay by remember { mutableStateOf<StudentPayment?>(null) }
+    var editPay by remember { mutableStateOf<StudentPayment?>(null) }
     var saved by remember { mutableStateOf<StudentPayment?>(null) }
     var showAadhaar by remember { mutableStateOf(false) }
     var viewPhoto by remember { mutableStateOf<String?>(null) }
@@ -485,7 +482,6 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                 statuses.forEach { s2 -> ScheduleRow(s2, paidOn[s2.inst.number], t, onCollect = { payFor = s2.remaining }) }
             }
             if (balance > 0) SoftButton("Record a payment", { payFor = next?.remaining ?: balance }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
-            else if (st.khataKey.isNotBlank()) Text("Money is on the old book (see Old khata below)", style = MaterialTheme.typography.labelLarge, color = Brand.Slate600)
             else Text("All installments cleared ✓", style = MaterialTheme.typography.labelLarge, color = Brand.Green700)
 
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 4.dp)) {
@@ -526,11 +522,10 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                             Spacer(Modifier.width(6.dp))
                             SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receiptFor = p }
                             Spacer(Modifier.width(6.dp))
-                            SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
+                            SmallIconButton(Icons.Rounded.Edit, "Edit payment", Brand.Slate600) { editPay = p }
                         }
                     }
                 }
-                st.khataKey.takeIf { it.isNotBlank() }?.let { KhataStudentSection(it, khataEntries) }
                 NotesSection("STUDENT", st.id)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SoftButton("Admission form", {
@@ -657,6 +652,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     if (resplit) ConfirmDialog("Re-split the balance equally?", "Paid installments stay. The ${rupees(balance)} still due is divided equally over the ${statuses.count { !it.fullyPaid }} unpaid installments, on their dates.",
         "Re-split", onConfirm = { vm.resplit(st, plan, paid); resplit = false }, onDismiss = { resplit = false })
     receiptFor?.let { p -> ReceiptActions(receiptOf(p), st.mobile, "s${st.id}", onDelete = { deletePay = p }, onDismiss = { receiptFor = null }) }
+    editPay?.let { p -> EditPaymentSheet(p, onSave = { vm.updatePayment(it); editPay = null }, onDelete = { editPay = null; deletePay = p }, onClose = { editPay = null }) }
     deletePay?.let { p -> ConfirmDialog("Delete this payment?", "${rupees(p.amount)} received on ${p.paidOn.asDate()} will be removed.", "Delete", danger = true,
         onConfirm = { vm.deletePayment(p); deletePay = null }, onDismiss = { deletePay = null }) }
     if (confirmDelete) ConfirmDialog("Delete ${st.name}?", "This removes the student, their installments and payments. It cannot be undone.", "Delete", danger = true,
@@ -777,16 +773,25 @@ private fun MemberLedgerCard(m: LibraryMember, t: Long, onClick: () -> Unit) {
     }
 }
 
-/** Old-book figures for one student: charged and paid in the old book. */
-data class KhataFig(val charged: Long, val paid: Long) { val balance: Long get() = charged - paid }
-
-/** Footer of a student whose figures come from the old book: the state, and Record payment on the student page. */
+/** Change a payment that was recorded: amount, date, mode or note. Delete is here too. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun KhataFoot(balance: Long) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(if (balance > 0) "Balance due" else "Settled", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
-            color = if (balance > 0) Brand.Saffron700 else Brand.Green700)
-        Text("Record payment", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
-        Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
+private fun EditPaymentSheet(p: StudentPayment, onSave: (StudentPayment) -> Unit, onDelete: () -> Unit, onClose: () -> Unit) {
+    var amount by remember(p.id) { mutableStateOf(p.amount.toString()) }
+    var mode by remember(p.id) { mutableStateOf(p.mode) }
+    var date by remember(p.id) { mutableLongStateOf(p.paidOn) }
+    var note by remember(p.id) { mutableStateOf(p.note) }
+    val a = amount.toLongOrNull() ?: 0L
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+        Column(Modifier.verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SheetTitle("Edit payment", "The balance, installments and reports update when you save")
+            DigitsField("Amount received", amount, 8, { amount = it }, prefix = "₹ ")
+            DateField("Date received", date, { date = it })
+            Text("Paid by", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+            ModeChoice(mode) { mode = it }
+            OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth(), label = { Text("Note (optional)") }, singleLine = true, shape = RoundedCornerShape(16.dp))
+            PrimaryButton("Save changes", { onSave(p.copy(amount = a, paidOn = date, mode = mode, note = note.trim())) }, Modifier.fillMaxWidth(), enabled = a > 0, icon = Icons.Rounded.Check)
+            SoftButton("Delete payment", onDelete, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.Rounded.DeleteOutline)
+        }
     }
 }

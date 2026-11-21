@@ -177,6 +177,7 @@ data class StudentWithFees(
     val joinedOn: Long = 0,
     val advance: Long = 0, // paid ahead of the schedule
     val khataKey: String = "",
+    val dueNow: Long = 0, // installments due up to today that are not paid yet
 ) {
     val current: Boolean get() = leftOn == null
 }

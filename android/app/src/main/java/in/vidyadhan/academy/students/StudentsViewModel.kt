@@ -50,4 +50,5 @@ class StudentsViewModel(app: Application) : AndroidViewModel(app) {
         `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(getApplication(), p.studentId, p.amount, p.mode, id)
     }
     fun deletePayment(p: StudentPayment) = viewModelScope.launch { dao.deletePayment(p) }
+    fun updatePayment(p: StudentPayment) = viewModelScope.launch { dao.updatePayment(p) }
 }

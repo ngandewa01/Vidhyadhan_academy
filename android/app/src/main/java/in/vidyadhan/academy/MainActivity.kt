@@ -104,6 +104,8 @@ private fun AppShell(lock: LockStore) {
     var pendingId by remember { mutableLongStateOf(0L) }
     val hider = remember { mutableIntStateOf(0) }
     val activity = LocalContext.current as FragmentActivity
+    // students confirmed from the old book become normal students (fee, installments, payments), once
+    LaunchedEffect(Unit) { runCatching { `in`.vidyadhan.academy.khata.OldBook.convertAll(`in`.vidyadhan.academy.data.AppDb.get(activity)) } }
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             runCatching { ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100) }

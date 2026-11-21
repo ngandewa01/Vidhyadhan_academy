@@ -93,6 +93,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val recentLib by db.library().recentPayments().collectAsStateWithLifecycle(emptyList())
     var period by rememberSaveable { mutableStateOf("today") }
     var showCollect by remember { mutableStateOf(false) }
+    var showRecord by remember { mutableStateOf(false) }
     var showReminders by remember { mutableStateOf(false) }
     var showBirthdays by remember { mutableStateOf(false) }
     var wishFor by remember { mutableStateOf<Bday?>(null) }
@@ -111,9 +112,14 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val studentPending = students.sumOf { (it.totalFee - it.paid).coerceAtLeast(0) }
     val libraryPending = active.sumOf { it.balance + if (it.validTill < t) it.monthlyFee else 0L }
     val pending = studentPending + libraryPending
-    val billed = students.sumOf { it.totalFee }
-    val paidAll = students.sumOf { it.paid.coerceAtMost(it.totalFee) }
-    val billedPct = if (billed == 0L) 0 else (paidAll * 100 / billed).toInt()
+    val khataToday = khataEntries.filter { it.kind == "PAYMENT" && it.date == t }.sumOf { it.credit }
+    val collectedToday = feesToday + libToday + khataToday
+    val spentToday = expenses.filter { it.spentOn == t }.sumOf { it.amount }
+    // course fees due up to today (not later installments), and who owes them
+    val studentDueNow = students.sumOf { it.dueNow }
+    val dueNowCount = students.count { it.dueNow > 0 }
+    val dueNowAll = studentDueNow + libraryPending
+    val later = (studentPending - studentDueNow).coerceAtLeast(0)
     val depositsHeld = members.filter { it.depositPaid && it.depositReturnedOn == null }.sumOf { it.deposit }
 
     // ── reminders (behind the bell) ──
@@ -145,7 +151,9 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                 Column3("${students.size}", "Enrolled", if (batches > 0) "$batches batch${if (batches == 1) "" else "es"}" else "${allStudents.size - students.size} former",
                     Brand.Ink, Brand.Green50, Brand.Green700, Modifier.weight(1f)) { onGo(Go.Students, 0) }
                 VerticalDivider(Modifier.padding(vertical = 6.dp), color = Brand.Line)
-                Column3(rupees(studentPending), "Installments", "Tap to collect", Brand.Saffron500, Brand.Saffron100, Brand.Saffron600, Modifier.weight(1f)) { showCollect = true }
+                Column3(rupees(studentDueNow), "Fees due", "$dueNowCount student${if (dueNowCount == 1) "" else "s"}", Brand.Saffron500, Brand.Saffron100, Brand.Saffron600, Modifier.weight(1f)) {
+                    `in`.vidyadhan.academy.students.Handoff.studentFilter = "Fees due"; onGo(Go.Students, 0)
+                }
                 VerticalDivider(Modifier.padding(vertical = 6.dp), color = Brand.Line)
                 Column3("${openEnq.size}", "Enquiries", "$callsToday due today", Brand.Blue700, Color(0xFFF0F9FF), Color(0xFF0369A1), Modifier.weight(1f)) { onGo(Go.Enquiries, 0) }
             }
@@ -160,6 +168,12 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                 Mini("$occupied/${seats.size}", "Occupied", Brand.Ink, Modifier.weight(1f)) { onGo(Go.Library, 0) }
                 Mini("${active.count { it.hasLocker }}/${AppSettings.lockerCount}", "Lockers", Brand.Violet700, Modifier.weight(1f)) { onGo(Go.Library, 0) }
                 Mini("$ending", "Expiring ${ENDING_DAYS}d", Brand.Saffron500, Modifier.weight(1f)) { onGo(Go.MemberEnding, 0) }
+            }
+            if (libraryPending > 0) Row(Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Saffron100)
+                .clickable { onGo(Go.MemberDues, 0) }.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${rupees(libraryPending)} due from Abhyasika members", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = Brand.Saffron600)
+                Text("Collect", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Saffron600)
+                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Brand.Saffron600, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -209,38 +223,43 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
             Spacer(Modifier.height(14.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.10f))
                 .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(18.dp)).padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.25f)).padding(2.dp)) {
-                        PeriodChip("Today", period == "today") { period = "today" }
-                        PeriodChip(month, period == "month") { period = "month" }
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Text("Net profit: ${rupees(income - spent)}", Modifier.clip(RoundedCornerShape(50)).background(Brand.Green500.copy(alpha = 0.20f))
-                        .border(1.dp, Brand.Green500.copy(alpha = 0.3f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 3.dp),
-                        style = MaterialTheme.typography.labelSmall, color = Color(0xFF86EFAC), maxLines = 1)
+                Row(Modifier.clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.25f)).padding(2.dp)) {
+                    PeriodChip("Today", period == "today") { period = "today" }
+                    PeriodChip(month, period == "month") { period = "month" }
+                }
+                // everything in this card follows the switch: collected, spent and profit for today or for the month
+                val isToday = period == "today"
+                val per = if (isToday) "TODAY" else "IN ${month.uppercase()}"
+                val inAmt = if (isToday) collectedToday else income
+                val outAmt = if (isToday) spentToday else spent
+                val profit = inAmt - outAmt
+                Spacer(Modifier.height(10.dp))
+                Column(Modifier.fillMaxWidth().clickable { onGo(Go.Money, 0) }) {
+                    Text("COLLECTED $per", style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.8f))
+                    Text(rupees(inAmt), style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold), color = Color.White, maxLines = 1)
                 }
                 Spacer(Modifier.height(10.dp))
-                Row(Modifier.clickable { onGo(Go.Money, 0) }, verticalAlignment = Alignment.Bottom) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HeroBox("SPENT $per", rupees(outAmt), Color.White, Modifier.weight(1f))
+                    HeroBox(if (profit >= 0) "PROFIT $per" else "LOSS $per", rupees(kotlin.math.abs(profit)),
+                        if (profit >= 0) Color(0xFF86EFAC) else Color(0xFFFCA5A5), Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFDE68A).copy(alpha = 0.14f))
+                    .border(1.dp, Color(0xFFFDE68A).copy(alpha = 0.25f), RoundedCornerShape(14.dp))
+                    .clickable(enabled = pending > 0) { showCollect = true }.padding(start = 12.dp, end = 10.dp, top = 9.dp, bottom = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(if (period == "today") "COLLECTED TODAY" else "$month TOTAL COLLECTED".uppercase(), style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.8f))
-                        Text(rupees(if (period == "today") feesToday + libToday else income), style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold),
-                            color = Color.White, maxLines = 1)
+                        Text(if (pending > 0) "Still to collect ${rupees(pending)}" else "Nothing to collect ✓",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color(0xFFFDE68A), maxLines = 1)
+                        if (pending > 0) Text("Due now ${rupees(dueNowAll)} · later installments ${rupees(later)}", style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.8f), maxLines = 2)
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Pending: ${rupees(pending)}", style = MaterialTheme.typography.labelMedium, color = Color(0xFFFCD34D), maxLines = 1)
-                        Text("Deposits held: ${rupees(depositsHeld)}", style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.85f), maxLines = 1)
-                    }
+                    if (pending > 0) Text("Collect", Modifier.clip(RoundedCornerShape(50)).background(Brand.Saffron500).padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color.White)
                 }
-                HorizontalDivider(Modifier.padding(top = 10.dp, bottom = 8.dp), color = Color.White.copy(alpha = 0.10f))
-                Row {
-                    Text("$billedPct% of ${rupees(billed)} billed", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = Brand.Blue50.copy(alpha = 0.9f), maxLines = 1)
-                    Text("${rupees(pending)} upcoming/due", style = MaterialTheme.typography.labelSmall, color = Color(0xFFFDE68A), maxLines = 1)
-                }
-                Spacer(Modifier.height(5.dp))
-                Row(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.35f)).padding(1.dp)) {
-                    if (billedPct > 0) Box(Modifier.weight(billedPct.toFloat()).fillMaxHeight().clip(RoundedCornerShape(50)).background(Color(0xFF34D399)))
-                    if (billedPct < 100) Box(Modifier.weight((100 - billedPct).toFloat()).fillMaxHeight().clip(RoundedCornerShape(50)).background(Brand.Saffron500.copy(alpha = 0.6f)))
-                }
+                if (depositsHeld > 0) Text("Deposits held ${rupees(depositsHeld)} (to be returned)", Modifier.padding(top = 8.dp),
+                    style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.85f))
             }
         }
 
@@ -281,7 +300,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
 
             // four quick actions (instead of a floating + button)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Quick("+ Fee", Icons.Rounded.CurrencyRupee, Brand.Green600, Brand.Green50, Modifier.weight(1f)) { showCollect = true }
+                Quick("+ Fee", Icons.Rounded.CurrencyRupee, Brand.Green600, Brand.Green50, Modifier.weight(1f)) { showRecord = true }
                 Quick("+ Admission", Icons.Rounded.PersonAdd, Brand.Blue700, Brand.Blue100, Modifier.weight(1f)) { onGo(Go.NewStudent, 0) }
                 Quick("+ Enquiry", Icons.Rounded.AddComment, Brand.Saffron500, Brand.Saffron100, Modifier.weight(1f)) { onGo(Go.NewEnquiry, 0) }
                 Quick("+ Expense", Icons.Rounded.ReceiptLong, Brand.Red600, Brand.Red50, Modifier.weight(1f)) { onGo(Go.NewExpense, 0) }
@@ -325,6 +344,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     }
 
     wishFor?.let { WishSheet(it) { wishFor = null } }
+    if (showRecord) RecordAnySheet(students, active, t, onMember = { onGo(Go.Member, it) }) { showRecord = false }
     if (showCollect) QuickCollectSheet(students.filter { it.nextDue != null && it.totalFee > it.paid }.sortedBy { it.nextDue },
         active.filter { it.validTill <= t + ENDING_DAYS || it.balance > 0 }.sortedBy { it.validTill }, t) { showCollect = false }
 
@@ -560,6 +580,65 @@ private fun Arrangeable(arranging: Boolean, title: String, onMove: (Int) -> Unit
         Box(Modifier.padding(6.dp)) {
             content()
             Box(Modifier.matchParentSize().background(Color.White.copy(alpha = 0.25f)).clickable(remember { MutableInteractionSource() }, null) {})
+        }
+    }
+}
+
+/** One small box in the top card: "Spent today ₹0", "Profit in November ₹1,750". */
+@Composable
+private fun HeroBox(label: String, value: String, color: Color, modifier: Modifier) {
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.08f)).border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(14.dp))
+        .padding(horizontal = 10.dp, vertical = 8.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(value, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = color, maxLines = 1)
+    }
+}
+
+/** + Fee: find any student and record any amount (part payment or advance too). Abhyasika members open their page to renew or collect. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecordAnySheet(students: List<StudentWithFees>, members: List<LibraryMember>, t: Long, onMember: (Long) -> Unit, onClose: () -> Unit) {
+    val ctx = LocalContext.current
+    val db = remember { AppDb.get(ctx) }
+    val scope = rememberCoroutineScope()
+    var q by remember { mutableStateOf("") }
+    var pick by remember { mutableStateOf<StudentWithFees?>(null) }
+    var amount by remember { mutableStateOf("") }
+    var mode by remember { mutableStateOf("Cash") }
+    ModalBottomSheet(onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+        Column(Modifier.verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            val s = pick
+            if (s == null) {
+                SheetTitle("Record a payment", "Find the student or Abhyasika member")
+                SearchBox(q, { q = it }, "Search name or mobile")
+                val sMatch = students.filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) }.take(40)
+                val mMatch = members.filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) }.take(40)
+                if (sMatch.isNotEmpty()) Text("STUDENTS", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
+                sMatch.forEach { st ->
+                    val bal = (st.totalFee - st.paid).coerceAtLeast(0)
+                    OptionRow(Icons.Rounded.School, Brand.Blue700, st.name, if (bal > 0) "Balance ${rupees(bal)}" else "Fully paid") {
+                        pick = st; amount = (if (st.dueNow > 0) st.dueNow else bal).takeIf { it > 0 }?.toString() ?: ""
+                    }
+                }
+                if (mMatch.isNotEmpty()) Text("ABHYASIKA", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
+                mMatch.forEach { m -> OptionRow(Icons.Rounded.EventSeat, Brand.Green600, "${m.name} · Seat ${m.seatNo}", "Opens the member page to renew or collect") { onClose(); onMember(m.id) } }
+                if (sMatch.isEmpty() && mMatch.isEmpty()) Text("No one matches", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
+            } else {
+                val bal = (s.totalFee - s.paid).coerceAtLeast(0)
+                val a = amount.toLongOrNull() ?: 0L
+                SheetTitle("Record a payment", "${s.name} · balance ${rupees(bal)}")
+                DigitsField("Amount received", amount, 8, { amount = it }, prefix = "₹ ", supporting = "Any amount: part payment or advance")
+                Text("Paid by", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                ModeChoice(mode) { mode = it }
+                PrimaryButton("Save payment", {
+                    scope.launch {
+                        val pid = db.students().insertPayment(StudentPayment(studentId = s.id, amount = a, paidOn = t, mode = mode))
+                        `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(ctx, s.id, a, mode, pid)
+                    }
+                    onClose()
+                }, Modifier.fillMaxWidth(), enabled = a > 0, icon = Icons.Rounded.Check)
+                SoftButton("Choose someone else", { pick = null }, Modifier.fillMaxWidth())
+            }
         }
     }
 }

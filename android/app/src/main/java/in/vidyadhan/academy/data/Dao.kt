@@ -35,6 +35,7 @@ interface StudentDao {
     @Insert suspend fun insertPaymentRow(p: StudentPayment): Long
     suspend fun insertPayment(p: StudentPayment): Long = insertPaymentRow(if (p.id == 0L) p.copy(id = Ids.next("StudentPayment")) else p)
     @Delete suspend fun deletePayment(p: StudentPayment)
+    @Update suspend fun updatePayment(p: StudentPayment)
 
     @Transaction
     suspend fun create(s: Student, plan: List<Installment>, firstPayment: StudentPayment? = null): Long {
@@ -128,6 +129,9 @@ interface KhataDao {
     @Query("UPDATE KhataEntry SET review = :review WHERE key = :key") suspend fun setReview(key: String, review: String)
     @Query("SELECT * FROM KhataEntry WHERE kind = 'LEDGER'") suspend fun ledgerList(): List<KhataEntry>
     @Query("DELETE FROM KhataEntry WHERE kind = 'LEDGER'") suspend fun clearLedger()
+    @Query("SELECT * FROM KhataEntry WHERE key = :key ORDER BY date, id") suspend fun forKey(key: String): List<KhataEntry>
+    /** Payments recorded against the old book that now live on the student: no longer counted as old-book money. */
+    @Query("UPDATE KhataEntry SET kind = 'PAYMENT_MOVED' WHERE key = :key AND kind = 'PAYMENT'") suspend fun movePayments(key: String)
     @Insert suspend fun add(e: KhataEntry)
     @Query("SELECT * FROM KhataEntry WHERE kind = 'PAYMENT' ORDER BY date, id") fun payments(): Flow<List<KhataEntry>>
 }

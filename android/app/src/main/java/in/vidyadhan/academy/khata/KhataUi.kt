@@ -359,8 +359,10 @@ private fun ReviewChoices(value: String?, onPick: (String) -> Unit) {
 private suspend fun confirmKhata(db: AppDb, p: Khata.Person, choice: String) {
     db.khata().setType(p.key, choice)
     if (choice == Khata.COURSE || choice == Khata.LIBRARY) {
-        db.students().insert(Student(name = p.name, mobile = p.mobile, course = if (choice == Khata.COURSE) "MPSC" else "Library",
-            totalFee = 0, joinedOn = p.entries.first().date, khataKey = p.key))
+        val st = Student(name = p.name, mobile = p.mobile, course = if (choice == Khata.COURSE) "MPSC" else "Library",
+            totalFee = 0, joinedOn = p.entries.first().date, khataKey = p.key)
+        val id = db.students().insert(st)
+        OldBook.convert(db, st.copy(id = id)) // fee, installments and payments from the book
     }
     db.khata().setReview(p.key, "DONE")
 }
