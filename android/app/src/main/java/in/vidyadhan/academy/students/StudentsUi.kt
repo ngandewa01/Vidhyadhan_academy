@@ -93,7 +93,9 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
         "Paid" -> libraryOnly.filter { it.validTill >= t && it.balance == 0L }
         else -> emptyList()
     }
+    var q by rememberSaveable { mutableStateOf("") }
     val shown = (if (filter == "Former") former else current)
+        .filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) || it.telegram.contains(q.removePrefix("@"), true) }
         .filter {
             when (filter) {
                 "All", "Former" -> true
@@ -118,6 +120,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
             }
         }) {
         Column {
+            SearchBox(q, { q = it }, "Search name, mobile or @telegram", Modifier.padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 4.dp))
             if (shown.isEmpty() && libShown.isEmpty()) EmptyState(Icons.Rounded.School,
                 if (all.isEmpty()) "No students yet" else if (filter == "Former") "No former students" else "No matches",
                 if (all.isEmpty()) "Tap “Admit” to add your first student." else if (filter == "Former") "Students who finish or leave are kept here with their records." else "Try a different name or filter.",
@@ -204,6 +207,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata
                 when {
                     !s.current && left > 0 -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""} · ${rupees(left)} unpaid"
                     !s.current -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""}"
+                    left == 0L && s.khataKey.isNotBlank() -> "Money is on the old book"
                     left == 0L -> "All installments cleared ✓"
                     s.nextDue != null && s.nextDue < t -> "Overdue ${rupees(s.nextDueAmount)} · ${shortDate(s.nextDue)}"
                     s.nextDue != null -> "Next due ${rupees(s.nextDueAmount)} · ${shortDate(s.nextDue)}"
@@ -481,6 +485,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                 statuses.forEach { s2 -> ScheduleRow(s2, paidOn[s2.inst.number], t, onCollect = { payFor = s2.remaining }) }
             }
             if (balance > 0) SoftButton("Record a payment", { payFor = next?.remaining ?: balance }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
+            else if (st.khataKey.isNotBlank()) Text("Money is on the old book (see Old khata below)", style = MaterialTheme.typography.labelLarge, color = Brand.Slate600)
             else Text("All installments cleared ✓", style = MaterialTheme.typography.labelLarge, color = Brand.Green700)
 
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 4.dp)) {
