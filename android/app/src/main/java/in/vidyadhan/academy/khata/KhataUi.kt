@@ -115,7 +115,8 @@ fun KhataScreen(onClose: () -> Unit) {
     var reviewing by rememberSaveable { mutableStateOf(false) }
     BackHandler { if (recordFor != null) recordFor = null else if (person != null) person = null else if (reviewing) reviewing = false else onClose() }
     HideBottomNav()
-    val people = remember(entries) { Khata.people(entries) }
+    // only people still to confirm; confirmed ones are in Students
+    val people = remember(entries) { Khata.people(entries).filter { it.pending } }
     val s = remember(entries) { Khata.summary(entries) }
     val pending = people.filter { it.pending }
     if (reviewing && pending.isNotEmpty()) { ReviewPage(pending) { reviewing = false }; return }
@@ -129,7 +130,7 @@ fun KhataScreen(onClose: () -> Unit) {
     val shown = people.filter { p ->
         (q.isBlank() || p.name.contains(q, true) || p.mobile.contains(q)) && (filter == "all" || p.type == filter)
     }
-    HeroPage("Old khata", "${s.owing} people owe ${rupees(s.owed)}", onBack = onClose, header = {
+    HeroPage("Old khata", "${people.size} to confirm", onBack = onClose, header = {
         Spacer(Modifier.height(14.dp))
         SearchBox(q, { q = it }, "Search name or mobile")
         Spacer(Modifier.height(12.dp))
@@ -213,7 +214,7 @@ private fun PersonCard(
         }
         TypeChips(p.type, onType)
         MobileField(p.mobile, onMobile)
-        if (p.balance > 0) PrimaryButton("Record payment", onRecord, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Payments)
+        // payments are recorded from the student page in Students
     }
 }
 
@@ -265,7 +266,7 @@ private fun PersonPage(p: Khata.Person, onRecord: () -> Unit, onBack: () -> Unit
                 Text(rupees(kotlin.math.abs(p.balance)), style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.ExtraBold),
                     color = if (p.balance > 0) Brand.Saffron700 else Brand.Ink)
             }
-            if (p.balance > 0) PrimaryButton("Record payment", onRecord, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Payments)
+            // payments are recorded from the student page in Students
             Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 TypeChips(p.type) { t -> scope.launch { db.khata().setType(p.key, t) } }
                 MobileField(p.mobile) { m -> scope.launch { db.khata().setMobile(p.key, m) } }

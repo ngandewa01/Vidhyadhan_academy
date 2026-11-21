@@ -78,7 +78,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
     val all by vm.list.collectAsStateWithLifecycle()
     val members by vm.members.collectAsStateWithLifecycle()
     val khataEntries by vm.khataEntries.collectAsStateWithLifecycle()
-    val khataBal = remember(khataEntries) { khataEntries.groupBy { it.key }.mapValues { (_, v) -> v.sumOf { it.debit - it.credit } to v.sumOf { it.credit } } }
+    val khataBal = remember(khataEntries) { khataEntries.groupBy { it.key }.mapValues { (_, v) -> KhataFig(v.sumOf { it.debit }, v.sumOf { it.credit }) } }
     var filter by rememberSaveable { mutableStateOf("All") }
     val t = today()
     val current = all.filter { it.current }
@@ -140,16 +140,19 @@ private fun Pill(text: String, fg: Color, bg: Color) {
 }
 
 @Composable
-private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata: Pair<Long, Long>?, onClick: () -> Unit) {
+private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata: KhataFig?, onClick: () -> Unit) {
     val left = (s.totalFee - s.paid).coerceAtLeast(0)
     val advance = s.advance
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
         .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (khata != null && khata.first != 0L) { val b = khata.first; StatusChip(if (b > 0) "Old khata owes ${rupees(b)}" else "Old khata advance ${rupees(-b)}", if (b > 0) Tone.Warn else Tone.Info) }
         Row(verticalAlignment = Alignment.Top) {
-            if (s.photo.isNotBlank()) Avatar(s.name, 42.dp, photo = s.photo)
-            else Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brand.Blue100), Alignment.Center) {
-                Text(initials(s.name), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Blue700)
+            Box {
+                if (s.photo.isNotBlank()) Avatar(s.name, 42.dp, photo = s.photo)
+                else Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brand.Blue100), Alignment.Center) {
+                    Text(initials(s.name), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Blue700)
+                }
+                // red dot: these figures come from the old book
+                if (khata != null) Box(Modifier.align(Alignment.TopEnd).size(12.dp).clip(CircleShape).background(Brand.Red600).border(2.dp, Color.White, CircleShape))
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
@@ -160,7 +163,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata
                     Text(rollNo(s.id, s.joinedOn), style = MaterialTheme.typography.labelSmall, color = Brand.Slate400, maxLines = 1)
                 }
                 Text(s.course + if (s.batch.isNotBlank()) " · ${s.batch}" else "", style = MaterialTheme.typography.labelMedium, color = Brand.Blue700, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                val info = listOfNotNull(s.mobile.takeIf { it.isNotBlank() }?.let { "+91 $it" }, khata?.let { "Old khata paid ${rupees(it.second)}" }).joinToString(" · ")
+                val info = s.mobile.takeIf { it.isNotBlank() }?.let { "+91 $it" }.orEmpty()
                 if (info.isNotBlank()) Text(info, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             if (s.telegram.isNotBlank()) {
@@ -183,8 +186,12 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata
             if (advance > 0) Pill("Advance +${rupees(advance)}", Brand.Amber700, Brand.Amber50)
         }
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp)).padding(vertical = 7.dp)) {
-            listOf(Triple("Total plan", rupees(s.totalFee), Brand.Ink), Triple("Paid", rupees(minOf(s.paid, s.totalFee)), Brand.Green600),
-                Triple("Balance", rupees(left), if (left > 0) Brand.Saffron500 else Brand.Green600)).forEach { (l, v, c) ->
+            val kb = khata?.balance ?: 0L
+            listOf(
+                if (khata != null) Triple("Charged", rupees(khata.charged), Brand.Ink) else Triple("Total plan", rupees(s.totalFee), Brand.Ink),
+                if (khata != null) Triple("Paid", rupees(khata.paid), Brand.Green600) else Triple("Paid", rupees(minOf(s.paid, s.totalFee)), Brand.Green600),
+                if (khata != null) Triple("Balance", rupees(kb), if (kb > 0) Brand.Saffron500 else Brand.Green600) else Triple("Balance", rupees(left), if (left > 0) Brand.Saffron500 else Brand.Green600),
+            ).forEach { (l, v, c) ->
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(l, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
                     Text(v, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = c, maxLines = 1)
@@ -192,7 +199,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata
             }
         }
         HorizontalDivider(color = Brand.Line)
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (khata != null) KhataFoot(khata.balance) else Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 when {
                     !s.current && left > 0 -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""} · ${rupees(left)} unpaid"
@@ -762,5 +769,19 @@ private fun MemberLedgerCard(m: LibraryMember, t: Long, onClick: () -> Unit) {
             Text("Manage plan", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
             Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
         }
+    }
+}
+
+/** Old-book figures for one student: charged and paid in the old book. */
+data class KhataFig(val charged: Long, val paid: Long) { val balance: Long get() = charged - paid }
+
+/** Footer of a student whose figures come from the old book: the state, and Record payment on the student page. */
+@Composable
+private fun KhataFoot(balance: Long) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(if (balance > 0) "Balance due" else "Settled", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
+            color = if (balance > 0) Brand.Saffron700 else Brand.Green700)
+        Text("Record payment", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
+        Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
     }
 }
