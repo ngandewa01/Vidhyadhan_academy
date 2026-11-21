@@ -16,10 +16,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.Login
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,20 +54,23 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Library seats"), Backup("Backup & export"), Updates("App updates") }
+private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Abhyasika seats & lockers"), Backup("Backup & export"), Updates("App updates"), Cloud("Cloud sync"), Telegram("Telegram & WhatsApp"), News("MPSC News & AI") }
 
 @Composable
-fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}, onClose: () -> Unit = {}) {
-    var page by remember { mutableStateOf(Page.Main) }
+fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}, onClose: () -> Unit = {}, asTab: Boolean = false,
+                onGo: (`in`.vidyadhan.academy.home.Go, Long) -> Unit = { _, _ -> }) {
+    var page by rememberSaveable { mutableStateOf(Page.Main) }
     LaunchedEffect(openBackup) { if (openBackup) { page = Page.Backup; onOpened() } }
-    HideBottomNav()
-    BackHandler { if (page != Page.Main) page = Page.Main else onClose() }
+    if (!asTab || page != Page.Main) HideBottomNav()
+    BackHandler(enabled = !asTab || page != Page.Main) { if (page != Page.Main) page = Page.Main else onClose() }
     AnimatedContent(page, transitionSpec = {
         if (targetState == Page.Main) (slideInHorizontally { -it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { it / 5 } + fadeOut())
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "settings") { p ->
         when (p) {
-            Page.Main -> MainPage(lock, onClose) { page = it }
+            Page.Main -> MainPage(lock, if (asTab) null else onClose, onGo) { page = it }
+            Page.Telegram -> `in`.vidyadhan.academy.telegram.BotPage(onGo, onBack = { page = Page.Main }, onMessages = { page = Page.Messages })
+            Page.News -> `in`.vidyadhan.academy.ai.NewsPage("SET") { page = Page.Main }
             else -> HeroPage(p.title, onBack = { page = Page.Main }) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).imePadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Spacer(Modifier.height(4.dp))
@@ -75,7 +82,8 @@ fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Un
                         Page.Library -> LibraryPage()
                         Page.Backup -> BackupPage()
                         Page.Updates -> UpdatesPage()
-                        Page.Main -> {}
+                        Page.Cloud -> CloudPage()
+                        Page.Main, Page.Telegram, Page.News -> {}
                     }
                     Spacer(Modifier.height(20.dp))
                 }
@@ -114,7 +122,7 @@ private fun SettingRow(icon: ImageVector, color: Color, title: String, subtitle:
 }
 
 @Composable
-private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit) {
+private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyadhan.academy.home.Go, Long) -> Unit, open: (Page) -> Unit) {
     val ctx = LocalContext.current
     val types by viewModel<LibraryViewModel>().types.collectAsStateWithLifecycle()
     var bio by remember { mutableStateOf(lock.biometricOn) }
@@ -140,17 +148,23 @@ private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit)
         Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Spacer(Modifier.height(2.dp))
             Group("Academy") {
-                SettingRow(Icons.Rounded.Apartment, Brand.Blue600, "Academy details", "Name, phone, address, receipt number") { open(Page.Academy) }
                 SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses, batches & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
-                    if (AppSettings.lateFeeOn) " · late fee on" else "", divider = false) { open(Page.Courses) }
+                    if (AppSettings.lateFeeOn) " · late fee on" else "") { open(Page.Courses) }
+                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Abhyasika seats & lockers", "Rooms, plans · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
             }
-            Group("Messages") {
-                SettingRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message wording", "Fee, library, enquiry and birthday messages") { open(Page.Messages) }
-                SettingRow(Icons.Rounded.Groups, Color(0xFF229ED9), "Telegram group", AppSettings.telegramLink.ifBlank { "Add your group or channel link" }, divider = false) { open(Page.Academy) }
-            }
-            Group("Daily work") {
+            Group("Telegram & WhatsApp") {
+                SettingRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Telegram bot",
+                    if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) "@${AppSettings.botName} · ${`in`.vidyadhan.academy.telegram.TelegramBot.linkedCount()} connected" else "Not connected") { open(Page.Telegram) }
+                SettingRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message wording", "Fee, Abhyasika, enquiry and birthday messages · tests") { open(Page.Messages) }
                 SettingRow(Icons.Rounded.NotificationsActive, Brand.Red600, "Reminders", "Follow up after ${AppSettings.enquiryDays} days · daily at %02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)) { open(Page.Reminders) }
-                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Library seats", "Rooms, plans · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
+                SettingRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message to many", "Telegram, students' group, WhatsApp or SMS", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Broadcast, 0) }
+            }
+            Group("MPSC News & AI") {
+                SettingRow(Icons.Rounded.AutoAwesome, Brand.Violet700, "MPSC News & current affairs",
+                    if (AppSettings.geminiKey.isBlank()) "Add the Gemini key" else "Key locked · checks twice a day", divider = false) { open(Page.News) }
+            }
+            Group("Reports") {
+                SettingRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Monthly reports", "Income, expenses, profit · PDF report", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Money, 0) }
             }
             Group("Security") {
                 SettingRow(Icons.Rounded.Password, Brand.Violet700, "Change PIN", "4-digit PIN to open the app") { pinDialog = true }
@@ -158,13 +172,20 @@ private fun MainPage(lock: LockStore, onClose: () -> Unit, open: (Page) -> Unit)
                     trailing = { Switch(bio, { bio = it; lock.biometricOn = it }, colors = SwitchDefaults.colors(checkedTrackColor = Brand.Blue600)) }) { bio = !bio; lock.biometricOn = bio }
             }
             Group("Data") {
+                val c = `in`.vidyadhan.academy.cloud.Cloud
+                SettingRow(Icons.Rounded.CloudSync, Brand.Teal700, "Cloud sync", when (c.state) {
+                    `in`.vidyadhan.academy.cloud.Cloud.State.On -> "On · ${c.email}"
+                    `in`.vidyadhan.academy.cloud.Cloud.State.Error -> "Problem: ${c.message}"
+                    `in`.vidyadhan.academy.cloud.Cloud.State.NotSetUp -> "Not set up in this version"
+                    else -> "Off · sign in with Google to use on more phones"
+                }) { open(Page.Cloud) }
                 SettingRow(Icons.Rounded.CloudUpload, Brand.Blue600, "Backup & export", "Save a copy to Google Drive, restore, Excel export", divider = false) { open(Page.Backup) }
             }
             Group("App") {
                 SettingRow(Icons.Rounded.SystemUpdate, Brand.Saffron700, "App updates", "Version $version") { open(Page.Updates) }
                 SettingRow(Icons.Rounded.Info, Brand.Slate600, "About", "Vidyadhan Academy · build $code", divider = false)
             }
-            Text("Made for ${AppSettings.academyName}\nAll data is stored only on this phone", Modifier.fillMaxWidth(),
+            Text("Made for ${AppSettings.academyName}\n" + if (`in`.vidyadhan.academy.cloud.Cloud.state == `in`.vidyadhan.academy.cloud.Cloud.State.On) "Records are kept on this phone and in your cloud" else "All data is stored only on this phone", Modifier.fillMaxWidth(),
                 style = MaterialTheme.typography.bodySmall, color = Brand.Slate400, textAlign = TextAlign.Center)
             Spacer(Modifier.height(20.dp))
         }
@@ -203,7 +224,7 @@ private fun AcademyPage() {
         Field(AppSettings.receiptPrefix, { AppSettings.receiptPrefix = it.take(6).uppercase() }, "Receipt number starts with", Icons.Rounded.Tag,
             supporting = "Receipts look like ${AppSettings.receiptPrefix}-00012")
     }
-    FormCard("Telegram", Icons.Rounded.Groups, Color(0xFF229ED9)) {
+    if (false) FormCard("Telegram", Icons.Rounded.Groups, Color(0xFF229ED9)) {
         Field(AppSettings.telegramLink, { AppSettings.telegramLink = it }, "Group or channel link, e.g. https://t.me/…", Icons.Rounded.Link, keyboard = KeyboardType.Uri,
             supporting = "Used by “Send a message” to open your group")
     }
@@ -212,8 +233,26 @@ private fun AcademyPage() {
 
 @Composable
 private fun MessagesPage() {
-    Text("Words in {curly brackets} are filled in by the app, e.g. {name} becomes the student's name. Keep them in your text.",
+    val scope = rememberCoroutineScope()
+    val bot = `in`.vidyadhan.academy.telegram.TelegramBot
+    val canTest = bot.connected && AppSettings.botOwnerChat != 0L
+    var tested by remember { mutableStateOf<String?>(null) }
+    fun test(text: String) = scope.launch { tested = if (bot.send(AppSettings.botOwnerChat, text)) "Test sent to your Telegram ✓" else "Could not send the test" }
+    Text("Words in {curly brackets} are filled in by the app, e.g. {name} becomes the student's name. Keep them in your text. " +
+        "Telegram messages are sent in Marathi and English together.",
         style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, modifier = Modifier.padding(horizontal = 6.dp))
+    if (!canTest) Text("To test messages on your own Telegram: connect the bot in Bot & More and send /owner to it.",
+        style = MaterialTheme.typography.bodySmall, color = Brand.Amber700, modifier = Modifier.padding(horizontal = 6.dp))
+    else SoftButton("Send a test fee receipt to my Telegram", {
+        scope.launch {
+            val ctx2 = `in`.vidyadhan.academy.telegram.TelegramBot.app ?: return@launch
+            val f = `in`.vidyadhan.academy.ui.receiptPdf(ctx2, `in`.vidyadhan.academy.ui.ReceiptData("${AppSettings.receiptPrefix}-TEST", `in`.vidyadhan.academy.students.today(),
+                "FEE RECEIPT  /  फी पावती", "Rohan Deshmukh", listOf("Mobile" to "+91 98220 01122", "Course" to "MPSC · Evening", "Payment mode" to "UPI"), 9000,
+                listOf("Total fee" to "₹25,000", "Paid so far" to "₹21,000", "Balance" to "₹4,000"), footnote = "Next installment ₹4,000 on 10 Dec"))
+            tested = if (bot.sendDocument(AppSettings.botOwnerChat, f, "🧾 Test receipt")) "Test receipt sent to your Telegram ✓" else "Could not send the test"
+        }
+    }, Modifier.fillMaxWidth(), icon = Icons.Rounded.ReceiptLong)
+    tested?.let { StatusChip(it, if (it.endsWith("✓")) Tone.Good else Tone.Bad) }
     `in`.vidyadhan.academy.Templates.all.forEach { t ->
         var mr by remember { mutableStateOf(`in`.vidyadhan.academy.Templates.text(t.key, true)) }
         var en by remember { mutableStateOf(`in`.vidyadhan.academy.Templates.text(t.key, false)) }
@@ -223,6 +262,8 @@ private fun MessagesPage() {
             Field(en, { en = it; AppSettings.setTemplate(t.key, false, it) }, "English", singleLine = false, minLines = 3)
             SoftButton("Reset to original", { mr = t.mr; en = t.en; AppSettings.setTemplate(t.key, true, ""); AppSettings.setTemplate(t.key, false, "") },
                 color = Brand.Slate600, icon = Icons.Rounded.Refresh)
+            if (canTest) SoftButton("Send a test to my Telegram", { test(`in`.vidyadhan.academy.Templates.bot(t.key, `in`.vidyadhan.academy.Templates.sample)) },
+                color = Color(0xFF0284C7), icon = Icons.AutoMirrored.Rounded.Send)
         }
     }
 }
@@ -347,13 +388,55 @@ private fun LibraryPage() {
 }
 
 @Composable
+private fun CloudPage() {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val c = `in`.vidyadhan.academy.cloud.Cloud
+    var error by remember { mutableStateOf<String?>(null) }
+    var signOut by remember { mutableStateOf(false) }
+    val st = c.state
+    val on = st == `in`.vidyadhan.academy.cloud.Cloud.State.On || st == `in`.vidyadhan.academy.cloud.Cloud.State.Error
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(PrimaryBrush).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        IconTile(Icons.Rounded.CloudSync, Color.White, 48.dp)
+        Text(if (st == `in`.vidyadhan.academy.cloud.Cloud.State.On) "Cloud sync is on" else "Use the app on more phones", style = MaterialTheme.typography.titleLarge, color = Color.White)
+        Text(when {
+            on -> "Signed in as ${c.email}. Students, fees, seats, enquiries and expenses are the same on every phone signed in to this account, and safe if a phone is lost." +
+                if (c.lastSync > 0) "\nLast sync: " + java.text.SimpleDateFormat("d MMM, h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(c.lastSync)) else ""
+            st == `in`.vidyadhan.academy.cloud.Cloud.State.NotSetUp -> "This version of the app was made without the academy's Firebase settings. Install the latest version from the update link."
+            st == `in`.vidyadhan.academy.cloud.Cloud.State.Working -> c.message.ifBlank { "Working…" }
+            else -> "Sign in with the academy's Google account. Your records stay on this phone too, so the app keeps working without internet and syncs when it is back."
+        }, style = MaterialTheme.typography.bodyMedium, color = Brand.Blue100)
+        when {
+            st == `in`.vidyadhan.academy.cloud.Cloud.State.SignedOut -> PrimaryButton("Sign in with Google", { scope.launch { error = c.signIn(ctx) } }, Modifier.fillMaxWidth(), accent = true, icon = Icons.AutoMirrored.Rounded.Login)
+            st == `in`.vidyadhan.academy.cloud.Cloud.State.Working -> LinearProgressIndicator(Modifier.fillMaxWidth(), color = Color.White, trackColor = Color.White.copy(alpha = 0.25f))
+            on -> PrimaryButton("Sync now", { `in`.vidyadhan.academy.cloud.Sync.syncNow() }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Sync)
+            else -> {}
+        }
+    }
+    if (st == `in`.vidyadhan.academy.cloud.Cloud.State.Error) ErrorBox("Sync problem: ${c.message}")
+    error?.let { ErrorBox(it) }
+    if (st == `in`.vidyadhan.academy.cloud.Cloud.State.Choosing) {
+        Text("This phone and your cloud both have records. Which should be kept?", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+        OptionRow(Icons.Rounded.CloudDownload, Brand.Blue600, "Use the cloud's records", "This phone's records are replaced by the ones in the cloud") { scope.launch { c.finish(ctx, keepCloud = true) } }
+        OptionRow(Icons.Rounded.CloudUpload, Brand.Saffron700, "Keep this phone's records", "The cloud is replaced by this phone's records. Other phones then take them.") { scope.launch { c.finish(ctx, keepCloud = false) } }
+        Text("Tip: make a backup first (Settings → Backup & export).", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+    }
+    if (on) {
+        OptionRow(Icons.AutoMirrored.Rounded.Logout, Brand.Red600, "Sign out", "Stops syncing on this phone. Records stay here.") { signOut = true }
+        Text("Photos stay on the phone that took them. The Telegram bot and reminders run on the phone where the bot is connected.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+    }
+    if (signOut) ConfirmDialog("Sign out of cloud sync?", "This phone stops syncing. Its records stay here.", "Sign out", danger = true,
+        onConfirm = { scope.launch { c.signOut(ctx) }; signOut = false }, onDismiss = { signOut = false })
+}
+
+@Composable
 private fun BackupPage() {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
     var status by remember { mutableStateOf<String?>(null) }
     var restoreUri by remember { mutableStateOf<Uri?>(null) }
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
-        if (uri != null) scope.launch { status = runCatching { backup(ctx, uri) }.fold({ "Backup saved ✓" }, { "Backup failed: ${it.message}" }) }
+        if (uri != null) scope.launch { status = runCatching { backup(ctx, uri) }.fold({ AppSettings.lastBackup = `in`.vidyadhan.academy.students.today(); "Backup saved ✓" }, { "Backup failed: ${it.message}" }) }
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> if (uri != null) restoreUri = uri }
     val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
@@ -369,6 +452,29 @@ private fun BackupPage() {
     status?.let { StatusChip(it, if (it.contains("fail")) Tone.Bad else Tone.Good) }
     OptionRow(Icons.Rounded.SettingsBackupRestore, Brand.Saffron700, "Restore from a backup", "Replaces everything in the app") { restoreLauncher.launch(arrayOf("*/*")) }
     OptionRow(Icons.Rounded.TableChart, Brand.Green600, "Export students to Excel", "Saves a CSV file Excel can open") { csvLauncher.launch("students-${java.time.LocalDate.now()}.csv") }
+    var fresh by remember { mutableStateOf(false) }
+    OptionRow(Icons.Rounded.DeleteForever, Brand.Red600, "Start fresh", "Deletes all students, enquiries, Abhyasika members, rooms, payments and expenses") { fresh = true }
+    if (fresh) {
+        var typed by remember { mutableStateOf("") }
+        val cloudOn = `in`.vidyadhan.academy.cloud.Cloud.state == `in`.vidyadhan.academy.cloud.Cloud.State.On
+        AlertDialog(onDismissRequest = { fresh = false }, containerColor = Color.White, shape = RoundedCornerShape(28.dp),
+            title = { Text("Delete all records?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("All students, fees, enquiries, Abhyasika members, rooms, payments, expenses and photos are deleted from this phone" +
+                        (if (cloudOn) " and from your cloud (and so from your other phones)." else ".") +
+                        " Your settings, courses, fees, seat types, PIN and Telegram bot stay. Make a backup first if you may need them.")
+                    Field(typed, { typed = it }, "Type DELETE to confirm")
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = typed.trim().equals("DELETE", true), onClick = {
+                    fresh = false
+                    scope.launch { status = runCatching { eraseAll(ctx) }.fold({ "All records deleted. You can start fresh ✓" }, { "Could not delete: ${it.message}" }) }
+                }) { Text("Delete everything", color = Brand.Red600, fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton({ fresh = false }) { Text("Cancel") } })
+    }
     restoreUri?.let { uri ->
         ConfirmDialog("Restore this backup?", "Everything in the app now will be replaced by the backup, and the app will restart.", "Restore", danger = true,
             onConfirm = { scope.launch { runCatching { restore(ctx, uri) }.onFailure { status = "Restore failed: ${it.message}" } }; restoreUri = null },
@@ -409,12 +515,13 @@ private fun UpdatesPage() {
         }
     }
     FormCard("Where updates come from", Icons.Rounded.Link) {
+        Text("Install new versions from the GitHub download link. Add an update link here only if you host one yourself.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
         Field(AppSettings.updateUrl, { AppSettings.updateUrl = it.trim() }, "Update link (starts with https://)", Icons.Rounded.Link, keyboard = KeyboardType.Uri)
         PrimaryButton("Check for updates", {
             status = "Checking…"; info = null
             scope.launch {
                 runCatching { Updater.check(AppSettings.updateUrl) }
-                    .onSuccess { if (it.versionCode > code) { info = it; status = null } else status = "You have the latest version ✓" }
+                    .onSuccess { AppSettings.updateSkipped = 0; if (it.versionCode > code) { info = it; status = null } else status = "You have the latest version ✓" }
                     .onFailure { status = "Could not check: ${it.message}" }
             }
         }, Modifier.fillMaxWidth(), enabled = AppSettings.updateUrl.startsWith("https://"), icon = Icons.Rounded.Refresh)
@@ -436,6 +543,18 @@ private suspend fun backup(ctx: Context, dest: Uri) = withContext(Dispatchers.IO
             }
         }
     }
+}
+
+/** Deletes every record (children first) and the photos; settings stay. With cloud sync on, the deletions go to the cloud too. */
+private suspend fun eraseAll(ctx: Context) = withContext(Dispatchers.IO) {
+    val db = AppDb.get(ctx)
+    db.runInTransaction(Runnable {
+        listOf("Installment", "StudentPayment", "LibraryPayment", "Note", "LibraryMember", "Student", "Enquiry", "Expense", "LibraryRoom", "MemberPlan")
+            .forEach { db.openHelper.writableDatabase.execSQL("DELETE FROM `$it`") }
+    })
+    `in`.vidyadhan.academy.ui.Photos.dir(ctx).listFiles()?.forEach { it.delete() }
+    `in`.vidyadhan.academy.data.Ids.forget()
+    withContext(Dispatchers.Main) { AppSettings.forgetPeople() }
 }
 
 /** Accepts the new .zip backups (records + photos) and older .db backups. */

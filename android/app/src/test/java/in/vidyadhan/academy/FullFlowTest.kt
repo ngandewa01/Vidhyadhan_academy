@@ -42,10 +42,11 @@ class UnlockFlowTest {
 
     @Test fun unlockAndOpenEveryTab() {
         LockStore(ApplicationProvider.getApplicationContext()).setPin("1234")
+        AppSettings.welcomed = true
         rule.activityRule.scenario.recreate()
         listOf("1", "2", "3", "4").forEach { rule.onNodeWithText(it).performClick() }
         rule.waitForIdle()
-        listOf("Students", "Enquiries", "Library", "More", "Dashboard").forEach {
+        listOf("Students", "Enquiries", "Abhyasika", "Settings", "Dashboard").forEach {
             rule.onAllNodesWithText(it).onLast().performClick(); rule.waitForIdle()
         }
     }
@@ -58,10 +59,12 @@ class PickersTest {
 
     @Test fun backupRestoreExportButtonsDoNotCrash() {
         LockStore(ApplicationProvider.getApplicationContext()).setPin("1234")
+        AppSettings.welcomed = true
         rule.activityRule.scenario.recreate()
         listOf("1", "2", "3", "4").forEach { rule.onNodeWithText(it).performClick() }
         rule.waitForIdle()
-        rule.onNodeWithContentDescription("Settings").performClick()
+        rule.onAllNodesWithText("Settings").onLast().performClick()
+        rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
         rule.onNodeWithText("Backup & export").performScrollTo().performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()

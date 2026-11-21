@@ -21,7 +21,15 @@ fun buildPlan(total: Long, count: Int, firstDue: LocalDate): List<Installment> {
 private val fmt = DateTimeFormatter.ofPattern("dd MMM yyyy")
 fun Long.asDate(): String = LocalDate.ofEpochDay(this).format(fmt)
 fun today(): Long = LocalDate.now().toEpochDay()
-fun rupees(v: Long): String = "₹" + java.text.NumberFormat.getIntegerInstance(java.util.Locale("en", "IN")).format(v)
+fun rupees(v: Long): String = (if (v < 0) "-₹" else "₹") + indianGroups(kotlin.math.abs(v))
+
+/** 101000 → "1,01,000": last three digits, then groups of two. */
+fun indianGroups(n: Long): String {
+    val s = n.toString()
+    if (s.length <= 3) return s
+    val head = s.dropLast(3)
+    return head.reversed().chunked(2).joinToString(",").reversed() + "," + s.takeLast(3)
+}
 fun maskAadhaar(a: String) = if (a.length >= 4) "XXXX XXXX " + a.takeLast(4) else a
 
 fun feeMessage(marathi: Boolean, name: String, amount: Long, due: Long, @Suppress("UNUSED_PARAMETER") academy: String = ""): String =

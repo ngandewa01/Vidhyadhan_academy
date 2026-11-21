@@ -84,6 +84,8 @@ class ScreenshotTest {
     }
 
     @Test fun allScreens() {
+        shot("00-welcome")
+        rule.onNodeWithText("Use on this phone only").performClick(); settle()
         repeat(2) { listOf("1", "2", "3", "4").forEach { d -> rule.onNodeWithText(d).performClick() } }
         seed()
         runBlocking {
@@ -93,24 +95,49 @@ class ScreenshotTest {
             ld.allMembers().first { it.name == "Priya Gaikwad" }.let { ld.updateMember(it.copy(balance = 300, planName = "3 months")) }
         }
         shot("02-home")
-        nav("Students"); shot("04-students")
+        // the receipt, drawn as a picture (same drawing as the PDF)
+        run {
+            val bmp = android.graphics.Bitmap.createBitmap(840, 1190, android.graphics.Bitmap.Config.ARGB_8888)
+            val cv = android.graphics.Canvas(bmp); cv.drawColor(android.graphics.Color.WHITE); cv.scale(2f, 2f)
+            `in`.vidyadhan.academy.ui.drawReceipt(ApplicationProvider.getApplicationContext(), cv, `in`.vidyadhan.academy.ui.ReceiptData("VA-S00042", LocalDate.now().toEpochDay(),
+                "FEE RECEIPT  /  फी पावती", "Rohan Deshmukh", listOf("Mobile" to "+91 98220 01122", "Course" to "MPSC · Evening", "Payment mode" to "UPI", "Note" to "Installment 2 of 3"),
+                8800, listOf("Total fee" to "₹25,000", "Paid so far" to "₹21,000", "Balance" to "₹4,000"), footnote = "Next installment ₹4,000 on 10 Dec 2026"))
+            File(out, "18-receipt.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            // the monthly report, both pages
+            val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+            val rep = runBlocking { `in`.vidyadhan.academy.money.loadReport(ctx, java.time.YearMonth.now()) }
+            listOf<(android.graphics.Canvas) -> Unit>({ `in`.vidyadhan.academy.money.drawReportPage1(ctx, it, rep) }, { `in`.vidyadhan.academy.money.drawReportPage2(ctx, it, rep) })
+                .forEachIndexed { i, draw ->
+                    val b = android.graphics.Bitmap.createBitmap(1190, 1684, android.graphics.Bitmap.Config.ARGB_8888)
+                    val cv2 = android.graphics.Canvas(b); cv2.drawColor(android.graphics.Color.WHITE); cv2.scale(2f, 2f); draw(cv2)
+                    File(out, "19-report-${i + 1}.png").outputStream().use { b.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                }
+        }
+        nav("Students")
+        rule.waitUntil(10_000) { rule.onAllNodesWithText("Rohan Deshmukh").fetchSemanticsNodes().isNotEmpty() } // the list loads from the database
+        shot("04-students")
         rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("05-student-detail")
-        rule.onNodeWithText("Record a payment").performClick(); shot("05b-payment-sheet"); back()
+        rule.onNodeWithText("Record a payment").performScrollTo().performClick(); shot("05b-payment-sheet"); back()
         backButton()
-        rule.onNodeWithText("Add student").performClick(); shot("06-student-form")
-        rule.onNodeWithText("Total course fee").performTextInput("25000"); settle()
-        rule.onNodeWithText("Installment plan").performScrollTo(); shot("06b-student-plan")
+        rule.onNodeWithText("Admit").performClick(); shot("06-student-form")
+        rule.onNodeWithText("Course fee").performTextInput("25000"); settle()
+        rule.onNodeWithText("Equal plan").performScrollTo().performClick(); shot("06b-student-plan")
         backButton()
-        nav("More"); shot("07-more")
+        nav("Settings"); shot("07-more")
         nav("Enquiries"); shot("07b-enquiries")
 
         // Seats: no room yet → create one → edit → view
-        nav("Library"); rule.onNodeWithText("Seats").performClick(); shot("08-seats-start")
-        rule.onNodeWithText("Create first room").performClick(); shot("08b-room-edit")
-        rule.onNodeWithText("Done").performClick(); shot("08c-room-plan")
-        rule.onNodeWithText("7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
+        nav("Abhyasika"); shot("08-seats-start")
+        rule.onNodeWithText("+ Create room").performClick(); shot("08b-room-edit")
+        repeat(4) { rule.onNodeWithContentDescription("Top wall more").performScrollTo().performClick() }
+        repeat(3) { rule.onNodeWithContentDescription("Bottom wall more").performScrollTo().performClick() }
+        rule.onNodeWithContentDescription("Back-to-back double rows more").performScrollTo().performClick()
+        rule.onNodeWithText("Apply layout", substring = true).performScrollTo().performClick(); settle()
+        rule.onNodeWithContentDescription("Seat 1").performScrollTo(); shot("08b2-all-walls")
+        rule.onNodeWithText("Live map").performClick(); shot("08c-room-plan")
+        rule.onNodeWithContentDescription("Seat 7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
 
-        rule.onNodeWithText("Members").performClick(); shot("09-members")
+        nav("Abhyasika"); rule.onNodeWithText("Members").performScrollTo().performClick(); shot("09-members")
         rule.onNode(hasSetTextAction()).performTextReplacement("Snehal"); settle()
         rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Snehal Mane"))
         rule.onNodeWithText("Snehal Mane").performClick(); shot("10-member-detail")
@@ -126,14 +153,28 @@ class ScreenshotTest {
         rule.onNodeWithText("Renew", substring = true).performScrollTo().performClick(); shot("12-renew-sheet"); back()
         backButton()
 
-        nav("More"); rule.onNodeWithText("Money").performClick(); shot("13-money")
+        nav("Settings"); rule.onNodeWithText("Monthly reports").performScrollTo().performClick(); shot("13-money")
         rule.onNodeWithText("Expenses (3)").performClick(); shot("13b-expenses")
-        nav("More"); rule.onNodeWithText("Send a message").performClick(); shot("14-broadcast")
+        nav("Settings"); rule.onNodeWithText("Send a message to many").performScrollTo().performClick(); shot("14-broadcast")
         backButton()
         nav("Dashboard"); shot("15-dashboard")
         rule.onNodeWithContentDescription("Search").performClick(); settle()
         rule.onNodeWithText("Name, mobile, seat or locker no.").performTextInput("sh"); shot("16-search")
         backButton()
-        rule.onNodeWithContentDescription("Settings").performClick(); shot("17-settings")
+        nav("Settings"); rule.onNodeWithText("Telegram bot").performScrollTo().performClick(); shot("17-settings")
+        back()
+
+        // the same main screens with large text, as on the owner's phone (catches cut-off and overflowing text)
+        org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
+        rule.activityRule.scenario.recreate(); settle()
+        nav("Dashboard"); shot("L1-dashboard")
+        nav("Students"); shot("L2-students")
+        rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("L3-student-sheet"); back()
+        nav("Enquiries"); shot("L4-enquiries")
+        rule.onNodeWithText("+ New Admission").performClick(); settle()
+        rule.onNodeWithText("Course fee").performTextInput("45000"); settle()
+        rule.onNodeWithText("Unequal plan").performScrollTo(); shot("L5-admission-plan")
+        nav("Abhyasika"); shot("L6-room")
+        nav("Settings"); shot("L7-bot")
     }
 }

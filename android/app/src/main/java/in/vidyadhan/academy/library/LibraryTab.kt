@@ -53,6 +53,7 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
     val plans = dao.plans().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun member(id: Long) = dao.member(id)
     fun payments(id: Long) = dao.payments(id)
+    fun deletePayment(p: `in`.vidyadhan.academy.data.LibraryPayment) = viewModelScope.launch { dao.deletePayment(p) }
     fun seatHistory(seat: Int) = dao.seatHistory(seat)
     fun add(m: LibraryMember, pays: List<LibraryPayment>, onSaved: (Long) -> Unit = {}) = viewModelScope.launch { onSaved(dao.addMember(m, pays)) }
     fun update(m: LibraryMember, onSaved: (Long) -> Unit = {}) = viewModelScope.launch { dao.updateMember(m); onSaved(m.id) }
@@ -91,7 +92,7 @@ fun kindLabel(k: String) = when (k) {
 /** WhatsApp reminder for a member: the fee when it is due, otherwise the balance. */
 fun libraryReminder(m: LibraryMember, t: Long): String {
     val amount = when { m.validTill < t -> m.monthlyFee + m.balance; m.balance > 0 -> m.balance; else -> m.monthlyFee }
-    return `in`.vidyadhan.academy.Templates.fill("library", true, mapOf("name" to m.name, "amount" to rupees(amount), "date" to m.validTill.asDate()))
+    return `in`.vidyadhan.academy.Templates.fill("library", true, mapOf("name" to m.name, "amount" to rupees(amount), "date" to m.validTill.asDate(), "seat" to "${m.seatNo}"))
 }
 
 @Composable
@@ -101,12 +102,13 @@ fun LibraryTab(
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Main) }
     var memberFilter by rememberSaveable { mutableStateOf(MemberFilter.All) }
-    var seats by rememberSaveable { mutableStateOf(false) }
+    var seats by rememberSaveable { mutableStateOf(true) } // the room plan opens first, like the prototype
     LaunchedEffect(openSeats) { if (openSeats) { seats = true; screen = Screen.Main; onOpened() } }
     LaunchedEffect(openNew, openId, startFilter) { if (openNew || openId > 0 || startFilter != MemberFilter.All) seats = false }
     val switcher: @Composable () -> Unit = {
         Spacer(Modifier.height(14.dp))
-        Segmented(listOf("members" to "Members", "seats" to "Seats"), if (seats) "seats" else "members", { seats = it == "seats" })
+        Text("← Room plan", Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.15f)).clickable { seats = true }
+            .padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge, color = Color.White)
     }
     LaunchedEffect(startFilter) { if (startFilter != MemberFilter.All) memberFilter = startFilter }
     val members by vm.members.collectAsStateWithLifecycle()
@@ -125,7 +127,7 @@ fun LibraryTab(
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "lib") { s ->
         when (s) {
-            Screen.Main -> if (seats) SeatsPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) }, switcher)
+            Screen.Main -> if (seats) RoomPlanPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) }, onMembers = { seats = false })
             else MembersPage(vm, memberFilter, { memberFilter = it }, onAdd = {
                 val taken = members.filter { it.active }.map { it.seatNo }.toSet()
                 screen = Screen.Form(allSeats(vm.rooms.value, AppSettings.seatCount).firstOrNull { it !in taken } ?: 0)
@@ -217,7 +219,7 @@ private fun MemberForm(vm: LibraryViewModel, startSeat: Int, id: Long, onCancel:
             PhotoAvatarEdit(name, photo, photoPicker.open)
             FormCard("Member details", Icons.Rounded.Person, Brand.Teal700) {
                 Field(name, { name = it }, "Full name", Icons.Rounded.Person)
-                DigitsField("Mobile number", mobile, 10, { mobile = it }, Icons.Rounded.Phone, prefix = "+91 ", phone = true,
+                PhoneField(mobile, { mobile = it }, onName = { if (name.isBlank()) name = it },
                     supporting = if (mobile.isNotEmpty() && mobile.length < 10) "Enter all 10 digits" else null, isError = mobile.isNotEmpty() && mobile.length < 10)
                 DigitsField("Aadhaar number", aadhaar, 12, { aadhaar = it }, Icons.Rounded.CreditCard,
                     supporting = if (aadhaar.isNotEmpty() && aadhaar.length < 12) "Enter all 12 digits" else "Kept only on this phone", isError = aadhaar.isNotEmpty() && aadhaar.length < 12)
@@ -304,6 +306,9 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     val ctx = LocalContext.current
     val mm by remember(id) { vm.member(id) }.collectAsStateWithLifecycle(null)
     val pays by remember(id) { vm.payments(id) }.collectAsStateWithLifecycle(emptyList())
+    var deletePay by remember { mutableStateOf<`in`.vidyadhan.academy.data.LibraryPayment?>(null) }
+    deletePay?.let { p -> ConfirmDialog("Delete this payment?", "${rupees(p.amount)} on ${p.paidOn.asDate()} will be removed from the records. The paid-till date does not change; edit the member if needed.",
+        "Delete", danger = true, onConfirm = { vm.deletePayment(p); deletePay = null }, onDismiss = { deletePay = null }) }
     val types by vm.types.collectAsStateWithLifecycle()
     val rooms by vm.rooms.collectAsStateWithLifecycle()
     val plans by vm.plans.collectAsStateWithLifecycle()
@@ -320,12 +325,16 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     HideBottomNav()
     val remindText = libraryReminder(m, t)
 
-    fun receipt(p: LibraryPayment) = shareReceipt(ctx, ReceiptData(
+    var receiptFor by remember { mutableStateOf<LibraryPayment?>(null) }
+    fun receipt(p: LibraryPayment) { receiptFor = p }
+    fun receiptOf(p: LibraryPayment) = (ReceiptData(
         "${AppSettings.receiptPrefix}-L${p.id.toString().padStart(5, '0')}", p.paidOn,
         if (p.kind == "DEPOSIT_RETURN") "DEPOSIT REFUND  /  अनामत परत" else "LIBRARY RECEIPT  /  लायब्ररी पावती", m.name,
         listOf("Mobile" to "+91 ${m.mobile}", "Seat" to listOfNotNull("${m.seatNo}", roomOf(m.seatNo, rooms)?.name, m.seatType.ifBlank { null }).joinToString(" · "), "For" to kindLabel(p.kind), "Payment mode" to p.mode.ifBlank { "—" }),
         p.amount, if (p.kind == "FEE") listOfNotNull("Valid up to" to m.validTill.asDate(), m.planName.takeIf { it.isNotBlank() }?.let { "Plan" to it },
             m.balance.takeIf { it > 0 }?.let { "Balance left" to rupees(it) }) else emptyList()))
+    receiptFor?.let { p -> ReceiptActions(receiptOf(p), m.mobile, m.studentId?.takeIf { !`in`.vidyadhan.academy.telegram.TelegramBot.isLinked("m${m.id}") }?.let { "s$it" } ?: "m${m.id}",
+        onDelete = { deletePay = p }, onDismiss = { receiptFor = null }) }
 
     Column(Modifier.fillMaxSize().background(Brand.Bg)) {
         ProfileHero(m.name, onBack,
@@ -421,7 +430,11 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                             Text((if (out) "− " else "+ ") + rupees(p.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
                                 color = if (out) Brand.Red600 else Brand.Green700)
                             Spacer(Modifier.width(6.dp))
-                            SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receipt(p) }
+                            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send receipt on WhatsApp", Brand.WhatsAppDark) { whatsappReceipt(ctx, receiptOf(p), m.mobile) }
+                            Spacer(Modifier.width(6.dp))
+                            SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receiptFor = p }
+                            Spacer(Modifier.width(6.dp))
+                            SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
                         }
                     }
                 }

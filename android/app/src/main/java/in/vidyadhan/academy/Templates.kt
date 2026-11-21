@@ -9,10 +9,10 @@ object Templates {
             "नमस्कार {name}, {academy} कडून आठवण: तुमचा {amount} चा हप्ता {date} रोजी देय आहे. कृपया वेळेत भरावा. धन्यवाद.",
             "Hello {name}, a reminder from {academy}: your installment of {amount} is due on {date}. Please pay on time. Thank you.",
             "{name} {amount} {date} {academy}"),
-        Template("library", "Library renewal",
-            "नमस्कार {name}, {academy} लायब्ररी: तुमची मासिक फी {amount} {date} रोजी देय आहे. धन्यवाद.",
-            "Hello {name}, {academy} library: your monthly fee of {amount} is due on {date}. Thank you.",
-            "{name} {amount} {date} {academy}"),
+        Template("library", "Abhyasika renewal",
+            "नमस्कार {name}, {academy} अभ्यासिका: तुमची सीट {seat} ची मासिक फी {amount} {date} रोजी देय आहे. धन्यवाद.",
+            "Hello {name}, {academy} Abhyasika: the monthly fee of {amount} for seat {seat} is due on {date}. Thank you.",
+            "{name} {seat} {amount} {date} {academy}"),
         Template("enquiry", "Enquiry thank-you",
             "नमस्कार {name}, {academy} मध्ये चौकशी केल्याबद्दल धन्यवाद. अधिक माहितीसाठी संपर्क: {phone}",
             "Hello {name}, thank you for your enquiry at {academy}. For details, call {phone}.",
@@ -27,6 +27,15 @@ object Templates {
         val t = all.first { it.key == key }
         return AppSettings.template(key, marathi) ?: if (marathi) t.mr else t.en
     }
+
+    /** The bot's message: Marathi and English together, safe for Telegram. */
+    fun bot(key: String, vars: Map<String, String>): String {
+        val esc = { s: String -> s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;") }
+        return esc(fill(key, true, vars)) + "\n\n" + esc(fill(key, false, vars))
+    }
+
+    /** Sample values, for tests and previews. */
+    val sample = mapOf("name" to "Rohan", "amount" to "₹9,000", "date" to "22 Nov", "course" to "MPSC", "seat" to "14 + locker")
 
     fun fill(key: String, marathi: Boolean, vars: Map<String, String>): String {
         var s = text(key, marathi)

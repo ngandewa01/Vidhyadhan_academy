@@ -10,34 +10,35 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import `in`.vidyadhan.academy.R
 
-/** Colours taken from the Vidyadhan Academy website, plus a few supporting tones. */
+/** Academy teal and marigold (from the owner's prototype), plus supporting tones. Blue* = teal, Saffron* = marigold. */
 object Brand {
-    val Blue50 = Color(0xFFEEF7FC)
-    val Blue100 = Color(0xFFD6ECF7)
-    val Blue200 = Color(0xFFAED8EE)
-    val Blue300 = Color(0xFF7CBDE0)
-    val Blue400 = Color(0xFF3F9ACB)
-    val Blue500 = Color(0xFF1A7DB2)
-    val Blue600 = Color(0xFF0D6698)
-    val Blue700 = Color(0xFF0B5583)
-    val Blue800 = Color(0xFF0D466B)
-    val Blue900 = Color(0xFF0F3A58)
-    val Blue950 = Color(0xFF0A253A)
+    val Blue50 = Color(0xFFF2FAFC)
+    val Blue100 = Color(0xFFE0F2F5)
+    val Blue200 = Color(0xFFB3DCE4)
+    val Blue300 = Color(0xFF7FC2D0)
+    val Blue400 = Color(0xFF3E9DB2)
+    val Blue500 = Color(0xFF1E7F93)
+    val Blue600 = Color(0xFF166478)
+    val Blue700 = Color(0xFF0F4C5C)
+    val Blue800 = Color(0xFF0C4150)
+    val Blue900 = Color(0xFF0A3642)
+    val Blue950 = Color(0xFF072A33)
 
-    val Saffron50 = Color(0xFFFFF7ED)
-    val Saffron100 = Color(0xFFFFEDD5)
-    val Saffron200 = Color(0xFFFED7AA)
-    val Saffron400 = Color(0xFFFB923C)
-    val Saffron500 = Color(0xFFF97316)
-    val Saffron600 = Color(0xFFEA580C)
-    val Saffron700 = Color(0xFFC2410C)
-    val Saffron800 = Color(0xFF9A3412)
+    val Saffron50 = Color(0xFFFEF8F2)
+    val Saffron100 = Color(0xFFFDF0E4)
+    val Saffron200 = Color(0xFFF6CFA9)
+    val Saffron400 = Color(0xFFEA9550)
+    val Saffron500 = Color(0xFFE07A2B)
+    val Saffron600 = Color(0xFFC9661E)
+    val Saffron700 = Color(0xFFA9541A)
+    val Saffron800 = Color(0xFF864316)
 
     val Green50 = Color(0xFFECFDF3)
     val Green100 = Color(0xFFDCFCE7)
@@ -85,8 +86,18 @@ val Mukta = FontFamily(
     Font(R.font.mukta_bold, FontWeight.Bold),
 )
 
-private fun s(size: Int, weight: FontWeight, line: Int, spacing: Double = 0.0) =
-    TextStyle(fontFamily = Jakarta, fontSize = size.sp, fontWeight = weight, lineHeight = line.sp, letterSpacing = spacing.em)
+/** Inter for body text and labels (as in the owner's prototype); one variable font file, four weights. */
+val Inter = FontFamily(
+    Font(R.font.inter_variable, FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
+    Font(R.font.inter_variable, FontWeight.Medium, variationSettings = FontVariation.Settings(FontVariation.weight(500))),
+    Font(R.font.inter_variable, FontWeight.SemiBold, variationSettings = FontVariation.Settings(FontVariation.weight(600))),
+    Font(R.font.inter_variable, FontWeight.Bold, variationSettings = FontVariation.Settings(FontVariation.weight(700))),
+    Font(R.font.inter_variable, FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
+)
+
+/** Headings use Plus Jakarta Sans; body text and labels use Inter. */
+private fun s(size: Int, weight: FontWeight, line: Int, spacing: Double = 0.0, family: FontFamily = Jakarta) =
+    TextStyle(fontFamily = family, fontSize = size.sp, fontWeight = weight, lineHeight = line.sp, letterSpacing = spacing.em)
 
 private val AppType = Typography(
     displayLarge = s(44, FontWeight.ExtraBold, 52, -0.02),
@@ -98,12 +109,12 @@ private val AppType = Typography(
     titleLarge = s(18, FontWeight.Bold, 25, -0.005),
     titleMedium = s(16, FontWeight.SemiBold, 22),
     titleSmall = s(14, FontWeight.SemiBold, 20),
-    bodyLarge = s(16, FontWeight.Normal, 24),
-    bodyMedium = s(14, FontWeight.Normal, 20),
-    bodySmall = s(12, FontWeight.Medium, 17),
-    labelLarge = s(14, FontWeight.SemiBold, 20),
-    labelMedium = s(12, FontWeight.SemiBold, 16, 0.01),
-    labelSmall = s(11, FontWeight.SemiBold, 14, 0.02),
+    bodyLarge = s(16, FontWeight.Normal, 24, family = Inter),
+    bodyMedium = s(14, FontWeight.Normal, 20, family = Inter),
+    bodySmall = s(12, FontWeight.Medium, 17, family = Inter),
+    labelLarge = s(14, FontWeight.SemiBold, 20, family = Inter),
+    labelMedium = s(12, FontWeight.SemiBold, 16, 0.01, family = Inter),
+    labelSmall = s(11, FontWeight.SemiBold, 14, 0.02, family = Inter),
 )
 
 private val AppShapes = Shapes(

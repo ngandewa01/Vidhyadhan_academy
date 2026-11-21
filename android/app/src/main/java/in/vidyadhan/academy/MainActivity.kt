@@ -19,7 +19,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.rounded.*
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,9 +38,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import `in`.vidyadhan.academy.AppSettings
 import `in`.vidyadhan.academy.enquiries.EnquiriesTab
 import `in`.vidyadhan.academy.home.Go
 import `in`.vidyadhan.academy.home.HomeTab
@@ -64,8 +69,14 @@ class MainActivity : FragmentActivity() {
         setContent {
             VidyadhanTheme {
                 var unlocked by rememberSaveable { mutableStateOf(false) }
-                Crossfade(unlocked, animationSpec = tween(350), label = "lock") { u ->
-                    if (u) AppShell(store) else LockScreen(this, store) { unlocked = true }
+                // first open: sign in with Google or use this phone only; then the PIN as before
+                val welcome = !AppSettings.welcomed && `in`.vidyadhan.academy.cloud.Cloud.state != `in`.vidyadhan.academy.cloud.Cloud.State.On
+                Crossfade(if (welcome) 0 else if (unlocked) 2 else 1, animationSpec = tween(350), label = "lock") { u ->
+                    when (u) {
+                        0 -> `in`.vidyadhan.academy.lock.WelcomeScreen { }
+                        2 -> AppShell(store)
+                        else -> LockScreen(this, store) { unlocked = true }
+                    }
                 }
             }
         }
@@ -73,13 +84,13 @@ class MainActivity : FragmentActivity() {
 }
 
 private enum class Tab(val label: String, val on: ImageVector, val off: ImageVector, val inNav: Boolean = true) {
-    Home("Dashboard", Icons.Rounded.Dashboard, Icons.Outlined.Dashboard),
-    Students("Students", Icons.Rounded.School, Icons.Outlined.School),
-    Enquiries("Enquiries", Icons.Rounded.Forum, Icons.Outlined.Forum),
-    Library("Library", Icons.Rounded.LocalLibrary, Icons.Outlined.LocalLibrary),
-    More("More", Icons.Rounded.GridView, Icons.Outlined.GridView),
+    Home("Dashboard", Icons.Outlined.GridView, Icons.Outlined.GridView),
+    Students("Students", Icons.Outlined.School, Icons.Outlined.School),
+    Enquiries("Enquiries", Icons.Outlined.PersonAddAlt, Icons.Outlined.PersonAddAlt),
+    Library("Abhyasika", Icons.Outlined.Chair, Icons.Outlined.Chair),
+    More("Settings", Icons.Outlined.Settings, Icons.Outlined.Settings),
     // opened from "More" (the More tab stays highlighted)
-    Money("Money", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, inNav = false),
+    Money("Reports", Icons.Rounded.AccountBalanceWallet, Icons.Outlined.AccountBalanceWallet, inNav = false),
 }
 
 @Composable
@@ -98,10 +109,11 @@ private fun AppShell(lock: LockStore) {
     }
     fun go(g: Go, id: Long) {
         when (g) {
-            Go.Settings, Go.Backup -> settings = true
+            Go.Settings, Go.Backup -> tab = Tab.More
             Go.Search -> search = true
             Go.Broadcast -> broadcast = true
-            Go.Students, Go.NewStudent, Go.Student -> tab = Tab.Students
+            Go.Students, Go.Student -> tab = Tab.Students
+            Go.NewStudent -> tab = Tab.Enquiries
             Go.Enquiries, Go.NewEnquiry, Go.Enquiry -> tab = Tab.Enquiries
             Go.Library, Go.NewMember, Go.Member, Go.MemberDues, Go.MemberEnding, Go.Seats -> tab = Tab.Library
             Go.Money, Go.NewExpense -> tab = Tab.Money
@@ -109,7 +121,13 @@ private fun AppShell(lock: LockStore) {
         pending = g; pendingId = id
     }
     val done = { pending = null; pendingId = 0L }
-    BackHandler(enabled = tab == Tab.Money) { tab = Tab.More }
+    BackHandler(enabled = tab != Tab.Home) { tab = if (tab == Tab.Money) Tab.More else Tab.Home; done() }
+    var lastBack by remember { mutableLongStateOf(0L) }
+    BackHandler(enabled = tab == Tab.Home) {
+        val now = System.currentTimeMillis()
+        if (now - lastBack < 2000) activity.finish()
+        else { lastBack = now; android.widget.Toast.makeText(activity, "Press back again to exit", android.widget.Toast.LENGTH_SHORT).show() }
+    }
     CompositionLocalProvider(LocalNavHider provides hider) {
         Box(Modifier.fillMaxSize().background(Brand.Bg)) {
             Column(Modifier.fillMaxSize()) {
@@ -117,12 +135,14 @@ private fun AppShell(lock: LockStore) {
                     Crossfade(tab, animationSpec = tween(220), label = "tabs") { t ->
                         when (t) {
                             Tab.Home -> HomeTab(::go)
-                            Tab.Students -> StudentsTab(openNew = pending == Go.NewStudent, openId = if (pending == Go.Student) pendingId else 0, onOpened = done)
-                            Tab.Enquiries -> EnquiriesTab(openNew = pending == Go.NewEnquiry, openId = if (pending == Go.Enquiry) pendingId else 0, onOpened = done,
-                                onConvert = { Handoff.prefill = it; tab = Tab.Students })
+                            Tab.Students -> StudentsTab(openId = if (pending == Go.Student) pendingId else 0, onOpened = done, onAdmit = { go(Go.NewStudent, 0) },
+                                onOpenMember = { go(Go.Member, it) })
+                            Tab.Enquiries -> EnquiriesTab(openNew = pending == Go.NewEnquiry, openId = if (pending == Go.Enquiry) pendingId else 0,
+                                openAdmission = pending == Go.NewStudent, onOpened = done,
+                                onAdmitted = { kind, id -> if (kind == "student") go(Go.Student, id) else go(Go.Member, id) })
                             Tab.Library -> LibraryTab(openSeats = pending == Go.Seats, openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0,
                                 startFilter = when (pending) { Go.MemberDues -> MemberFilter.Expired; Go.MemberEnding -> MemberFilter.Ending; else -> MemberFilter.All }, onOpened = done)
-                            Tab.More -> MoreTab(::go)
+                            Tab.More -> SettingsTab(lock, openBackup = pending == Go.Backup, onOpened = done, asTab = true, onGo = ::go)
                             Tab.Money -> MoneyTab(openNew = pending == Go.NewExpense, onOpened = done)
                         }
                     }
@@ -146,41 +166,38 @@ private fun AppShell(lock: LockStore) {
 
 @Composable
 private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
+    // badge on Enquiries: how many are still open
+    val ctx = LocalContext.current
+    val enquiries by remember { `in`.vidyadhan.academy.data.AppDb.get(ctx).enquiries().all() }.collectAsStateWithLifecycle(emptyList())
+    val openEnquiries = enquiries.count { it.status == "NEW" || it.status == "CONTACTED" }
+    Column(Modifier.fillMaxWidth().background(Color.White.copy(alpha = 0.97f))) {
+    HorizontalDivider(color = Brand.Slate200)
     Row(
-        Modifier.fillMaxWidth().shadow(20.dp, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp), spotColor = Brand.Blue900.copy(alpha = 0.25f))
-            .background(Color.White, RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
-            .navigationBarsPadding().padding(horizontal = 8.dp, vertical = 8.dp),
+        Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 6.dp, end = 6.dp, top = 6.dp, bottom = 8.dp),
         horizontalArrangement = Arrangement.SpaceAround,
     ) {
         Tab.entries.filter { it.inNav }.forEach { t ->
             val sel = t == selected || (t == Tab.More && !selected.inNav)
             val pill by animateColorAsState(if (sel) Brand.Blue100 else Color.Transparent, label = "nav")
-            val fg by animateColorAsState(if (sel) Brand.Blue800 else Brand.Slate400, label = "navfg")
+            val fg by animateColorAsState(if (sel) Brand.Blue700 else Brand.Slate500, label = "navfg")
             Column(
                 Modifier.weight(1f).clip(RoundedCornerShape(18.dp))
                     .clickable(remember { MutableInteractionSource() }, null) { onSelect(t) }.padding(vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                Box(Modifier.clip(RoundedCornerShape(50)).background(pill).padding(horizontal = 18.dp, vertical = 5.dp), Alignment.Center) {
-                    Icon(if (sel) t.on else t.off, t.label, tint = fg, modifier = Modifier.size(23.dp))
+                Box {
+                    Box(Modifier.clip(RoundedCornerShape(50)).background(pill).padding(horizontal = 14.dp, vertical = 4.dp), Alignment.Center) {
+                        Icon(t.off, t.label, tint = fg, modifier = Modifier.size(20.dp))
+                    }
+                    if (t == Tab.Enquiries && openEnquiries > 0) Text(if (openEnquiries > 99) "99+" else "$openEnquiries",
+                        Modifier.align(Alignment.TopEnd).offset(x = 2.dp, y = (-2).dp).clip(RoundedCornerShape(50)).background(Brand.Saffron500)
+                            .padding(horizontal = 5.dp), style = MaterialTheme.typography.labelSmall, color = Color.White)
                 }
                 Spacer(Modifier.height(3.dp))
-                Text(t.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (sel) FontWeight.ExtraBold else FontWeight.SemiBold), color = fg, maxLines = 1)
+                Text(t.label, style = MaterialTheme.typography.labelSmall.copy(fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium, fontSize = `in`.vidyadhan.academy.ui.cappedSp(10.5f, 1.05f)),
+                    color = fg, maxLines = 1, softWrap = false)
             }
         }
     }
-}
-
-/** Everything that is not on the bottom bar. */
-@Composable
-private fun MoreTab(onGo: (Go, Long) -> Unit) {
-    `in`.vidyadhan.academy.ui.HeroPage("More", "Money, messages and settings") {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Spacer(Modifier.height(6.dp))
-            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Money", "Income, expenses and reports") { onGo(Go.Money, 0) }
-            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message", "WhatsApp or Telegram to many people") { onGo(Go.Broadcast, 0) }
-            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Search, Brand.Blue600, "Search", "Students, members and enquiries") { onGo(Go.Search, 0) }
-            `in`.vidyadhan.academy.ui.OptionRow(Icons.Rounded.Settings, Brand.Slate600, "Settings", "Academy details, fees, seat types, backup, updates") { onGo(Go.Settings, 0) }
-        }
     }
 }

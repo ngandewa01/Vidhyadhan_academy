@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "327910107069",
+    "project_id": "vidhyadhan-academy",
+    "storage_bucket": "vidhyadhan-academy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:327910107069:android:a6c0cc14992f06220cd4d4",
+        "android_client_info": {
+          "package_name": "in.vidyadhan.academy"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "327910107069-9k82b139vuded2e0jq26838tfbo6t5o3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "in.vidyadhan.academy",
+            "certificate_hash": "01f5c940026270efa189363585f2ef64a26de8e3"
+          }
+        },
+        {
+          "client_id": "327910107069-7upplft2e1225j9v39k9itqjhihupeqr.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD1heyw4ppcvqkK6vWzcLGm4PvOa-05GFk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "327910107069-7upplft2e1225j9v39k9itqjhihupeqr.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

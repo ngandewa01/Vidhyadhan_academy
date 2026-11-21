@@ -14,7 +14,104 @@ import java.time.LocalDate
  * (one cell holds one seat). [w] × [h] is the size of the room inside its walls.
  */
 @Serializable
-data class FloorPlan(val w: Float = 10f, val h: Float = 6f, val items: List<PlanItem> = emptyList())
+data class FloorPlan(
+    val w: Float = 10f, val h: Float = 6f, val items: List<PlanItem> = emptyList(), val cols: Int = 0, val grid: List<GridItem> = emptyList(),
+    /** Theatre / classroom seating: rows from the front, each a list of seat numbers; 0 = aisle or empty place. */
+    val rows: List<List<Int>> = emptyList(),
+    val front: String = "", // what is at the front: WHITEBOARD, WINDOW, DESK, STAGE
+    val door: String = "", // FRONT_LEFT, FRONT_RIGHT, BACK_LEFT, BACK_RIGHT
+    val window: String = "", // LEFT, RIGHT or empty
+    /** Seats along the walls, like cubicles facing the wall: [top, right, bottom, left], each in clockwise order; 0 = a gap. */
+    val walls: List<List<Int>> = emptyList(),
+    /** Back-to-back double rows in the middle: first half of each list is the left column (top to bottom), the rest the right column. */
+    val centre: List<List<Int>> = emptyList(),
+)
+
+/** The wall seating of a room: saved walls, or older rows split between the right and left walls (like students sitting back to back). */
+fun wallsOf(p: FloorPlan): Pair<List<List<Int>>, List<List<Int>>> {
+    if (p.walls.isNotEmpty() || p.centre.isNotEmpty()) return List(4) { p.walls.getOrNull(it).orEmpty() } to p.centre
+    val seats = rowsOf(p).flatten().filter { it > 0 }
+    val half = (seats.size + 1) / 2
+    return listOf(emptyList(), seats.take(half), emptyList(), seats.drop(half).reversed()) to emptyList()
+}
+
+/**
+ * New wall seating: [counts] seats on the top, right, bottom and left walls and [islands] middle double rows of [perIsland] seats.
+ * Seats keep the numbers in [numbers] (in order, clockwise from the top left); extra places get numbers from [nextFrom].
+ */
+fun wallRoom(counts: List<Int>, islands: Int, perIsland: Int, numbers: List<Int>, nextFrom: Int): Pair<List<List<Int>>, List<List<Int>>> {
+    var i = 0; var next = nextFrom
+    fun take() = if (i < numbers.size) numbers[i++] else next++
+    val walls = counts.map { c -> List(c.coerceAtLeast(0)) { take() } }
+    val centre = List(islands.coerceAtLeast(0)) { List(perIsland.coerceAtLeast(0)) { take() } }
+    return walls to centre
+}
+
+/** How [count] seats are set out in a new hall: [top, right, bottom, left] wall counts, middle double rows, seats per middle row. */
+fun defaultWalls(count: Int): Triple<List<Int>, Int, Int> {
+    val n = count.coerceAtLeast(1)
+    if (n <= 12) return Triple(listOf(0, (n + 1) / 2, 0, n / 2), 0, 0)
+    var right = minOf(8, (n + 1) / 2); var left = minOf(8, n - right)
+    var rest = n - right - left
+    val top = minOf(5, (rest + 1) / 2); val bottom = minOf(5, rest - top)
+    rest -= top + bottom
+    val island = minOf(rest, 16)
+    rest -= island
+    right += (rest + 1) / 2; left += rest / 2 // very big halls: longer side walls
+    return Triple(listOf(top, right, bottom, left), if (island > 0) 1 else 0, island)
+}
+
+fun wallSeatList(walls: List<List<Int>>, centre: List<List<Int>>) = (walls.flatten() + centre.flatten()).filter { it > 0 }
+
+/** Seats [numbers] in [rows] rows: [left] seats, an aisle, then [right] seats (no aisle when one side is 0). Extra places get the next numbers after [nextFrom]. */
+fun theatreRows(rows: Int, left: Int, right: Int, numbers: List<Int>, nextFrom: Int): List<List<Int>> {
+    var i = 0; var next = nextFrom
+    fun take() = if (i < numbers.size) numbers[i++] else next++
+    return (0 until rows.coerceAtLeast(1)).map {
+        (0 until left).map { take() } + (if (left > 0 && right > 0) listOf(0) else emptyList()) + (0 until right).map { take() }
+    }
+}
+
+/** The theatre rows of a room: saved ones, or made from an older grid/drawing (seats in reading order). */
+fun rowsOf(p: FloorPlan): List<List<Int>> {
+    if (p.rows.isNotEmpty()) return p.rows
+    val seats: List<Int> = when {
+        p.grid.isNotEmpty() -> p.grid.filter { it.kind == GridItem.SEAT }.map { it.n }
+        else -> p.items.filter { it.type == PlanItem.SEAT }.sortedWith(compareBy({ (it.y * 2).toInt() }, { it.x })).map { it.n }
+    }
+    if (seats.isEmpty()) return emptyList()
+    val per = (p.cols.takeIf { it > 0 } ?: 8).coerceIn(2, 12)
+    val left = (per + 1) / 2
+    return seats.chunked(per).map { r -> if (r.size > left) r.take(left) + 0 + r.drop(left) else r }
+}
+
+fun rowLetter(i: Int): String = if (i < 26) ('A' + i).toString() else "R${i + 1}"
+
+/**
+ * The room as a grid (like the owner's prototype): items fill rows of [FloorPlan.cols] columns in order.
+ * [kind] SEAT (number [n]; XL seats take 2 columns) or FIXTURE ([icon] WINDOW, AC, FAN, DOOR, WATER, LOCKERS, WIFI; [span] columns).
+ */
+@Serializable
+data class GridItem(val id: Int, val kind: String, val n: Int = 0, val span: Int = 1, val label: String = "", val icon: String = "") {
+    companion object { const val SEAT = "SEAT"; const val FIXTURE = "FIXTURE" }
+}
+
+const val GRID_COLS = 6
+
+/** The grid of a room: the saved one, or one made from an older drawing (seats in reading order, then the door). */
+fun gridOf(p: FloorPlan): List<GridItem> {
+    if (p.grid.isNotEmpty()) return p.grid
+    var id = 1
+    val seats = p.items.filter { it.type == PlanItem.SEAT }.sortedWith(compareBy({ (it.y * 2).toInt() }, { it.x }))
+        .map { GridItem(id++, GridItem.SEAT, n = it.n) }
+    val doors = p.items.filter { it.type == PlanItem.DOOR }.map { GridItem(id++, GridItem.FIXTURE, span = 2, label = "Main entrance", icon = "DOOR") }
+    return seats + doors
+}
+
+fun fixtureLabel(icon: String) = when (icon) {
+    "WINDOW" -> "Window light"; "AC" -> "Split AC"; "FAN" -> "Wall fan"; "DOOR" -> "Main entrance"; "WATER" -> "RO water & Wi-Fi"; "LOCKERS" -> "Lockers"; "WIFI" -> "Wi-Fi"
+    else -> "Fixture"
+}
 
 /**
  * One thing in the room. [type] is SEAT (number [n]), DESK (a table line [len] cells long) or DOOR.
@@ -80,7 +177,14 @@ fun quickPlan(from: Int, to: Int, perRow: Int): FloorPlan {
     return FloorPlan(w = w, h = h, items = items)
 }
 
-fun seatsIn(layout: String): List<Int> = planOf(layout).items.filter { it.type == PlanItem.SEAT }.map { it.n }
+fun seatsIn(layout: String): List<Int> = planOf(layout).let { p ->
+    when {
+        p.walls.isNotEmpty() || p.centre.isNotEmpty() -> wallSeatList(p.walls, p.centre)
+        p.rows.isNotEmpty() -> p.rows.flatten().filter { it > 0 }
+        p.grid.isNotEmpty() -> p.grid.filter { it.kind == GridItem.SEAT }.map { it.n }
+        else -> p.items.filter { it.type == PlanItem.SEAT }.map { it.n }
+    }
+}
 
 /** Every seat number in the library: the seats placed in rooms, or 1..[count] while no rooms are set up. */
 fun allSeats(rooms: List<LibraryRoom>, count: Int): List<Int> =

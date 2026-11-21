@@ -61,6 +61,23 @@ class MigrationTest {
         db.query("SELECT leftOn, leftReason FROM Student").use { c -> c.moveToFirst(); assertEquals(true, c.isNull(0)); assertEquals("", c.getString(1)) }
     }
 
+    @Test fun v6ToV7LinksSeatsToStudentsByMobile() {
+        helper.createDatabase("mig7.db", 6).apply {
+            execSQL("INSERT INTO Student(id,name,mobile,aadhaar,course,totalFee,joinedOn,notes,batch,photo,aadhaarPhoto,leftReason) VALUES(5,'Omkar','9000000005','','MPSC',28000,20000,'','','','','')")
+            execSQL("INSERT INTO Installment(studentId,number,amount,dueOn,paidOn,mode) VALUES(5,1,28000,20030,NULL,'')")
+            execSQL("INSERT INTO LibraryMember(name,mobile,aadhaar,seatNo,seatType,monthlyFee,deposit,depositPaid,joinedOn,validTill,active,photo,aadhaarPhoto,lockerNo,lockerFee,balance,planName) VALUES('Omkar','9000000005','',3,'Normal',800,500,1,20000,20030,1,'','','',0,0,'')")
+            execSQL("INSERT INTO LibraryMember(name,mobile,aadhaar,seatNo,seatType,monthlyFee,deposit,depositPaid,joinedOn,validTill,active,photo,aadhaarPhoto,lockerNo,lockerFee,balance,planName) VALUES('Other','9111111111','',4,'Normal',800,500,1,20000,20030,1,'','','',0,0,'')")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate("mig7.db", 7, true)
+        db.query("SELECT studentId FROM LibraryMember ORDER BY seatNo").use { c ->
+            c.moveToFirst(); assertEquals(5L, c.getLong(0))
+            c.moveToNext(); assertEquals(true, c.isNull(0))
+        }
+        db.query("SELECT telegram FROM Student").use { c -> c.moveToFirst(); assertEquals("", c.getString(0)) }
+        db.query("SELECT label FROM Installment").use { c -> c.moveToFirst(); assertEquals("", c.getString(0)) }
+    }
+
     @Test fun v5ToV6AddsRoomsPlansAndBalance() {
         helper.createDatabase("mig6.db", 5).apply {
             execSQL("INSERT INTO LibraryMember(name,mobile,aadhaar,seatNo,seatType,monthlyFee,deposit,depositPaid,joinedOn,validTill,active,photo,aadhaarPhoto,lockerNo,lockerFee) VALUES('A','9000000001','',3,'Normal',800,500,1,20000,20030,1,'','','',0)")

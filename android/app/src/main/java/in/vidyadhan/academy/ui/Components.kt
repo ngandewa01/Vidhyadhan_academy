@@ -52,11 +52,16 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 
 // ───────────────────────── backgrounds ─────────────────────────
 
-/** Deep blue gradient with soft decorative circles: used behind every page header. */
+/** Deep academy teal with a warm marigold glow top-right and a green glow bottom-left: behind every page header. */
 fun Modifier.heroBackground(): Modifier = drawBehind {
-    drawRect(Brush.linearGradient(listOf(Brand.Blue950, Brand.Blue800, Brand.Blue600), Offset.Zero, Offset(size.width, size.height * 1.4f)))
-    drawCircle(Color.White.copy(alpha = 0.06f), radius = size.width * 0.42f, center = Offset(size.width * 0.98f, size.height * 0.02f))
-    drawCircle(Color.White.copy(alpha = 0.04f), radius = size.width * 0.28f, center = Offset(size.width * 0.04f, size.height * 1.02f))
+    val a = Math.toRadians(155.0)
+    val dx = Math.sin(a).toFloat(); val dy = -Math.cos(a).toFloat()
+    val half = (kotlin.math.abs(size.width * dx) + kotlin.math.abs(size.height * dy)) / 2
+    val c = Offset(size.width / 2, size.height / 2)
+    drawRect(Brush.linearGradient(0f to Color(0xFF093541), 0.6f to Brand.Blue700, 1f to Color(0xFF145E70),
+        start = Offset(c.x - dx * half, c.y - dy * half), end = Offset(c.x + dx * half, c.y + dy * half)))
+    drawRect(Brush.radialGradient(listOf(Color(0x3DE07A2B), Color.Transparent), Offset(size.width * 0.92f, size.height * 0.08f), size.width * 0.6f))
+    drawRect(Brush.radialGradient(listOf(Color(0x2E16A34A), Color.Transparent), Offset(size.width * 0.08f, size.height * 0.85f), size.width * 0.6f))
 }
 
 /** Sub-screens (forms, detail pages) hide the bottom navigation while they are open. */
@@ -78,6 +83,13 @@ fun Modifier.lockBackground(): Modifier = drawBehind {
 val AccentBrush = Brush.linearGradient(listOf(Brand.Saffron500, Brand.Saffron700))
 val PrimaryBrush = Brush.linearGradient(listOf(Brand.Blue500, Brand.Blue800))
 
+/** A text size that grows with the phone's text setting only up to [cap] times (for small fixed-width labels). */
+@Composable
+fun cappedSp(base: Float, cap: Float = 1.15f): androidx.compose.ui.unit.TextUnit {
+    val fs = androidx.compose.ui.platform.LocalDensity.current.fontScale
+    return (base * minOf(fs, cap) / fs).sp
+}
+
 /** Gentle press-down effect for anything tappable. */
 @Composable
 fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier {
@@ -85,7 +97,18 @@ fun Modifier.pressable(enabled: Boolean = true, onClick: () -> Unit): Modifier {
     val pressed by src.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.97f else 1f, tween(120), label = "press")
     return this.graphicsLayer { scaleX = scale; scaleY = scale }
-        .clickable(interactionSource = src, indication = ripple(), enabled = enabled, onClick = onClick)
+        .clickable(interactionSource = src, indication = null, enabled = enabled, onClick = onClick)
+}
+
+/** Tappable card: a thin border that turns teal while pressed (no dark ripple), and a small press-down. */
+@Composable
+fun Modifier.pressCard(shape: Shape, onClick: () -> Unit, normal: Color = Brand.Line, active: Color = Brand.Blue700): Modifier {
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.98f else 1f, tween(120), label = "press")
+    val edge by animateColorAsState(if (pressed) active else normal, tween(120), label = "edge")
+    return this.graphicsLayer { scaleX = scale; scaleY = scale }.border(if (pressed) 1.5.dp else 1.dp, edge, shape)
+        .clickable(interactionSource = src, indication = null, onClick = onClick)
 }
 
 /** White card with a soft blue-tinted shadow. */
@@ -109,26 +132,24 @@ fun HeroPage(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(Brand.Bg)) {
-        Column(Modifier.fillMaxWidth().heroBackground().statusBarsPadding().padding(start = 20.dp, end = 12.dp, top = 10.dp, bottom = 40.dp)) {
+        Column(Modifier.fillMaxWidth().shadow(6.dp, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)).heroBackground().statusBarsPadding()
+            .padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (onBack != null) {
                     GlassIconButton(Icons.AutoMirrored.Rounded.ArrowBack, "Back", onBack)
-                    Spacer(Modifier.width(12.dp))
+                    Spacer(Modifier.width(10.dp))
                 }
                 Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.headlineMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Brand.Blue200, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(title, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Brand.Blue100.copy(alpha = 0.8f), maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), content = actions)
                 Spacer(Modifier.width(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically, content = actions)
             }
-            Column(Modifier.padding(end = 8.dp)) { header() }
+            Column { header() }
         }
-        Column(
-            Modifier.fillMaxSize().overlapUp(26.dp)
-                .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)).background(Brand.Bg),
-            content = content,
-        )
+        Column(Modifier.fillMaxSize(), content = content)
     }
 }
 
@@ -209,6 +230,21 @@ fun StatusChip(text: String, tone: Tone, dot: Boolean = true) {
     ) {
         if (dot) { Box(Modifier.size(6.dp).clip(CircleShape).background(tone.fg)); Spacer(Modifier.width(6.dp)) }
         Text(text, color = tone.fg, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+    }
+}
+
+/** A problem shown in full (several lines) with a Copy button, so the exact message can be sent to support. */
+@Composable
+fun ErrorBox(text: String) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Red50).border(1.dp, Brand.Red100, RoundedCornerShape(16.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(text, style = MaterialTheme.typography.bodySmall, color = Brand.Red700)
+        Text("Copy this message", Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+            val cm = ctx.getSystemService(android.content.ClipboardManager::class.java)
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("error", text))
+            android.widget.Toast.makeText(ctx, "Copied. Paste it in WhatsApp to send.", android.widget.Toast.LENGTH_SHORT).show()
+        }.padding(vertical = 4.dp, horizontal = 2.dp), style = MaterialTheme.typography.labelLarge, color = Brand.Red700)
     }
 }
 
@@ -449,9 +485,47 @@ fun Field(
 
 @Composable
 fun DigitsField(label: String, value: String, maxDigits: Int, onChange: (String) -> Unit, icon: ImageVector? = null, prefix: String? = null,
-                phone: Boolean = false, supporting: String? = null, isError: Boolean = false, modifier: Modifier = Modifier) =
-    Field(value, { if (it.length <= maxDigits && it.all(Char::isDigit)) onChange(it) }, label, icon, modifier,
-        if (phone) KeyboardType.Phone else KeyboardType.Number, prefix = prefix, supporting = supporting, isError = isError)
+                phone: Boolean = false, supporting: String? = null, isError: Boolean = false, modifier: Modifier = Modifier,
+                trailing: @Composable (() -> Unit)? = null) =
+    Field(value, { onDigits(it, value, maxDigits, phone)?.let(onChange) }, label, icon, modifier,
+        if (phone) KeyboardType.Phone else KeyboardType.Number, prefix = prefix, supporting = supporting, isError = isError, trailing = trailing)
+
+/**
+ * Keeps only the digits, so pasted text like "+91 98765 43210" or "1234 5678 9012" works.
+ * A pasted phone number that is too long keeps its last digits (drops +91 or a leading 0). Null = ignore the change.
+ */
+fun onDigits(typed: String, old: String, max: Int, phone: Boolean): String? {
+    val d = typed.filter(Char::isDigit)
+    return when {
+        d.length <= max -> d
+        phone && typed.length - old.length > 1 -> d.takeLast(max) // pasted
+        else -> null
+    }
+}
+
+/** Mobile number with a button to pick it from the phone's contacts (fills the name too, through [onName]). */
+@Composable
+fun PhoneField(value: String, onChange: (String) -> Unit, modifier: Modifier = Modifier, onName: ((String) -> Unit)? = null,
+               supporting: String? = null, isError: Boolean = false, icon: ImageVector? = Icons.Rounded.Phone) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { r ->
+        val uri = r.data?.data ?: return@rememberLauncherForActivityResult
+        runCatching {
+            ctx.contentResolver.query(uri, arrayOf(android.provider.ContactsContract.CommonDataKinds.Phone.NUMBER, android.provider.ContactsContract.Contacts.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) {
+                    onChange(c.getString(0).orEmpty().filter(Char::isDigit).takeLast(10))
+                    c.getString(1)?.takeIf { it.isNotBlank() }?.let { onName?.invoke(it) }
+                }
+            }
+        }
+    }
+    DigitsField("Mobile number", value, 10, onChange, icon, prefix = "+91 ", phone = true, supporting = supporting, isError = isError, modifier = modifier,
+        trailing = {
+            IconButton({
+                runCatching { pick.launch(android.content.Intent(android.content.Intent.ACTION_PICK, android.provider.ContactsContract.CommonDataKinds.Phone.CONTENT_URI)) }
+            }) { Icon(Icons.Rounded.Contacts, "Pick from contacts", tint = Brand.Blue600) }
+        })
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -543,17 +617,22 @@ fun Modifier.overlapUp(by: Dp): Modifier = this.layout { measurable, constraints
 
 @Composable
 fun SearchBox(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
-    OutlinedTextField(
-        value, onChange, modifier.fillMaxWidth(), singleLine = true,
-        placeholder = { Text(placeholder, color = Brand.Slate400) },
-        leadingIcon = { Icon(Icons.Rounded.Search, null, tint = Brand.Blue600) },
-        trailingIcon = { if (value.isNotEmpty()) IconButton({ onChange("") }) { Icon(Icons.Rounded.Close, "Clear", tint = Brand.Slate400) } },
-        shape = RoundedCornerShape(50),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
-            focusedBorderColor = Color.Transparent, unfocusedBorderColor = Color.Transparent,
-        ),
-    )
+    androidx.compose.foundation.text.BasicTextField(value, onChange, modifier.fillMaxWidth(), singleLine = true,
+        textStyle = MaterialTheme.typography.bodyMedium.copy(color = Brand.Ink),
+        decorationBox = { inner ->
+            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(14.dp)).background(Color.White).border(1.dp, Brand.Line, RoundedCornerShape(14.dp))
+                .padding(start = 12.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.Search, null, tint = Brand.Slate400, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Box(Modifier.weight(1f)) {
+                    if (value.isEmpty()) Text(placeholder, style = MaterialTheme.typography.bodyMedium, color = Brand.Slate400, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    inner()
+                }
+                if (value.isNotEmpty()) Box(Modifier.size(36.dp).clip(CircleShape).clickable { onChange("") }, Alignment.Center) {
+                    Icon(Icons.Rounded.Close, "Clear", tint = Brand.Slate400, modifier = Modifier.size(18.dp))
+                }
+            }
+        })
 }
 
 @Composable

@@ -18,6 +18,7 @@ data class Student(
     @ColumnInfo(defaultValue = "") val aadhaarPhoto: String = "",
     val leftOn: Long? = null, // set when the student finished or left: a "former student"
     @ColumnInfo(defaultValue = "") val leftReason: String = "",
+    @ColumnInfo(defaultValue = "") val telegram: String = "", // Telegram username, without @
 )
 
 /** The planned schedule. What has actually been paid lives in [StudentPayment]. */
@@ -33,6 +34,7 @@ data class Installment(
     val dueOn: Long, // epoch day
     val paidOn: Long? = null, // no longer used (kept for old data)
     val mode: String = "",
+    @ColumnInfo(defaultValue = "") val label: String = "", // e.g. "Inst 2 (Prelims)"; blank = "Installment N"
 )
 
 /** Money actually received from a student: any amount, on any day. */
@@ -60,6 +62,7 @@ data class Enquiry(
     val followUpOn: Long,
     val status: String = "NEW", // NEW, CONTACTED, JOINED, CLOSED
     @ColumnInfo(defaultValue = "") val source: String = "",
+    @ColumnInfo(defaultValue = "") val telegram: String = "", // Telegram username, without @
 )
 
 @Entity
@@ -96,6 +99,7 @@ data class LibraryMember(
     @ColumnInfo(defaultValue = "0") val lockerFee: Long = 0, // part of monthlyFee
     @ColumnInfo(defaultValue = "0") val balance: Long = 0, // still owed for the current period (part payment)
     @ColumnInfo(defaultValue = "") val planName: String = "", // plan of the last renewal, e.g. "3 months"
+    val studentId: Long? = null, // set when this Abhyasika seat belongs to an academy student ("Combo")
 ) {
     val hasLocker: Boolean get() = lockerNo.isNotBlank()
 }
@@ -168,9 +172,12 @@ data class StudentWithFees(
     val nextDueAmount: Long, // what is still owed on that installment
     val leftOn: Long? = null,
     val leftReason: String = "",
+    val telegram: String = "",
+    val joinedOn: Long = 0,
+    val advance: Long = 0, // paid ahead of the schedule
 ) {
     val current: Boolean get() = leftOn == null
 }
 
 /** One received payment, for "Recent payments" (not stored as its own table). */
-data class PaymentRow(val name: String, val amount: Long, val paidOn: Long, val kind: String)
+data class PaymentRow(val name: String, val amount: Long, val paidOn: Long, val kind: String, val mode: String = "", val detail: String = "")
