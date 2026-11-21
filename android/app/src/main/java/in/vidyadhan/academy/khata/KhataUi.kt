@@ -74,7 +74,7 @@ fun MobileField(value: String, onSave: (String) -> Unit) {
         label = { Text("Mobile") },
         prefix = { Text("+91 ", color = Brand.Slate500) },
         singleLine = true,
-        supportingText = { Text(if (text.length in 1..9) "Enter all 10 digits" else "Saved when 10 digits are typed") },
+        supportingText = { Text(when { text.isEmpty() -> "Optional · needed only for WhatsApp reminders"; text.length < 10 -> "Enter all 10 digits"; else -> "Saved" }) },
         trailingIcon = {
             IconButton(onClick = { pick() }) { Icon(Icons.Rounded.ContactPhone, "Pick from contacts", tint = Brand.Blue600) }
         },
@@ -280,42 +280,3 @@ private fun PersonPage(p: Khata.Person, onRecord: () -> Unit, onBack: () -> Unit
     }
 }
 
-/** Shows what the file contains before anything is saved. Replaces the earlier old-khata import if the owner confirms. */
-@Composable
-fun KhataImportDialog(text: String, onClose: () -> Unit) {
-    val db = AppDb.get(LocalContext.current)
-    val scope = rememberCoroutineScope()
-    val entries = remember(text) { Khata.parseCsv(text) }
-    val s = remember(entries) { Khata.summary(entries) }
-    var existing by remember { mutableStateOf(-1) }
-    LaunchedEffect(Unit) { existing = db.khata().countNow() }
-    var done by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onClose, containerColor = Color.White, shape = RoundedCornerShape(28.dp),
-        icon = { IconTile(Icons.Rounded.UploadFile, Brand.Saffron600, 52.dp) },
-        title = { Text("Import old Khatabook", style = MaterialTheme.typography.titleLarge) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                when {
-                    entries.isEmpty() -> Text("No Khatabook entries found in this file. Use the CSV file made for the app.", color = Brand.Red600)
-                    done -> Text("Imported ${entries.size} entries ✓", color = Brand.Green700)
-                    else -> {
-                        Text("${s.people} people · ${entries.size} entries", style = MaterialTheme.typography.titleSmall)
-                        Text("${s.owing} people still owe ${rupees(s.owed)}")
-                        Text("${rupees(s.advance)} paid in advance")
-                        Text("Total charged ${rupees(s.debit)} · total paid ${rupees(s.credit)}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                        if (existing > 0) Text("The old khata is already imported (${existing} entries). Importing again replaces it.",
-                            style = MaterialTheme.typography.bodySmall, color = Brand.Red600)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            if (entries.isNotEmpty() && !done) TextButton(onClick = {
-                scope.launch { db.khata().clear(); db.khata().insertAll(entries); done = true }
-            }) { Text("Import", color = Brand.Saffron700, fontWeight = FontWeight.Bold) }
-            else TextButton(onClick = onClose) { Text("Close") }
-        },
-        dismissButton = { if (entries.isNotEmpty() && !done) TextButton(onClick = onClose) { Text("Cancel", color = Brand.Slate500) } },
-    )
-}
