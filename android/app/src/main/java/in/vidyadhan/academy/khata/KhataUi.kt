@@ -19,6 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.vidyadhan.academy.AppSettings
@@ -30,14 +34,17 @@ import `in`.vidyadhan.academy.students.today
 import `in`.vidyadhan.academy.ui.*
 import kotlinx.coroutines.launch
 
-/** The old Khatabook balances: who still owes, who paid in advance, and each person's history. */
+/** The old Khatabook balances: filter by type, change types one by one or many at once, and each person's history. */
 @Composable
 fun KhataScreen(onClose: () -> Unit) {
     val db = AppDb.get(LocalContext.current)
+    val scope = rememberCoroutineScope()
     val entries by db.khata().all().collectAsStateWithLifecycle(emptyList())
     var person by remember { mutableStateOf<String?>(null) }
     var q by rememberSaveable { mutableStateOf("") }
-    var filter by rememberSaveable { mutableStateOf("owing") }
+    var filter by rememberSaveable { mutableStateOf("all") }
+    var bulkType by rememberSaveable { mutableStateOf(Khata.COURSE) }
+    val selected = remember { mutableStateListOf<String>() }
     BackHandler { if (person != null) person = null else onClose() }
     HideBottomNav()
     val people = remember(entries) { Khata.people(entries) }
@@ -46,43 +53,96 @@ fun KhataScreen(onClose: () -> Unit) {
     if (open != null) { PersonPage(open) { person = null }; return }
 
     val shown = people.filter { p ->
-        (q.isBlank() || p.name.contains(q, true) || p.mobile.contains(q)) &&
-            when (filter) { "owing" -> p.balance > 0; "advance" -> p.balance < 0; else -> true }
+        (q.isBlank() || p.name.contains(q, true) || p.mobile.contains(q)) && (filter == "all" || p.type == filter)
     }
     HeroPage("Old khata", "${s.owing} people owe ${rupees(s.owed)}", onBack = onClose, header = {
         Spacer(Modifier.height(14.dp))
         SearchBox(q, { q = it }, "Search name or mobile")
         Spacer(Modifier.height(12.dp))
         androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassStat("To collect", rupees(s.owed), Modifier.weight(1f), valueColor = androidx.compose.ui.graphics.Color(0xFFFED7AA))
+            GlassStat("To collect", rupees(s.owed), Modifier.weight(1f), valueColor = Color(0xFFFED7AA))
             GlassStat("Advance", rupees(s.advance), Modifier.weight(1f))
             GlassStat("People", "${s.people}", Modifier.weight(1f))
         }
     }) {
         Column {
-            Segmented(listOf("owing" to "Owing (${s.owing})", "advance" to "Advance", "all" to "All"), filter, { filter = it },
+            Segmented(listOf("all" to "All", Khata.COURSE to "MPSC", Khata.LIBRARY to "Library", Khata.ENQUIRY to "Enquiry"), filter, { filter = it; selected.clear() },
                 Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
+            if (selected.isNotEmpty()) androidx.compose.foundation.layout.Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(18.dp)).background(Brand.Saffron50)
+                    .border(1.dp, Brand.Saffron200, RoundedCornerShape(18.dp)).padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("${selected.size} selected", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = Brand.Saffron800)
+                Box(Modifier.width(150.dp)) { TypeDropdown(bulkType, "Change to", { bulkType = it }) }
+                Spacer(Modifier.width(8.dp))
+                PillButton("Apply", {
+                    val keys = selected.toList()
+                    scope.launch { keys.forEach { db.khata().setType(it, bulkType) } }
+                    selected.clear()
+                }, Brand.Saffron600)
+            }
             if (shown.isEmpty()) EmptyState(Icons.Rounded.MenuBook, "Nothing here",
-                if (entries.isEmpty()) "Import the old Khatabook file in Settings → Data." else "No one matches this filter.")
+                if (entries.isEmpty()) "Nothing imported yet." else "No one matches this filter.")
             else LazyColumn(contentPadding = PaddingValues(16.dp, 10.dp, 16.dp, 32.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 items(shown, key = { it.key }) { p ->
-                    ListCard(onClick = { person = p.key }) {
-                        androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
-                            Avatar(p.name, 42.dp)
-                            Spacer(Modifier.width(12.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(p.name, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1)
-                                Text("${p.entries.size} entries" + if (p.mobile.isBlank()) " · no mobile yet" else " · ${p.mobile}",
-                                    style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
-                            }
-                            when {
-                                p.balance > 0 -> Text(rupees(p.balance), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron700)
-                                p.balance < 0 -> StatusChip("Advance ${rupees(-p.balance)}", Tone.Info)
-                                else -> StatusChip("Settled", Tone.Good)
-                            }
-                        }
-                    }
+                    PersonCard(
+                        p = p,
+                        checked = selected.contains(p.key),
+                        onToggle = { if (selected.contains(p.key)) selected.remove(p.key) else selected.add(p.key) },
+                        onOpen = { person = p.key },
+                        onType = { t -> scope.launch { db.khata().setType(p.key, t) } },
+                    )
                 }
+            }
+        }
+    }
+}
+
+/** One person's card: tick box, name, mobile, type dropdown, and the balance. */
+@Composable
+private fun PersonCard(p: Khata.Person, checked: Boolean, onToggle: () -> Unit, onOpen: () -> Unit, onType: (String) -> Unit) {
+    androidx.compose.foundation.layout.Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(if (checked) Brand.Saffron50 else Color.White)
+            .border(1.dp, if (checked) Brand.Saffron600 else Brand.Line, RoundedCornerShape(18.dp)).padding(10.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = { onToggle() }, colors = CheckboxDefaults.colors(checkedColor = Brand.Saffron600))
+        Avatar(p.name, 40.dp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(p.name, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1,
+                modifier = Modifier.clickable(onClick = onOpen))
+            Text(if (p.mobile.isBlank()) "${p.entries.size} entries · no mobile yet" else "${p.entries.size} entries · ${p.mobile}",
+                style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
+            Spacer(Modifier.height(6.dp))
+            TypeDropdown(p.type, "Type", onType)
+        }
+        Spacer(Modifier.width(8.dp))
+        when {
+            p.balance > 0 -> Text(rupees(p.balance), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron700)
+            p.balance < 0 -> StatusChip("Advance ${rupees(-p.balance)}", Tone.Info)
+            else -> StatusChip("Settled", Tone.Good)
+        }
+    }
+}
+
+/** Dropdown for MPSC course, Library, Enquiry or Other. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TypeDropdown(value: String, label: String, onPick: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    ExposedDropdownMenuBox(expanded = open, onExpandedChange = { open = it }) {
+        OutlinedTextField(
+            value = Khata.label(value), onValueChange = {}, readOnly = true, singleLine = true,
+            label = { Text(label) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = open) },
+            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+        )
+        ExposedDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            Khata.TYPES.forEach { t ->
+                DropdownMenuItem(text = { Text(Khata.label(t)) }, onClick = { onPick(t); open = false })
             }
         }
     }

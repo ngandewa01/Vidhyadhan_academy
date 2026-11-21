@@ -193,4 +193,5 @@ data class KhataEntry(
     val credit: Long = 0,
     val details: String = "",
     val mobile: String = "", // typed in by the owner, used for reminders
+    @ColumnInfo(defaultValue = "OTHER") val type: String = "OTHER", // COURSE, LIBRARY, ENQUIRY or OTHER
 )

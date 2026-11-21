@@ -49,4 +49,15 @@ class KhataTest {
     @Test fun badLinesAreSkipped() {
         assertEquals(0, Khata.parseCsv("name,date,debit,credit,details\nNo date here,not-a-date,1,,").size)
     }
+
+    @Test fun guessesTypeFromName() {
+        assertEquals(Khata.COURSE, Khata.guessType("Stu Rahul Patil Mpsc"))
+        assertEquals(Khata.ENQUIRY, Khata.guessType("Enquiry Diksha Netke 11th"))
+        assertEquals(Khata.OTHER, Khata.guessType("Divya Netke"))
+    }
+
+    @Test fun parsedLinesCarryTheGuess() {
+        assertEquals(Khata.COURSE, Khata.parseCsv(csv)[0].type)
+        assertEquals(Khata.OTHER, Khata.parseCsv(csv)[5].type)
+    }
 }

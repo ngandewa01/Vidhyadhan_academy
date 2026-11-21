@@ -14,13 +14,24 @@ object Khata {
         Regex("[a-z]+").findAll(name.lowercase()).map { it.value }.filter { it !in NOISE && it.length > 1 }.sorted().joinToString(" ")
             .ifEmpty { name.trim().lowercase() }
 
+    const val COURSE = "COURSE"; const val LIBRARY = "LIBRARY"; const val ENQUIRY = "ENQUIRY"; const val OTHER = "OTHER"
+    val TYPES = listOf(COURSE, LIBRARY, ENQUIRY, OTHER)
+    fun label(t: String) = when (t) { COURSE -> "MPSC course"; LIBRARY -> "Library"; ENQUIRY -> "Enquiry"; else -> "Other" }
+
+    /** A first guess from the name, which the owner can change: "Enquiry" lines, "Stu"/"Std"/"MPSC" lines. */
+    fun guessType(name: String): String = when {
+        Regex("\\benquiry\\b", RegexOption.IGNORE_CASE).containsMatchIn(name) -> ENQUIRY
+        Regex("\\b(stu|std|student|mpsc)\\b", RegexOption.IGNORE_CASE).containsMatchIn(name) -> COURSE
+        else -> OTHER
+    }
+
     /** Reads the CSV made from the Khatabook statement: name, date (yyyy-mm-dd), debit, credit, details. */
     fun parseCsv(text: String): List<KhataEntry> =
         text.lines().map { it.trim() }.filter { it.isNotEmpty() }.drop(1).mapNotNull { line ->
             val c = splitCsv(line)
             if (c.size < 4) return@mapNotNull null
             val date = runCatching { LocalDate.parse(c[1]).toEpochDay() }.getOrNull() ?: return@mapNotNull null
-            KhataEntry(key = keyOf(c[0]), name = c[0].trim(), date = date,
+            KhataEntry(key = keyOf(c[0]), name = c[0].trim(), date = date, type = guessType(c[0]),
                 debit = c[2].trim().toLongOrNull() ?: 0, credit = c[3].trim().toLongOrNull() ?: 0,
                 details = c.getOrElse(4) { "" }.trim())
         }
@@ -41,6 +52,7 @@ object Khata {
     /** One person's lines and balance: positive = still owes, negative = paid in advance. */
     data class Person(val key: String, val name: String, val balance: Long, val entries: List<KhataEntry>) {
         val mobile: String get() = entries.firstOrNull { it.mobile.isNotBlank() }?.mobile.orEmpty()
+        val type: String get() = entries.firstOrNull()?.type ?: OTHER
     }
 
     fun people(list: List<KhataEntry>): List<Person> = list.groupBy { it.key }.map { (key, lines) ->
