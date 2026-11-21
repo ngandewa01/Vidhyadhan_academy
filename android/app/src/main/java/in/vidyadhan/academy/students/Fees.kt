@@ -29,6 +29,7 @@ fun summarise(s: Student, plan: List<Installment>, payments: List<StudentPayment
         if (paid >= s.totalFee) null else next?.inst?.dueOn,
         if (paid >= s.totalFee) 0 else next?.remaining ?: (s.totalFee - paid),
         s.leftOn, s.leftReason, s.telegram, s.joinedOn, advanceOf(paid, plan, today()),
+        khataKey = s.khataKey,
     )
 }
 

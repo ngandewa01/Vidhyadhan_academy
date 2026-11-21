@@ -19,6 +19,7 @@ data class Student(
     val leftOn: Long? = null, // set when the student finished or left: a "former student"
     @ColumnInfo(defaultValue = "") val leftReason: String = "",
     @ColumnInfo(defaultValue = "") val telegram: String = "", // Telegram username, without @
+    @ColumnInfo(defaultValue = "") val khataKey: String = "", // the old khata person this student came from
 )
 
 /** The planned schedule. What has actually been paid lives in [StudentPayment]. */
@@ -175,6 +176,7 @@ data class StudentWithFees(
     val telegram: String = "",
     val joinedOn: Long = 0,
     val advance: Long = 0, // paid ahead of the schedule
+    val khataKey: String = "",
 ) {
     val current: Boolean get() = leftOn == null
 }
@@ -195,4 +197,5 @@ data class KhataEntry(
     val mobile: String = "", // typed in by the owner, used for reminders
     @ColumnInfo(defaultValue = "OTHER") val type: String = "OTHER", // COURSE, LIBRARY, ENQUIRY or OTHER
     @ColumnInfo(defaultValue = "LEDGER") val kind: String = "LEDGER", // LEDGER = from the old book, PAYMENT = recorded in the app
+    @ColumnInfo(defaultValue = "") val review: String = "", // "" = not confirmed yet, DONE, or SKIP
 )

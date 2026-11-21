@@ -15,8 +15,10 @@ object Khata {
             .ifEmpty { name.trim().lowercase() }
 
     const val COURSE = "COURSE"; const val LIBRARY = "LIBRARY"; const val ENQUIRY = "ENQUIRY"; const val OTHER = "OTHER"
+    /** Review answer only: left out of Students. */
+    const val SKIP = "SKIP"
     val TYPES = listOf(COURSE, LIBRARY, ENQUIRY, OTHER)
-    fun label(t: String) = when (t) { COURSE -> "MPSC course"; LIBRARY -> "Library"; ENQUIRY -> "Enquiry"; else -> "Other" }
+    fun label(t: String) = when (t) { COURSE -> "MPSC course"; LIBRARY -> "Library"; ENQUIRY -> "Enquiry"; SKIP -> "Skip"; else -> "Other" }
 
     /** A first guess from the name, which the owner can change: "Enquiry" lines, "Stu"/"Std"/"MPSC" lines. */
     fun guessType(name: String): String = when {
@@ -63,6 +65,10 @@ object Khata {
     data class Person(val key: String, val name: String, val balance: Long, val entries: List<KhataEntry>) {
         val mobile: String get() = entries.firstOrNull { it.mobile.isNotBlank() }?.mobile.orEmpty()
         val type: String get() = entries.firstOrNull()?.type ?: OTHER
+        /** "" = not confirmed yet, DONE = confirmed, SKIP = left out. */
+        val review: String get() = entries.firstOrNull()?.review.orEmpty()
+        /** Everything paid so far plus what is still owed. */
+        val paidPlusDue: Long get() = entries.sumOf { it.credit } + balance.coerceAtLeast(0)
     }
 
     fun people(list: List<KhataEntry>): List<Person> = list.groupBy { it.key }.map { (key, lines) ->
@@ -70,6 +76,9 @@ object Khata {
         Person(key, cleanName(lines.groupingBy { it.name }.eachCount().maxByOrNull { it.value }?.key ?: key),
             lines.sumOf { it.debit - it.credit }, sorted)
     }.sortedByDescending { it.balance }
+
+    /** Over ₹20,000 paid plus due is a likely course student, so it is pre-picked in the review. */
+    fun suggested(p: Person): String? = if (p.paidPlusDue > 20_000) COURSE else null
 
     /** Totals for the import preview. */
     data class Summary(val people: Int, val owing: Int, val owed: Long, val advance: Long, val debit: Long, val credit: Long)

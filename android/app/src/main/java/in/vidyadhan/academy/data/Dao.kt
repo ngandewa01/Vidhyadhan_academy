@@ -124,6 +124,7 @@ interface KhataDao {
     @Query("DELETE FROM KhataEntry") suspend fun clear()
     @Query("UPDATE KhataEntry SET mobile = :mobile WHERE key = :key") suspend fun setMobile(key: String, mobile: String)
     @Query("UPDATE KhataEntry SET type = :type WHERE key = :key") suspend fun setType(key: String, type: String)
+    @Query("UPDATE KhataEntry SET review = :review WHERE key = :key") suspend fun setReview(key: String, review: String)
     @Insert suspend fun add(e: KhataEntry)
     @Query("SELECT * FROM KhataEntry WHERE kind = 'PAYMENT' ORDER BY date, id") fun payments(): Flow<List<KhataEntry>>
 }
@@ -172,8 +173,8 @@ class V2toV3 : AutoMigrationSpec {
 
 @Database(
     entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class, LibraryRoom::class, MemberPlan::class, KhataEntry::class],
-    version = 11, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = V6toV7::class), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9), AutoMigration(from = 9, to = 10), AutoMigration(from = 10, to = 11)],
+    version = 12, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = V6toV7::class), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9), AutoMigration(from = 9, to = 10), AutoMigration(from = 10, to = 11), AutoMigration(from = 11, to = 12)],
 )
 abstract class AppDb : RoomDatabase() {
     init { Ids.db = this; Ids.forget() }

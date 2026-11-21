@@ -11,6 +11,10 @@ class StudentsViewModel(app: Application) : AndroidViewModel(app) {
     private val dao = AppDb.get(app).students()
     val list = studentsWithFees(dao).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val khata = AppDb.get(app).khata()
+    /** Every old khata line, for the balance shown on a linked student. */
+    val khataEntries = khata.all().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val lib = AppDb.get(app).library()
     /** Abhyasika members, to show a student's seat, locker and deposit (Combo). */
     val members = lib.members().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())

@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import `in`.vidyadhan.academy.AppSettings
+import `in`.vidyadhan.academy.khata.KhataStudentSection
 import kotlinx.coroutines.launch
 import `in`.vidyadhan.academy.data.*
 import `in`.vidyadhan.academy.ui.*
@@ -76,6 +77,8 @@ fun StudentsTab(openNew: Boolean = false, openId: Long = 0, onOpened: () -> Unit
 private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long) -> Unit, onOpenMember: (Long) -> Unit) {
     val all by vm.list.collectAsStateWithLifecycle()
     val members by vm.members.collectAsStateWithLifecycle()
+    val khataEntries by vm.khataEntries.collectAsStateWithLifecycle()
+    val khataBal = remember(khataEntries) { khataEntries.groupBy { it.key }.mapValues { (_, v) -> v.sumOf { it.debit - it.credit } } }
     var filter by rememberSaveable { mutableStateOf("All") }
     val t = today()
     val current = all.filter { it.current }
@@ -120,7 +123,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
                 if (all.isEmpty()) "Tap “Admit” to add your first student." else if (filter == "Former") "Students who finish or leave are kept here with their records." else "Try a different name or filter.",
                 action = null, onAction = onAdd)
             else LazyColumn(contentPadding = PaddingValues(14.dp, 16.dp, 14.dp, 24.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(shown, key = { it.id }) { s -> StudentCard(s, seatOf[s.id], t) { onOpen(s.id) } }
+                items(shown, key = { it.id }) { s -> StudentCard(s, seatOf[s.id], t, khataBal[s.khataKey]?.takeIf { s.khataKey.isNotBlank() && it != 0L }) { onOpen(s.id) } }
                 items(libShown, key = { "m${it.id}" }) { m -> MemberLedgerCard(m, t) { onOpenMember(m.id) } }
             }
         }
@@ -137,11 +140,12 @@ private fun Pill(text: String, fg: Color, bg: Color) {
 }
 
 @Composable
-private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onClick: () -> Unit) {
+private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, khata: Long?, onClick: () -> Unit) {
     val left = (s.totalFee - s.paid).coerceAtLeast(0)
     val advance = s.advance
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
         .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (khata != null && khata != 0L) StatusChip(if (khata > 0) "Old khata owes ${rupees(khata)}" else "Old khata advance ${rupees(-khata)}", if (khata > 0) Tone.Warn else Tone.Info)
         Row(verticalAlignment = Alignment.Top) {
             if (s.photo.isNotBlank()) Avatar(s.name, 42.dp, photo = s.photo)
             else Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brand.Blue100), Alignment.Center) {
@@ -356,6 +360,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     val s by remember(id) { vm.student(id) }.collectAsStateWithLifecycle(null)
     val plan by remember(id) { vm.installments(id) }.collectAsStateWithLifecycle(emptyList())
     val payments by remember(id) { vm.payments(id) }.collectAsStateWithLifecycle(emptyList())
+    val khataEntries by vm.khataEntries.collectAsStateWithLifecycle()
     val seat by remember(id) { vm.memberFor(id) }.collectAsStateWithLifecycle(null)
     val members by vm.members.collectAsStateWithLifecycle()
     var payFor by remember { mutableStateOf<Long?>(null) } // suggested amount
@@ -504,6 +509,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                         }
                     }
                 }
+                st.khataKey.takeIf { it.isNotBlank() }?.let { KhataStudentSection(it, khataEntries) }
                 NotesSection("STUDENT", st.id)
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     SoftButton("Admission form", {

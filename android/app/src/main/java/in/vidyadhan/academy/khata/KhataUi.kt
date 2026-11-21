@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import `in`.vidyadhan.academy.AppSettings
 import `in`.vidyadhan.academy.data.AppDb
 import `in`.vidyadhan.academy.data.KhataEntry
+import `in`.vidyadhan.academy.data.Student
 import `in`.vidyadhan.academy.students.asDate
 import `in`.vidyadhan.academy.students.rupees
 import `in`.vidyadhan.academy.students.today
@@ -111,10 +112,13 @@ fun KhataScreen(onClose: () -> Unit) {
     var filter by rememberSaveable { mutableStateOf("all") }
     var bulkType by rememberSaveable { mutableStateOf(Khata.COURSE) }
     val selected = remember { mutableStateListOf<String>() }
-    BackHandler { if (recordFor != null) recordFor = null else if (person != null) person = null else onClose() }
+    var reviewing by rememberSaveable { mutableStateOf(false) }
+    BackHandler { if (recordFor != null) recordFor = null else if (person != null) person = null else if (reviewing) reviewing = false else onClose() }
     HideBottomNav()
     val people = remember(entries) { Khata.people(entries) }
     val s = remember(entries) { Khata.summary(entries) }
+    val pending = people.filter { it.review.isEmpty() }
+    if (reviewing && pending.isNotEmpty()) { ReviewPage(pending) { reviewing = false }; return }
     val open = people.firstOrNull { it.key == person }
     if (open != null) {
         PersonPage(open, onRecord = { recordFor = open.key }) { person = null }
@@ -138,6 +142,17 @@ fun KhataScreen(onClose: () -> Unit) {
         Column {
             Segmented(listOf("all" to "All", Khata.COURSE to "MPSC", Khata.LIBRARY to "Library", Khata.ENQUIRY to "Enquiry"), filter, { filter = it; selected.clear() },
                 Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
+            if (pending.isNotEmpty()) androidx.compose.foundation.layout.Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(18.dp)).background(Brand.Saffron50)
+                    .border(1.dp, Brand.Saffron200, RoundedCornerShape(18.dp)).padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("${pending.size} people to confirm", style = MaterialTheme.typography.titleSmall, color = Brand.Saffron800)
+                    Text("Pick MPSC, Library, Enquiry or Skip for each", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                }
+                PillButton("Review", { reviewing = true }, Brand.Saffron600)
+            }
             if (selected.isNotEmpty()) Column(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp).clip(RoundedCornerShape(18.dp)).background(Brand.Saffron50)
                     .border(1.dp, Brand.Saffron200, RoundedCornerShape(18.dp)).padding(12.dp),
@@ -205,7 +220,7 @@ private fun PersonCard(
 /** Records money received against the old khata. Counts in Home and the monthly report from this date. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RecordPaymentSheet(p: Khata.Person, onDone: () -> Unit) {
+fun RecordPaymentSheet(p: Khata.Person, onDone: () -> Unit) {
     val db = AppDb.get(LocalContext.current)
     val scope = rememberCoroutineScope()
     var amount by remember { mutableStateOf(p.balance.toString()) }
@@ -280,3 +295,89 @@ private fun PersonPage(p: Khata.Person, onRecord: () -> Unit, onBack: () -> Unit
     }
 }
 
+
+/** Confirms the khata people one at a time. Each confirmed MPSC or Library person becomes a Students record linked by key. */
+@Composable
+private fun ReviewPage(list: List<Khata.Person>, onBack: () -> Unit) {
+    val db = AppDb.get(LocalContext.current)
+    val scope = rememberCoroutineScope()
+    val p = list.firstOrNull()
+    if (p == null) { LaunchedEffect(Unit) { onBack() }; return }
+    var choice by remember(p.key) { mutableStateOf(Khata.suggested(p)) }
+    HideBottomNav()
+    HeroPage("Confirm people", "${list.size} to go", onBack = onBack) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(p.name, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
+                Text("Paid ${rupees(p.entries.sumOf { it.credit })} · Charged ${rupees(p.entries.sumOf { it.debit })}",
+                    style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+                Text(when { p.balance > 0 -> "Still owes ${rupees(p.balance)}"; p.balance < 0 -> "Advance ${rupees(-p.balance)}"; else -> "Settled" },
+                    style = MaterialTheme.typography.titleMedium, color = if (p.balance > 0) Brand.Saffron700 else Brand.Ink)
+            }
+            Text("Is this a student?", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+            ReviewChoices(choice) { choice = it }
+            Text(if (choice == null) "Pick one to continue." else "Over ₹20,000 paid plus due is pre-picked as MPSC course. Change it if needed.",
+                style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+            Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(vertical = 6.dp)) {
+                p.entries.forEachIndexed { i, e ->
+                    if (i > 0) HorizontalDivider(Modifier.padding(start = 16.dp, end = 16.dp), color = Brand.Line)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(e.date.asDate(), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, modifier = Modifier.weight(1f))
+                        Text(if (e.debit > 0) "Charged ${rupees(e.debit)}" else "Paid ${rupees(e.credit)}",
+                            style = MaterialTheme.typography.titleSmall, color = if (e.debit > 0) Brand.Red600 else Brand.Green700)
+                    }
+                }
+            }
+            PrimaryButton("Confirm & next", {
+                choice?.let { c -> scope.launch { confirmKhata(db, p, c) } }
+            }, Modifier.fillMaxWidth(), enabled = choice != null, icon = Icons.Rounded.Check)
+            Spacer(Modifier.height(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun ReviewChoices(value: String?, onPick: (String) -> Unit) {
+    androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf(Khata.COURSE, Khata.LIBRARY, Khata.ENQUIRY, Khata.SKIP).forEach { t ->
+            val on = t == value
+            Text(Khata.label(t),
+                Modifier.clip(RoundedCornerShape(50)).background(if (on) Brand.Blue700 else Color.White)
+                    .border(1.dp, if (on) Brand.Blue700 else Brand.Slate200, RoundedCornerShape(50))
+                    .clickable { onPick(t) }.padding(horizontal = 14.dp, vertical = 10.dp),
+                style = MaterialTheme.typography.labelLarge, color = if (on) Color.White else Brand.Slate800)
+        }
+    }
+}
+
+/** Saves one answer. Skip only marks the person. MPSC and Library create a Students record linked by the khata key. */
+private suspend fun confirmKhata(db: AppDb, p: Khata.Person, choice: String) {
+    if (choice == Khata.SKIP) { db.khata().setReview(p.key, "SKIP"); return }
+    db.khata().setType(p.key, choice)
+    if (choice == Khata.COURSE || choice == Khata.LIBRARY) {
+        db.students().insert(Student(name = p.name, mobile = p.mobile, course = if (choice == Khata.COURSE) "MPSC" else "Library",
+            totalFee = 0, joinedOn = p.entries.first().date, khataKey = p.key))
+    }
+    db.khata().setReview(p.key, "DONE")
+}
+
+/** The student's old khata on the student's page: balance, recent lines, and Record payment. */
+@Composable
+fun KhataStudentSection(khataKey: String, entries: List<KhataEntry>) {
+    val p = remember(entries, khataKey) { Khata.people(entries.filter { it.key == khataKey }).firstOrNull() } ?: return
+    var paying by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        SectionHeader("Old khata")
+        Text(when { p.balance > 0 -> "Still owes ${rupees(p.balance)}"; p.balance < 0 -> "Advance ${rupees(-p.balance)}"; else -> "Settled" },
+            style = MaterialTheme.typography.titleMedium, color = if (p.balance > 0) Brand.Saffron700 else Brand.Ink)
+        p.entries.takeLast(6).forEach { e ->
+            androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(e.date.asDate(), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, modifier = Modifier.weight(1f))
+                Text(if (e.debit > 0) "Charged ${rupees(e.debit)}" else "Paid ${rupees(e.credit)}",
+                    style = MaterialTheme.typography.bodyMedium, color = if (e.debit > 0) Brand.Red600 else Brand.Green700)
+            }
+        }
+        if (p.balance > 0) PrimaryButton("Record payment", { paying = true }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Payments)
+    }
+    if (paying) RecordPaymentSheet(p) { paying = false }
+}

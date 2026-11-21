@@ -80,7 +80,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val students = allStudents.filter { it.current }
     val enquiries by db.enquiries().all().collectAsStateWithLifecycle(emptyList())
     val khataEntries by db.khata().all().collectAsStateWithLifecycle(emptyList())
-    val khataPeople = remember(khataEntries) { `in`.vidyadhan.academy.khata.Khata.people(khataEntries).filter { it.balance > 0 } }
+    val khataPending = remember(khataEntries) { `in`.vidyadhan.academy.khata.Khata.people(khataEntries).filter { it.review.isEmpty() } }
     val members by db.library().members().collectAsStateWithLifecycle(emptyList())
     val rooms by db.library().rooms().collectAsStateWithLifecycle(emptyList())
     val types by db.library().seatTypes().collectAsStateWithLifecycle(emptyList())
@@ -247,13 +247,13 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
         }
 
         Column(Modifier.offset(y = (-14).dp).padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (khataPeople.isNotEmpty()) ListCard(onClick = { onGo(Go.Khata, 0) }) {
+            if (khataPending.isNotEmpty()) ListCard(onClick = { onGo(Go.Khata, 0) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconTile(Icons.Rounded.MenuBook, Brand.Saffron600, 44.dp, filled = true)
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text("Old khata", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
-                        Text("${khataPeople.size} people still owe ${`in`.vidyadhan.academy.students.rupees(khataPeople.sumOf { it.balance })}",
+                        Text("${khataPending.size} people to confirm for Students",
                             style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                     }
                     Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Brand.Slate300)
