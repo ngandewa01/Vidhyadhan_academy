@@ -23,6 +23,17 @@ fun Long.asDate(): String = LocalDate.ofEpochDay(this).format(fmt)
 fun today(): Long = LocalDate.now().toEpochDay()
 fun rupees(v: Long): String = (if (v < 0) "-₹" else "₹") + indianGroups(kotlin.math.abs(v))
 
+/** Short amount for small boxes: ₹10.2L, ₹1.3Cr; smaller amounts as usual. */
+fun shortRupees(v: Long): String {
+    val a = kotlin.math.abs(v); val sign = if (v < 0) "-" else ""
+    fun one(x: Double) = ("%.1f".format(java.util.Locale.ENGLISH, x)).removeSuffix(".0")
+    return when {
+        a >= 1_00_00_000 -> "$sign₹${one(a / 1_00_00_000.0)}Cr"
+        a >= 1_00_000 -> "$sign₹${one(a / 1_00_000.0)}L"
+        else -> rupees(v)
+    }
+}
+
 /** 101000 → "1,01,000": last three digits, then groups of two. */
 fun indianGroups(n: Long): String {
     val s = n.toString()

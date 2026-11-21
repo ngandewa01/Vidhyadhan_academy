@@ -6,7 +6,10 @@ import `in`.vidyadhan.academy.data.Installment
 import `in`.vidyadhan.academy.data.KhataEntry
 import `in`.vidyadhan.academy.data.Student
 import `in`.vidyadhan.academy.data.StudentPayment
+import `in`.vidyadhan.academy.AppSettings
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Students confirmed from the old Khatabook become normal students: what the book charged becomes the fee and its
@@ -46,10 +49,21 @@ object OldBook {
         return Plan(inst.sumOf { it.amount }, inst, pays)
     }
 
+    /** Only one conversion or repair at a time (app start and a confirmation can run together). */
+    private val lock = Mutex()
+
     /** Converts one student, once: only while it is linked to the book and has no fee, installments or payments yet. */
-    suspend fun convert(db: AppDb, s: Student) {
-        if (s.khataKey.isBlank() || s.totalFee != 0L) return
+    suspend fun convert(db: AppDb, s: Student) = lock.withLock { convertNow(db, s.id) }
+
+    /** Converts every linked student not converted yet (run when the app opens). */
+    suspend fun convertAll(db: AppDb) = lock.withLock {
+        db.students().allStudents().filter { it.khataKey.isNotBlank() && it.totalFee == 0L }.forEach { convertNow(db, it.id) }
+    }
+
+    private suspend fun convertNow(db: AppDb, id: Long) {
         val dao = db.students()
+        val s = dao.student(id).first() ?: return // read again: another run may have converted it
+        if (s.khataKey.isBlank() || s.totalFee != 0L) return
         if (dao.installments(s.id).first().isNotEmpty() || dao.payments(s.id).first().isNotEmpty()) return
         val plan = planFor(s.id, db.khata().forKey(s.khataKey).filter { it.kind != "PAYMENT_MOVED" })
         if (plan.installments.isEmpty()) return
@@ -61,8 +75,31 @@ object OldBook {
         }
     }
 
-    /** Converts every linked student not converted yet (run when the app opens). */
-    suspend fun convertAll(db: AppDb) {
-        db.students().allStudents().filter { it.khataKey.isNotBlank() && it.totalFee == 0L }.forEach { convert(db, it) }
+    /**
+     * Runs once per phone: puts back old-book payments that went missing after the conversion, and removes exact
+     * duplicates, by comparing each student with the book. Payments added or edited by the owner are left alone.
+     */
+    suspend fun repairOnce(db: AppDb) = lock.withLock {
+        if (AppSettings.oldBookRepaired) return@withLock
+        val dao = db.students()
+        for (s in dao.allStudents().filter { it.khataKey.isNotBlank() }) {
+            val lines = db.khata().forKey(s.khataKey)
+            if (lines.isEmpty()) continue
+            val plan = planFor(s.id, lines) // the book's payments, including ones recorded in the app and moved here
+            val have = dao.payments(s.id).first().filter { it.note == "From old book" }
+            val want = plan.payments.groupBy { it.paidOn to it.amount }
+            val got = have.groupBy { it.paidOn to it.amount }
+            db.withTransaction {
+                if (dao.installments(s.id).first().isEmpty() && plan.installments.isNotEmpty()) {
+                    dao.insertInstallments(plan.installments)
+                    if (s.totalFee == 0L) dao.update(s.copy(totalFee = plan.totalFee))
+                }
+                // missing: only when fewer book payments are there than the book has (an edited payment keeps the count)
+                if (have.size < plan.payments.size) for ((k, w) in want) repeat(w.size - (got[k]?.size ?: 0)) { dao.insertPayment(w.first()) }
+                // exact duplicates of a book payment
+                for ((k, g) in got) { val n = want[k]?.size ?: g.size; g.drop(n).forEach { dao.deletePayment(it) } }
+            }
+        }
+        AppSettings.oldBookRepaired = true
     }
 }

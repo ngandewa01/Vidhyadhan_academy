@@ -146,7 +146,7 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
         }
     }) {
         Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(14.dp)) // keeps the first group name clear of the header card
             Group("Academy") {
                 SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses, batches & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
                     if (AppSettings.lateFeeOn) " · late fee on" else "") { open(Page.Courses) }

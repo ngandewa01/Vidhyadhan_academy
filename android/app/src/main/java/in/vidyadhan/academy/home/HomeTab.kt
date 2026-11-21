@@ -62,7 +62,7 @@ fun birthdayWish(name: String) = `in`.vidyadhan.academy.Templates.fill("birthday
 private data class Bday(val name: String, val mobile: String, val what: String, val photo: String, val key: String = "")
 
 /** One line of "Recent transactions": money in (payment) or out (expense, deposit returned). */
-private data class Txn(val title: String, val subtitle: String, val amount: Long, val income: Boolean, val day: Long, val mode: String)
+private data class Txn(val title: String, val subtitle: String, val amount: Long, val income: Boolean, val day: Long, val mode: String, val go: Go? = null, val id: Long = 0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -134,8 +134,9 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
 
     val txns = (recentFees + recentLib).map {
         val label = when (it.kind) { "STUDENT_FEE" -> "Course fee"; "FEE" -> "Abhyasika fee"; "DEPOSIT" -> "Deposit"; "REGISTRATION" -> "Registration"; else -> "Deposit returned" }
-        Txn(it.name, if (it.detail.isBlank()) label else "$label · ${it.detail}", it.amount, it.kind != "DEPOSIT_RETURN", it.paidOn, it.mode)
-    } + expenses.take(5).map { Txn(it.category, it.note.ifBlank { "Expense" }, it.amount, false, it.spentOn, "") }
+        Txn(it.name, if (it.detail.isBlank()) label else "$label · ${it.detail}", it.amount, it.kind != "DEPOSIT_RETURN", it.paidOn, it.mode,
+            if (it.kind == "STUDENT_FEE") Go.Student else Go.Member, it.ownerId)
+    } + expenses.take(5).map { Txn(it.category, it.note.ifBlank { "Expense" }, it.amount, false, it.spentOn, "", Go.Money) }
     val recent = txns.sortedByDescending { it.day }.take(4)
 
     // ── the cards below the quick actions (long-press to move or hide them) ──
@@ -151,7 +152,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                 Column3("${students.size}", "Enrolled", if (batches > 0) "$batches batch${if (batches == 1) "" else "es"}" else "${allStudents.size - students.size} former",
                     Brand.Ink, Brand.Green50, Brand.Green700, Modifier.weight(1f)) { onGo(Go.Students, 0) }
                 VerticalDivider(Modifier.padding(vertical = 6.dp), color = Brand.Line)
-                Column3(rupees(studentDueNow), "Fees due", "$dueNowCount student${if (dueNowCount == 1) "" else "s"}", Brand.Saffron500, Brand.Saffron100, Brand.Saffron600, Modifier.weight(1f)) {
+                Column3(shortRupees(studentDueNow), "Fees due", "$dueNowCount student${if (dueNowCount == 1) "" else "s"}", Brand.Saffron500, Brand.Saffron100, Brand.Saffron600, Modifier.weight(1f)) {
                     `in`.vidyadhan.academy.students.Handoff.studentFilter = "Fees due"; onGo(Go.Students, 0)
                 }
                 VerticalDivider(Modifier.padding(vertical = 6.dp), color = Brand.Line)
@@ -182,7 +183,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
             if (recent.isEmpty()) Text("No payments or expenses yet", Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
             recent.forEachIndexed { i, x ->
                 if (i > 0) HorizontalDivider(color = Brand.Line)
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().clickable(enabled = x.go != null) { x.go?.let { onGo(it, x.id) } }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(34.dp).clip(CircleShape).background(if (x.income) Brand.Green50 else Brand.Red50), Alignment.Center) {
                         Text(x.title.take(1).uppercase(), style = MaterialTheme.typography.titleSmall, color = if (x.income) Brand.Green700 else Brand.Red600)
                     }
@@ -346,7 +347,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     wishFor?.let { WishSheet(it) { wishFor = null } }
     if (showRecord) RecordAnySheet(students, active, t, onMember = { onGo(Go.Member, it) }) { showRecord = false }
     if (showCollect) QuickCollectSheet(students.filter { it.nextDue != null && it.totalFee > it.paid }.sortedBy { it.nextDue },
-        active.filter { it.validTill <= t + ENDING_DAYS || it.balance > 0 }.sortedBy { it.validTill }, t) { showCollect = false }
+        active.filter { it.validTill <= t + ENDING_DAYS || it.balance > 0 }.sortedBy { it.validTill }, t, onStudent = { onGo(Go.Student, it) }, onMember = { onGo(Go.Member, it) }) { showCollect = false }
 
     if (showReminders) ModalBottomSheet({ showReminders = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -422,7 +423,7 @@ private fun WishSheet(b: Bday, onClose: () -> Unit) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<LibraryMember>, t: Long, onClose: () -> Unit) {
+private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<LibraryMember>, t: Long, onStudent: (Long) -> Unit = {}, onMember: (Long) -> Unit = {}, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val db = remember { AppDb.get(ctx) }
     val scope = rememberCoroutineScope()
@@ -443,7 +444,7 @@ private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<Lib
             students.forEach { s ->
                 val key = "s${s.id}"
                 val due = s.nextDue ?: t
-                CollectRow(s.name, "Instalment ${if (due < t) "overdue since" else "due"} ${shortDate(due)}", s.nextDueAmount, due < t, done[key]) {
+                CollectRow(s.name, "Instalment ${if (due < t) "overdue since" else "due"} ${shortDate(due)}", s.nextDueAmount, due < t, done[key], onOpen = { onClose(); onStudent(s.id) }) {
                     scope.launch {
                         val pid = db.students().insertPayment(StudentPayment(studentId = s.id, amount = s.nextDueAmount, paidOn = t, mode = mode))
                         `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(ctx, s.id, s.nextDueAmount, mode, pid)
@@ -458,7 +459,7 @@ private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<Lib
                 val amount = (if (renew) m.monthlyFee else 0L) + m.balance
                 CollectRow("${m.name} · Seat ${m.seatNo}",
                     if (renew) "Renew 1 month" + (if (m.balance > 0) " + ${rupees(m.balance)} balance" else "") + " · ends ${shortDate(m.validTill)}" else "Balance to pay",
-                    amount, m.validTill < t, done[key]) {
+                    amount, m.validTill < t, done[key], onOpen = { onClose(); onMember(m.id) }) {
                     scope.launch {
                         val updated = if (renew) m.copy(validTill = renewedTill(m.validTill, t, 1), planName = "1 month", balance = 0) else m.copy(balance = 0)
                         db.library().pay(updated, LibraryPayment(memberId = m.id, kind = "FEE", amount = amount, paidOn = t, mode = mode))
@@ -471,9 +472,10 @@ private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<Lib
 }
 
 @Composable
-private fun CollectRow(name: String, detail: String, amount: Long, late: Boolean, collected: Long?, onCollect: () -> Unit) {
+private fun CollectRow(name: String, detail: String, amount: Long, late: Boolean, collected: Long?, onOpen: () -> Unit = {}, onCollect: () -> Unit) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
+        // tap the name to open the student or member
+        Column(Modifier.weight(1f).clickable(onClick = onOpen)) {
             Text(name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(detail, style = MaterialTheme.typography.bodySmall, color = if (late) Brand.Red600 else Brand.Slate500, maxLines = 2)
             Text(rupees(amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron600)

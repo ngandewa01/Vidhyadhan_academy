@@ -65,6 +65,8 @@ fun NewsCard(onOpen: (String) -> Unit) {
     val news = all.filter { it.kind == News.NEWS }
     val unread = news.filter { !it.read }
     val todayCa = all.count { it.kind == News.CA && it.day == today() }
+    // the card shows only when there is news or today's current affairs (Settings → MPSC News has the rest)
+    if (!AiRouter.ready() || (news.isEmpty() && todayCa == 0)) return
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 6.dp).clickable { onOpen(News.NEWS) }.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Rounded.Campaign, null, tint = Brand.Saffron600, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(6.dp))

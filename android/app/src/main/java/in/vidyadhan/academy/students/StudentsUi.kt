@@ -87,7 +87,8 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
     val former = all.filter { !it.current }
     val seatOf = members.filter { it.active && it.studentId != null }.associateBy { it.studentId!! }
     val courses = (AppSettings.courseList + current.map { it.course }).filter { it.isNotBlank() }.distinct()
-    val libraryOnly = members.filter { it.active && it.studentId == null }.sortedBy { it.name.lowercase() }
+    // Abhyasika members are listed in the Abhyasika tab, not here
+    val libraryOnly = emptyList<LibraryMember>()
     val chips = listOf("All") + courses + (if (libraryOnly.isNotEmpty()) listOf("Abhyasika") else emptyList()) + listOf("Fees due", "Paid", "Former")
     val libShown = when (filter) {
         "All", "Abhyasika" -> libraryOnly
@@ -465,7 +466,8 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
             // refundable deposit and advance credit
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val held = m != null && m.depositPaid && m.depositReturnedOn == null && m.deposit > 0
-                MoneyBox("REFUNDABLE DEPOSIT", rupees(m?.deposit ?: 0) + " (" + when { m == null || m.deposit == 0L -> "None"; held -> "Held"; m.depositReturnedOn != null -> "Refunded"; else -> "Not paid" } + ")",
+                // the deposit is for an Abhyasika seat only: shown when the student has one (Combo)
+                if (m != null) MoneyBox("REFUNDABLE DEPOSIT", rupees(m?.deposit ?: 0) + " (" + when { m == null || m.deposit == 0L -> "None"; held -> "Held"; m.depositReturnedOn != null -> "Refunded"; else -> "Not paid" } + ")",
                     Brand.Green700, Brand.Green50, if (held) "Refund deposit" else null, Modifier.weight(1f).fillMaxHeight()) { refund = true }
                 MoneyBox("ADVANCE CREDIT", rupees(advanceOf(paid, plan, t)), Brand.Amber700, Brand.Amber50, if (balance > 0) "+ Add ${rupees(minOf(balance, 1000L))} advance" else null,
                     Modifier.weight(1f).fillMaxHeight()) { payFor = minOf(balance, 1000L) }

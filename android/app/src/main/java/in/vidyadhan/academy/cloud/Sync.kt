@@ -102,16 +102,25 @@ object Sync {
     private fun push() {
         val d = db ?: return; val r = root ?: return; val k = known ?: return
         var batch = r.firestore.batch(); var n = 0; var sent = 0
-        fun flush() { if (n > 0) { batch.commit().addOnFailureListener { Cloud.failed(it) }; batch = r.firestore.batch(); n = 0 } }
+        // rows count as sent only once the cloud has confirmed them: if the app closes before a batch reaches the cloud,
+        // the next full download must not mistake those rows for ones deleted on another phone
+        var marks = mutableListOf<() -> Unit>()
+        fun flush() {
+            if (n > 0) {
+                val done = marks; marks = mutableListOf()
+                batch.commit().addOnSuccessListener { runCatching { done.forEach { it() } } }.addOnFailureListener { Cloud.failed(it) }
+                batch = r.firestore.batch(); n = 0
+            }
+        }
         for (t in TABLES) {
             val local = rows(d, t)
             val before = k.all(t)
             for ((id, row) in local) {
                 val h = hash(row)
-                if (before[id] != h) { batch.set(r.collection(t).document(id.toString()), row); k.put(t, id, h); n++; sent++ }
+                if (before[id] != h) { batch.set(r.collection(t).document(id.toString()), row); marks += { k.put(t, id, h) }; n++; sent++ }
                 if (n >= 400) flush()
             }
-            for (id in before.keys - local.keys) { batch.delete(r.collection(t).document(id.toString())); k.remove(t, id); n++; sent++; if (n >= 400) flush() }
+            for (id in before.keys - local.keys) { batch.delete(r.collection(t).document(id.toString())); marks += { k.remove(t, id) }; n++; sent++; if (n >= 400) flush() }
         }
         flush()
         Cloud.synced(sent)

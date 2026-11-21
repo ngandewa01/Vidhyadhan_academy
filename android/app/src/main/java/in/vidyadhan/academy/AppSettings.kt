@@ -121,6 +121,8 @@ object AppSettings {
 
     /** Day the birthday strip was closed with ×; it stays hidden for the rest of that day. */
     var birthdayHiddenOn: Long get() = get("bdayHidden", "0").toLong(); set(v) = put("bdayHidden", v.toString())
+    /** The one-time repair of old-book payments has run on this phone. */
+    var oldBookRepaired: Boolean get() = get("oldBookRepaired", "") == "1"; set(v) = put("oldBookRepaired", if (v) "1" else "")
 
     /** Dashboard cards in the owner's order, and the ones they hid (long-press → arrange). */
     var homeOrder: List<String> get() = get("homeOrder", "").split(",").filter { it.isNotBlank() }; set(v) = put("homeOrder", v.joinToString(","))
