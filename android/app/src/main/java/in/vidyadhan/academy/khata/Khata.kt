@@ -15,10 +15,11 @@ object Khata {
             .ifEmpty { name.trim().lowercase() }
 
     const val COURSE = "COURSE"; const val LIBRARY = "LIBRARY"; const val ENQUIRY = "ENQUIRY"; const val OTHER = "OTHER"
-    /** Review answer only: left out of Students. */
+    /** Review answer: confirmed. Skip is not saved, so a skipped person stays in the review. */
+    const val DONE = "DONE"
     const val SKIP = "SKIP"
     val TYPES = listOf(COURSE, LIBRARY, ENQUIRY, OTHER)
-    fun label(t: String) = when (t) { COURSE -> "MPSC course"; LIBRARY -> "Library"; ENQUIRY -> "Enquiry"; SKIP -> "Skip"; else -> "Other" }
+    fun label(t: String) = when (t) { COURSE -> "MPSC course"; LIBRARY -> "Library"; ENQUIRY -> "Enquiry"; SKIP -> "Skip for now"; else -> "Other" }
 
     /** A first guess from the name, which the owner can change: "Enquiry" lines, "Stu"/"Std"/"MPSC" lines. */
     fun guessType(name: String): String = when {
@@ -67,6 +68,8 @@ object Khata {
         val type: String get() = entries.firstOrNull()?.type ?: OTHER
         /** "" = not confirmed yet, DONE = confirmed, SKIP = left out. */
         val review: String get() = entries.firstOrNull()?.review.orEmpty()
+        /** Still to be confirmed: anything not confirmed, including people skipped before. */
+        val pending: Boolean get() = review != DONE
         /** Everything paid so far plus what is still owed. */
         val paidPlusDue: Long get() = entries.sumOf { it.credit } + balance.coerceAtLeast(0)
     }

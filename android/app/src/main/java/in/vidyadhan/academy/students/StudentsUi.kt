@@ -257,12 +257,16 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
     var customised by remember { mutableStateOf(false) }
     LaunchedEffect(existing, existingPlan) {
         val s = existing
-        if (!loaded && s != null && existingPlan.isNotEmpty()) {
+        // wait for the plan too, except for students with no fee (imported from the old khata: they have no plan)
+        if (!loaded && s != null && (existingPlan.isNotEmpty() || s.totalFee == 0L)) {
             name = s.name; mobile = s.mobile; aadhaar = s.aadhaar; course = s.course; fee = s.totalFee.toString(); joined = s.joinedOn
             batch = s.batch; dob = s.dob; photo = s.photo; aadhaarPhoto = s.aadhaarPhoto; telegram = s.telegram
-            count = existingPlan.size; first = existingPlan.first().dueOn
-            rows.clear(); rows.addAll(existingPlan.map { PlanRow(it.amount.toString(), it.dueOn, it.label) })
-            customised = true; loaded = true
+            if (existingPlan.isNotEmpty()) {
+                count = existingPlan.size; first = existingPlan.first().dueOn
+                rows.clear(); rows.addAll(existingPlan.map { PlanRow(it.amount.toString(), it.dueOn, it.label) })
+                customised = true
+            }
+            loaded = true
         }
     }
     val feeN = fee.toLongOrNull() ?: 0L

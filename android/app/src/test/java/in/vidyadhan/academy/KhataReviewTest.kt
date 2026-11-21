@@ -26,8 +26,8 @@ class KhataReviewTest {
         assertEquals(Khata.COURSE, Khata.suggested(p))
     }
 
-    @Test fun onlyUnreviewedPeopleArePending() {
+    @Test fun onlyConfirmedPeopleLeaveThePending() {
         val people = Khata.people(listOf(line("d", debit = 5000), line("e", debit = 5000, review = "DONE"), line("f", debit = 5000, review = "SKIP")))
-        assertEquals(listOf("d"), people.filter { it.review.isEmpty() }.map { it.key })
+        assertEquals(listOf("d", "f"), people.filter { it.pending }.map { it.key })
     }
 }

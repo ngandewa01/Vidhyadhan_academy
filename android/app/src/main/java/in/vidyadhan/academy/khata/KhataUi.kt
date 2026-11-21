@@ -117,7 +117,7 @@ fun KhataScreen(onClose: () -> Unit) {
     HideBottomNav()
     val people = remember(entries) { Khata.people(entries) }
     val s = remember(entries) { Khata.summary(entries) }
-    val pending = people.filter { it.review.isEmpty() }
+    val pending = people.filter { it.pending }
     if (reviewing && pending.isNotEmpty()) { ReviewPage(pending) { reviewing = false }; return }
     val open = people.firstOrNull { it.key == person }
     if (open != null) {
@@ -301,11 +301,23 @@ private fun PersonPage(p: Khata.Person, onRecord: () -> Unit, onBack: () -> Unit
 private fun ReviewPage(list: List<Khata.Person>, onBack: () -> Unit) {
     val db = AppDb.get(LocalContext.current)
     val scope = rememberCoroutineScope()
-    val p = list.firstOrNull()
-    if (p == null) { LaunchedEffect(Unit) { onBack() }; return }
+    val skipped = remember { mutableStateListOf<String>() }
+    val queue = list.filter { it.key !in skipped }
+    val p = queue.firstOrNull()
+    if (p == null) {
+        if (skipped.isEmpty()) { LaunchedEffect(Unit) { onBack() }; return }
+        HideBottomNav()
+        HeroPage("Confirm people", "${skipped.size} skipped", onBack = onBack) {
+            Column(Modifier.weight(1f).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text("Only the people you skipped are left. They stay in Old khata for review.", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate600)
+                PrimaryButton("Review skipped again", { skipped.clear() }, Modifier.fillMaxWidth())
+            }
+        }
+        return
+    }
     var choice by remember(p.key) { mutableStateOf(Khata.suggested(p)) }
     HideBottomNav()
-    HeroPage("Confirm people", "${list.size} to go", onBack = onBack) {
+    HeroPage("Confirm people", "${queue.size} to go", onBack = onBack) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(p.name, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
@@ -316,7 +328,7 @@ private fun ReviewPage(list: List<Khata.Person>, onBack: () -> Unit) {
             }
             Text("Is this a student?", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
             ReviewChoices(choice) { choice = it }
-            Text(if (choice == null) "Pick one to continue." else "Over ₹20,000 paid plus due is pre-picked as MPSC course. Change it if needed.",
+            Text(when (choice) { null -> "Pick one to continue."; Khata.SKIP -> "Skipped people stay in Old khata for review."; else -> "Over ₹20,000 paid plus due is pre-picked as MPSC course. Change it if needed." },
                 style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
             Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(vertical = 6.dp)) {
                 p.entries.forEachIndexed { i, e ->
@@ -328,9 +340,10 @@ private fun ReviewPage(list: List<Khata.Person>, onBack: () -> Unit) {
                     }
                 }
             }
-            PrimaryButton("Confirm & next", {
-                choice?.let { c -> scope.launch { confirmKhata(db, p, c) } }
-            }, Modifier.fillMaxWidth(), enabled = choice != null, icon = Icons.Rounded.Check)
+            val c = choice
+            PrimaryButton(if (c == Khata.SKIP) "Skip for now" else "Confirm & next", {
+                if (c == Khata.SKIP) skipped.add(p.key) else if (c != null) scope.launch { confirmKhata(db, p, c) }
+            }, Modifier.fillMaxWidth(), enabled = c != null, icon = Icons.Rounded.Check)
             Spacer(Modifier.height(20.dp))
         }
     }
@@ -350,9 +363,8 @@ private fun ReviewChoices(value: String?, onPick: (String) -> Unit) {
     }
 }
 
-/** Saves one answer. Skip only marks the person. MPSC and Library create a Students record linked by the khata key. */
+/** Saves one answer. MPSC and Library create a Students record linked by the khata key. Skip is handled by the review, not saved. */
 private suspend fun confirmKhata(db: AppDb, p: Khata.Person, choice: String) {
-    if (choice == Khata.SKIP) { db.khata().setReview(p.key, "SKIP"); return }
     db.khata().setType(p.key, choice)
     if (choice == Khata.COURSE || choice == Khata.LIBRARY) {
         db.students().insert(Student(name = p.name, mobile = p.mobile, course = if (choice == Khata.COURSE) "MPSC" else "Library",

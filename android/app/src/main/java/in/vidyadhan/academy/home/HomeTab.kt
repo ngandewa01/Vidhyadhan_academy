@@ -80,7 +80,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val students = allStudents.filter { it.current }
     val enquiries by db.enquiries().all().collectAsStateWithLifecycle(emptyList())
     val khataEntries by db.khata().all().collectAsStateWithLifecycle(emptyList())
-    val khataPending = remember(khataEntries) { `in`.vidyadhan.academy.khata.Khata.people(khataEntries).filter { it.review.isEmpty() } }
+    val khataPending = remember(khataEntries) { `in`.vidyadhan.academy.khata.Khata.people(khataEntries).filter { it.pending } }
     val members by db.library().members().collectAsStateWithLifecycle(emptyList())
     val rooms by db.library().rooms().collectAsStateWithLifecycle(emptyList())
     val types by db.library().seatTypes().collectAsStateWithLifecycle(emptyList())
