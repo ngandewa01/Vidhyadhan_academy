@@ -80,6 +80,11 @@ object AppSettings {
     /** The students' Telegram group (registered by sending /students there). */
     var botStudentsChat: Long get() = get("botStudents", "0").toLongOrNull() ?: 0; set(v) = put("botStudents", v.toString())
     // MPSC news (AI). The key is shared with the academy's other phones through the cloud; once saved it is not edited.
+    var aiPrimary: String get() = get("aiPrimary", "GEMINI"); set(v) = put("aiPrimary", v)
+    var aiBackup: String get() = get("aiBackup", "NONE"); set(v) = put("aiBackup", v)
+    /** Key of an AI other than Gemini (Gemini keeps its own setting above). */
+    fun keyOf(name: String): String = get("key_$name", "")
+    fun setKeyOf(name: String, v: String) = put("key_$name", v.trim())
     var geminiKey: String get() = get("gemKey", ""); set(v) = put("gemKey", v)
     /** True when the key came from the Firebase console (Remote Config). */
     var geminiFromFirebase: Boolean get() = get("gemFb", "") == "1"; set(v) = put("gemFb", if (v) "1" else "")

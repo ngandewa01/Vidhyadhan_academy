@@ -74,7 +74,7 @@ fun NewsCard(onOpen: (String) -> Unit) {
             Tag("✓ cited sources", Color(0xFFDCFCE7), Color(0xFF166534))
         }
         when {
-            AppSettings.geminiKey.isBlank() -> Text("Turn on AI news: add your free Gemini key (tap here).", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+            !AiRouter.ready() -> Text("Turn on AI news: add an API key in Settings → MPSC News.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
             news.isEmpty() -> Text("No MPSC announcements found yet. It checks twice a day.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
             else -> (unread.ifEmpty { news }).take(2).forEach { n ->
                 Column(Modifier.fillMaxWidth()) {
@@ -101,7 +101,7 @@ fun NewsCard(onOpen: (String) -> Unit) {
 fun NewsPage(start: String, onBack: () -> Unit) {
     val ctx = LocalContext.current
     val scope = rememberCoroutineScope()
-    var tab by remember { mutableStateOf(if (AppSettings.geminiKey.isBlank()) "SET" else start) }
+    var tab by remember { mutableStateOf(if (!AiRouter.ready()) "SET" else start) }
     var filter by remember { mutableStateOf("All") }
     var open by remember { mutableStateOf<NewsItem?>(null) }
     var postText by remember { mutableStateOf<String?>(null) }
@@ -124,7 +124,7 @@ fun NewsPage(start: String, onBack: () -> Unit) {
                         (listOf("All") + News.TYPES).forEach { t -> Pill(t, filter == t, small = true) { filter = t } }
                     }
                     val shown = news.filter { filter == "All" || it.type == filter }
-                    if (shown.isEmpty()) Text(if (AppSettings.geminiKey.isBlank()) "Add your Gemini key in Settings to start." else "No announcements here yet. Checks run twice a day.",
+                    if (shown.isEmpty()) Text(if (!AiRouter.ready()) "Add an API key in Settings to start." else "No announcements here yet. Checks run twice a day.",
                         style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
                     else Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 4.dp).padding(horizontal = 14.dp, vertical = 4.dp)) {
                         shown.forEachIndexed { i, n ->
@@ -141,13 +141,13 @@ fun NewsPage(start: String, onBack: () -> Unit) {
                             }
                         }
                     }
-                    if (AppSettings.geminiKey.isNotBlank()) SoftButton(if (busy) "Checking…" else "Check MPSC now", { if (!busy) check(News.NEWS) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Refresh, enabled = !busy)
+                    if (AiRouter.ready()) SoftButton(if (busy) "Checking…" else "Check MPSC now", { if (!busy) check(News.NEWS) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Refresh, enabled = !busy)
                 }
                 News.CA -> {
                     val byDay = all.filter { it.kind == News.CA }.groupBy { it.day }.toSortedMap(compareByDescending { it })
-                    if (byDay.isEmpty()) Text(if (AppSettings.geminiKey.isBlank()) "Add your Gemini key in Settings to start." else "Today's points are made automatically in the first check of the day.",
+                    if (byDay.isEmpty()) Text(if (!AiRouter.ready()) "Add an API key in Settings to start." else "Today's points are made automatically in the first check of the day.",
                         style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
-                    if (AppSettings.geminiKey.isNotBlank()) SoftButton(if (busy) "Working…" else "Get current affairs now", { if (!busy) check(News.CA) }, Modifier.fillMaxWidth(),
+                    if (AiRouter.ready()) SoftButton(if (busy) "Working…" else "Get current affairs now", { if (!busy) check(News.CA) }, Modifier.fillMaxWidth(),
                         icon = Icons.Rounded.Refresh, enabled = !busy)
                     byDay.entries.take(7).forEach { (day, pts) ->
                         Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 4.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -260,10 +260,10 @@ private fun Pill(text: String, selected: Boolean, small: Boolean = false, onClic
         style = if (small) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge, color = if (selected) Color.White else Brand.Slate600, maxLines = 1)
 }
 
-/** The Gemini key (locked: tap the row 10 times to edit) and what runs. */
+/** The API keys section and what runs. */
 @Composable
 private fun NewsSettings(busy: Boolean, onCheck: () -> Unit) {
-    GeminiKeyCard(onSaved = onCheck)
+    ApiKeysCard(onSaved = onCheck)
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 4.dp).padding(horizontal = 14.dp, vertical = 4.dp)) {
         var a by remember { mutableStateOf(AppSettings.newsOn) }
         var b by remember { mutableStateOf(AppSettings.digestOn) }
@@ -290,7 +290,7 @@ private fun NewsSettings(busy: Boolean, onCheck: () -> Unit) {
             }
         }
     }
-    if (AppSettings.geminiKey.isNotBlank()) PrimaryButton(if (busy) "Checking…" else "Check both now", { if (!busy) onCheck() }, Modifier.fillMaxWidth(), enabled = !busy, icon = Icons.Rounded.Refresh)
+    if (AiRouter.ready()) PrimaryButton(if (busy) "Checking…" else "Check both now", { if (!busy) onCheck() }, Modifier.fillMaxWidth(), enabled = !busy, icon = Icons.Rounded.Refresh)
 }
 
 @Composable

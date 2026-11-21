@@ -161,7 +161,7 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
             }
             Group("MPSC News & AI") {
                 SettingRow(Icons.Rounded.AutoAwesome, Brand.Violet700, "MPSC News & current affairs",
-                    if (AppSettings.geminiKey.isBlank()) "Add the Gemini key" else "Key locked · checks twice a day", divider = false) { open(Page.News) }
+                    if (!`in`.vidyadhan.academy.ai.AiRouter.ready()) "Add an API key" else "Checks twice a day", divider = false) { open(Page.News) }
             }
             Group("Reports") {
                 SettingRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Monthly reports", "Income, expenses, profit · PDF report", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Money, 0) }

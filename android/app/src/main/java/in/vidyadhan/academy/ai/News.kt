@@ -193,7 +193,7 @@ MR: the same in simple Marathi
     /** [only]: NEWS or CA to check just one of them (the buttons); null = both (the automatic check). */
     suspend fun refresh(ctx: Context, force: Boolean = false, only: String? = null): Int = lock.withLock {
         if (file == null) load(ctx)
-        if (AppSettings.geminiKey.isBlank()) return 0
+        if (!AiRouter.ready()) return 0
         val t = today()
         var added = 0
         val now = System.currentTimeMillis()
@@ -202,8 +202,8 @@ MR: the same in simple Marathi
         val have = _items.value.filter { it.kind == NEWS }
         // both questions go to Gemini at the same time
         val (newsAns, digestAns) = kotlinx.coroutines.coroutineScope {
-            val a = if (doNews) async { runCatching { Gemini.ask(newsPrompt(have.take(25).map { "${it.exam}: ${it.title}" })) } } else null
-            val b = if (doDigest) async { runCatching { Gemini.ask(digestPrompt()) } } else null
+            val a = if (doNews) async { runCatching { AiRouter.ask(newsPrompt(have.take(25).map { "${it.exam}: ${it.title}" })) } } else null
+            val b = if (doDigest) async { runCatching { AiRouter.ask(digestPrompt()) } } else null
             a?.await() to b?.await()
         }
         (newsAns?.exceptionOrNull() ?: digestAns?.exceptionOrNull())?.takeIf { (newsAns?.isFailure ?: true) && (digestAns?.isFailure ?: true) }?.let { throw it }
@@ -263,6 +263,6 @@ MR: the same in simple Marathi
 class NewsWorker(ctx: Context, p: WorkerParameters) : CoroutineWorker(ctx, p) {
     override suspend fun doWork(): Result = try {
         News.refresh(applicationContext); Result.success()
-    } catch (e: Gemini.Problem) { Result.success() } // a bad key or the free limit: try at the next run
+    } catch (e: AiProblem) { Result.success() } // a bad key or the free limit: try at the next run
     catch (e: Exception) { if (runAttemptCount < 2) Result.retry() else Result.success() }
 }
