@@ -144,7 +144,7 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                 if (period == "month") Segmented(listOf("overview" to "Report", "expenses" to "Expenses (${ex.count { it.spentOn in month.range() }})"), view, { view = it },
                     Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    if (period != "month") PeriodCard(period, pm)
+                    if (period != "month") PeriodCard(period, pm) { reportScope.launch { runCatching { sharePeriodReport(ctx, period, month.year) } } }
                     else if (view == "overview") {
                         Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp)) {
                             Text("Last 6 months", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
@@ -247,7 +247,7 @@ private data class PeriodLine(val label: String, val collected: Long, val spent:
 
 /** Year: each month of the year. All time: each year. Shows money in, money out and profit. */
 @Composable
-private fun PeriodCard(period: String, pm: List<MonthMoney>) {
+private fun PeriodCard(period: String, pm: List<MonthMoney>, onShare: () -> Unit) {
     val lines = if (period == "year") pm.map { PeriodLine(it.month.format(DateTimeFormatter.ofPattern("MMMM")), it.collected, it.expenses) }
         else pm.groupBy { it.month.year }.toSortedMap().map { (y, l) -> PeriodLine("$y", l.sumOf { it.collected }, l.sumOf { it.expenses }) }
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp)) {
@@ -263,6 +263,9 @@ private fun PeriodCard(period: String, pm: List<MonthMoney>) {
                 Text(rupees(p), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = if (p >= 0) Brand.Green700 else Brand.Red600)
             }
         }
+        Spacer(Modifier.height(8.dp))
+        PrimaryButton(if (period == "year") "Share ${pm.firstOrNull()?.month?.year ?: ""} report (PDF)" else "Share all-time report (PDF)", onShare,
+            Modifier.fillMaxWidth(), icon = Icons.Rounded.PictureAsPdf)
     }
 }
 

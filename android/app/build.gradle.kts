@@ -13,7 +13,7 @@ android {
         applicationId = "in.vidyadhan.academy"
         minSdk = 26
         targetSdk = 36
-        versionCode = 62
+        versionCode = 63
         versionName = "0.6.0"
         // Firebase (cloud sync): read from app/google-services.json when it is there. Without it the app works as before, phone only.
         val gs = file("google-services.json")
