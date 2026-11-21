@@ -124,9 +124,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val birthdays = students.filter { isBirthday(it.dob, now) }.map { Bday(it.name, it.mobile, "Student · ${it.course}${if (it.batch.isNotBlank()) " ${it.batch}" else ""}", it.photo, "s${it.id}") } +
         active.filter { isBirthday(it.dob, now) && (it.studentId == null || students.none { s -> s.id == it.studentId && isBirthday(s.dob, now) }) }
             .map { Bday(it.name, it.mobile, "Abhyasika · seat ${it.seatNo}", it.photo, it.studentId?.let { id -> "s$id" } ?: "m${it.id}") }
-    val backupDays = if (AppSettings.lastBackup == 0L) null else t - AppSettings.lastBackup
-    val needsBackup = (students.isNotEmpty() || members.isNotEmpty()) && (backupDays == null || backupDays >= 7)
-    val alerts = feesDue + libDue + callsToday + birthdays.size + if (needsBackup) 1 else 0
+    val alerts = feesDue + libDue + callsToday + birthdays.size
 
     val txns = (recentFees + recentLib).map {
         val label = when (it.kind) { "STUDENT_FEE" -> "Course fee"; "FEE" -> "Abhyasika fee"; "DEPOSIT" -> "Deposit"; "REGISTRATION" -> "Registration"; else -> "Deposit returned" }
@@ -259,12 +257,6 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                     Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Brand.Slate300)
                 }
             }
-            if (needsBackup) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Amber50).border(1.dp, Color(0xFFFDE68A), RoundedCornerShape(16.dp))
-                .clickable { onGo(Go.Backup, 0) }.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.WarningAmber, null, tint = Brand.Amber700); Spacer(Modifier.width(10.dp))
-                Text(if (backupDays == null) "No backup yet" else "Last backup $backupDays days ago", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = Brand.Amber700)
-                PillButton("Back up", { onGo(Go.Backup, 0) }, Brand.Amber700)
-            }
 
             // birthday strip (× hides it for today)
             if (birthdays.isNotEmpty() && AppSettings.birthdayHiddenOn != t) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
@@ -344,9 +336,6 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
             if (callsToday > 0) OptionRow(Icons.Rounded.Call, Brand.Saffron500, "$callsToday enquir${if (callsToday == 1) "y" else "ies"} to call") { showReminders = false; onGo(Go.Enquiries, 0) }
             if (libDue > 0) OptionRow(Icons.Rounded.EventSeat, Brand.Teal700, "$libDue Abhyasika due${if (libDue == 1) "" else "s"}") { showReminders = false; onGo(Go.MemberDues, 0) }
             if (birthdays.isNotEmpty()) OptionRow(Icons.Rounded.Cake, Brand.Saffron500, "${birthdays.size} birthday${if (birthdays.size == 1) "" else "s"} today") { showReminders = false; showBirthdays = true }
-            if (needsBackup) OptionRow(Icons.Rounded.WarningAmber, Brand.Amber700, if (backupDays == null) "No backup yet" else "Backup is $backupDays days old", "Back up to Google Drive") {
-                showReminders = false; onGo(Go.Backup, 0)
-            }
             if (alerts == 0) Text("Nothing needs you today ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
         }
     }
