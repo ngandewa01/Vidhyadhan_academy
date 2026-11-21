@@ -52,8 +52,10 @@ android {
     buildTypes {
         release {
             if (keystore != null) signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // shrinking (R8) takes most of the build time: on for main and local builds, off for branch builds (-Pshrink=false)
+            val shrink = (project.findProperty("shrink") as String?)?.toBoolean() ?: true
+            isMinifyEnabled = shrink
+            isShrinkResources = shrink
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }

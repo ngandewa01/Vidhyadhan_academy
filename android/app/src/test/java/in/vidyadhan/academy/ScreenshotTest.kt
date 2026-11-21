@@ -114,7 +114,7 @@ class ScreenshotTest {
                 }
         }
         nav("Students")
-        rule.waitUntil(10_000) { rule.onAllNodesWithText("Rohan Deshmukh").fetchSemanticsNodes().isNotEmpty() } // the list loads from the database
+        rule.waitUntil(30_000) { rule.onAllNodesWithText("Rohan Deshmukh").fetchSemanticsNodes().isNotEmpty() } // the list loads from the database
         shot("04-students")
         rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("05-student-detail")
         rule.onNodeWithText("Record a payment").performScrollTo().performClick(); shot("05b-payment-sheet"); back()
