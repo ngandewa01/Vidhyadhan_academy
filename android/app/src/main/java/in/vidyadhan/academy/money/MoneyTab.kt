@@ -174,8 +174,7 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                         PrimaryButton("Share $monthLabel report (PDF)", { reportScope.launch { runCatching { shareMonthlyReport(ctx, month) } } }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PictureAsPdf)
                     } else {
                         val list = ex.filter { it.spentOn in month.range() }
-                        if (list.isEmpty()) EmptyState(Icons.Rounded.ReceiptLong, "No expenses in $monthLabel", "Note rent, electricity, salaries and more to see your profit.",
-                            action = "Add expense", onAction = { edit = Expense(category = "", amount = 0, spentOn = if (month == YearMonth.now()) today() else month.atDay(1).toEpochDay()) })
+                        if (list.isEmpty()) EmptyState(Icons.Rounded.ReceiptLong, "No expenses in $monthLabel", "Note rent, electricity, salaries and more to see your profit.")
                         else Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(vertical = 6.dp)) {
                             list.forEachIndexed { i, e ->
                                 if (i > 0) HorizontalDivider(Modifier.padding(start = 70.dp, end = 16.dp), color = Brand.Line)
