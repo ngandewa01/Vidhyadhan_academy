@@ -16,7 +16,6 @@ class AcademyApp : Application(), Configuration.Provider {
         runCatching { Reminders.createChannel(this) }
         runCatching { Reminders.schedule(this) } // a reminder problem must never stop the app opening
         runCatching { `in`.vidyadhan.academy.ai.News.load(this); `in`.vidyadhan.academy.ai.News.schedule(this) }
-        `in`.vidyadhan.academy.ai.RemoteKey.fetch(this) // the Gemini key set in the Firebase console
         `in`.vidyadhan.academy.telegram.TelegramBot.app = this
         runCatching { `in`.vidyadhan.academy.telegram.BotWorker.schedule(this) }
     }
