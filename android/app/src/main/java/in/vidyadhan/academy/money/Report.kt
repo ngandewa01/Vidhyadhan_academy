@@ -61,12 +61,13 @@ suspend fun loadReport(ctx: Context, month: YearMonth): ReportData = withContext
     val enq = db.enquiries().all().first()
     val r = month.days()
     val t = today()
-    val cur = monthMoney(month, sp, lp, ex)
-    val last6 = (5 downTo 0).map { monthMoney(month.minusMonths(it.toLong()), sp, lp, ex) }
+    val kh = db.khata().payments().first()
+    val cur = monthMoney(month, sp, lp, ex, kh)
+    val last6 = (5 downTo 0).map { monthMoney(month.minusMonths(it.toLong()), sp, lp, ex, kh) }
     val courseOf = students.associate { it.id to it.course.ifBlank { "Course" } }
     val byCourse = sp.filter { it.paidOn in r }.groupBy { courseOf[it.studentId] ?: "Course" }
         .map { (k, v) -> "$k course fees" to v.sumOf { it.amount } }.sortedByDescending { it.second } +
-        listOfNotNull(cur.libraryFees.takeIf { it > 0 }?.let { "Abhyasika fees (seat + locker)" to it }, cur.registration.takeIf { it > 0 }?.let { "Registration" to it })
+        listOfNotNull(cur.libraryFees.takeIf { it > 0 }?.let { "Abhyasika fees (seat + locker)" to it }, cur.khataPayments.takeIf { it > 0 }?.let { "Old khata payments" to it }, cur.registration.takeIf { it > 0 }?.let { "Registration" to it })
     val modes = (sp.filter { it.paidOn in r }.map { it.mode to it.amount } + lp.filter { it.paidOn in r && it.kind in listOf("FEE", "REGISTRATION") }.map { it.mode to it.amount })
         .groupBy { it.first.ifBlank { "Other" } }.map { (k, v) -> k to v.sumOf { it.second } }.sortedByDescending { it.second }
     val active = students.filter { it.leftOn == null }

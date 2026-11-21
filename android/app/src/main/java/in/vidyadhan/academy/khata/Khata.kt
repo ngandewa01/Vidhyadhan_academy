@@ -25,6 +25,16 @@ object Khata {
         else -> OTHER
     }
 
+    /** The name shown on screen: the book's "Stu", "Std", "Enquiry" and "MPSC" words are hidden. The book's spelling stays in the history. */
+    fun cleanName(name: String): String {
+        val noise = setOf("stu", "std", "student", "enquiry", "mpsc")
+        val words = name.trim().split(Regex("\\s+")).filter { it.lowercase().trim(',', '.') !in noise }
+        return words.joinToString(" ").ifBlank { name.trim() }
+    }
+
+    /** Only the 10 digits of a mobile number, from anything typed or picked from contacts. */
+    fun mobileDigits(text: String): String = text.filter { it.isDigit() }.takeLast(10)
+
     /** Reads the CSV made from the Khatabook statement: name, date (yyyy-mm-dd), debit, credit, details. */
     fun parseCsv(text: String): List<KhataEntry> =
         text.lines().map { it.trim() }.filter { it.isNotEmpty() }.drop(1).mapNotNull { line ->
@@ -57,7 +67,7 @@ object Khata {
 
     fun people(list: List<KhataEntry>): List<Person> = list.groupBy { it.key }.map { (key, lines) ->
         val sorted = lines.sortedWith(compareBy({ it.date }, { it.id }))
-        Person(key, lines.groupingBy { it.name }.eachCount().maxByOrNull { it.value }?.key ?: key,
+        Person(key, cleanName(lines.groupingBy { it.name }.eachCount().maxByOrNull { it.value }?.key ?: key),
             lines.sumOf { it.debit - it.credit }, sorted)
     }.sortedByDescending { it.balance }
 

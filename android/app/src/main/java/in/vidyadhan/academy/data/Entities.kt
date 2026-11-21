@@ -194,4 +194,5 @@ data class KhataEntry(
     val details: String = "",
     val mobile: String = "", // typed in by the owner, used for reminders
     @ColumnInfo(defaultValue = "OTHER") val type: String = "OTHER", // COURSE, LIBRARY, ENQUIRY or OTHER
+    @ColumnInfo(defaultValue = "LEDGER") val kind: String = "LEDGER", // LEDGER = from the old book, PAYMENT = recorded in the app
 )

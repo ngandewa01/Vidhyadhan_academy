@@ -60,4 +60,14 @@ class KhataTest {
         assertEquals(Khata.COURSE, Khata.parseCsv(csv)[0].type)
         assertEquals(Khata.OTHER, Khata.parseCsv(csv)[5].type)
     }
+
+    @Test fun hidesBookPrefixesOnScreen() {
+        assertEquals("Shubhangi Sakhalikar", Khata.cleanName("Stu Shubhangi Sakhalikar Mpsc"))
+        assertEquals("Divya Netke", Khata.cleanName("Divya Netke"))
+    }
+
+    @Test fun mobileNumbersAreTenDigits() {
+        assertEquals("9876543210", Khata.mobileDigits("+91 98765-43210"))
+        assertEquals("98765", Khata.mobileDigits("98765"))
+    }
 }

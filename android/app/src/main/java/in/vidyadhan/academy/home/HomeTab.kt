@@ -105,7 +105,8 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val callsToday = openEnq.count { it.followUpOn <= t }
 
     // ── money ──
-    val income = feesMonth + libMonth
+    val khataMonth = khataEntries.filter { it.kind == "PAYMENT" && it.date in monthStart..monthEnd }.sumOf { it.credit }
+    val income = feesMonth + libMonth + khataMonth
     val spent = expenses.filter { it.spentOn in monthStart..monthEnd }.sumOf { it.amount }
     val studentPending = students.sumOf { (it.totalFee - it.paid).coerceAtLeast(0) }
     val libraryPending = active.sumOf { it.balance + if (it.validTill < t) it.monthlyFee else 0L }

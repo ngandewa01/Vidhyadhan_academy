@@ -49,21 +49,24 @@ import java.time.format.DateTimeFormatter
 data class MonthMoney(
     val month: YearMonth, val studentFees: Long, val libraryFees: Long, val registration: Long,
     val depositsIn: Long, val depositsOut: Long, val expenses: Long, val byCategory: List<Pair<String, Long>>,
+    /** Payments recorded in the app against the old khata (not the imported book). */
+    val khataPayments: Long = 0,
 ) {
-    val collected get() = studentFees + libraryFees + registration
+    val collected get() = studentFees + libraryFees + registration + khataPayments
     val profit get() = collected - expenses
 }
 
 private fun YearMonth.range() = atDay(1).toEpochDay()..atEndOfMonth().toEpochDay()
 
-fun monthMoney(m: YearMonth, sp: List<StudentPayment>, lp: List<LibraryPayment>, ex: List<Expense>): MonthMoney {
+fun monthMoney(m: YearMonth, sp: List<StudentPayment>, lp: List<LibraryPayment>, ex: List<Expense>, kh: List<KhataEntry> = emptyList()): MonthMoney {
     val r = m.range()
     val l = lp.filter { it.paidOn in r }
     val e = ex.filter { it.spentOn in r }
     return MonthMoney(m, sp.filter { it.paidOn in r }.sumOf { it.amount }, l.filter { it.kind == "FEE" }.sumOf { it.amount },
         l.filter { it.kind == "REGISTRATION" }.sumOf { it.amount }, l.filter { it.kind == "DEPOSIT" }.sumOf { it.amount },
         l.filter { it.kind == "DEPOSIT_RETURN" }.sumOf { it.amount }, e.sumOf { it.amount },
-        e.groupBy { it.category }.map { (k, v) -> k to v.sumOf { it.amount } }.sortedByDescending { it.second })
+        e.groupBy { it.category }.map { (k, v) -> k to v.sumOf { it.amount } }.sortedByDescending { it.second },
+        kh.filter { it.kind == "PAYMENT" && it.date in r }.sumOf { it.credit })
 }
 
 fun categoryIcon(c: String): Pair<ImageVector, Color> = when (c) {
@@ -92,8 +95,9 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
     var view by rememberSaveable { mutableStateOf("overview") }
     var edit by remember { mutableStateOf<Expense?>(null) }
     LaunchedEffect(openNew) { if (openNew) { view = "expenses"; edit = Expense(category = "", amount = 0, spentOn = today()); onOpened() } }
-    val cur = monthMoney(month, sp, lp, ex)
-    val last6 = (5 downTo 0).map { monthMoney(month.minusMonths(it.toLong()), sp, lp, ex) }
+    val kh by db.khata().payments().collectAsStateWithLifecycle(emptyList())
+    val cur = monthMoney(month, sp, lp, ex, kh)
+    val last6 = (5 downTo 0).map { monthMoney(month.minusMonths(it.toLong()), sp, lp, ex, kh) }
     val monthLabel = month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
 
     val reportScope = rememberCoroutineScope()
@@ -133,6 +137,7 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                             LegendLine(Brand.Blue600, "Course fees", rupees(cur.studentFees))
                             LegendLine(Brand.Teal500, "Library fees", rupees(cur.libraryFees))
                             LegendLine(Brand.Violet500, "Registration", rupees(cur.registration))
+                            LegendLine(Brand.Saffron500, "Old khata payments", rupees(cur.khataPayments))
                             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Brand.Line)
                             LegendLine(Brand.Green500, "Total collected", rupees(cur.collected))
                             if (cur.depositsIn + cur.depositsOut > 0) Text("Deposits are kept aside, not counted as income: ${rupees(cur.depositsIn)} received, ${rupees(cur.depositsOut)} returned.",
