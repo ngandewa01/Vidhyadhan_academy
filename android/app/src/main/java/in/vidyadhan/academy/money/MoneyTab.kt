@@ -144,14 +144,42 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                 if (period == "month") Segmented(listOf("overview" to "Report", "expenses" to "Expenses (${ex.count { it.spentOn in month.range() }})"), view, { view = it },
                     Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    if (period != "month") PeriodCard(period, pm) { reportScope.launch { runCatching { sharePeriodReport(ctx, period, month.year) } } }
+                    if (period != "month") {
+                        // year: the 12 months; all time: one bar per year. Tap a bar to open it.
+                        val now = YearMonth.now()
+                        val bars = if (period == "year") (1..12).map { mo ->
+                            val ym = YearMonth.of(month.year, mo)
+                            val mm = if (ym <= now) monthMoney(ym, sp, lp, ex, kh) else null
+                            BarPoint(ym.format(DateTimeFormatter.ofPattern("MMM")).take(1), mm?.collected ?: 0L, mm?.expenses ?: 0L)
+                        } else pm.groupBy { it.month.year }.toSortedMap().map { (y, l) -> BarPoint("$y", l.sumOf { it.collected }, l.sumOf { it.expenses }) }
+                        Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp)) {
+                            Text(if (period == "year") "${month.year} · month by month" else "Year by year", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
+                            Row(Modifier.padding(top = 4.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Dot(Brand.Blue600, "Collected"); Dot(Brand.Saffron500, "Spent")
+                            }
+                            BarChart(bars, -1) { i ->
+                                if (period == "year") {
+                                    val ym = YearMonth.of(month.year, i + 1)
+                                    if (ym <= now) { monthText = ym.toString(); period = "month" }
+                                } else {
+                                    val y = bars[i].label.toInt()
+                                    monthText = (if (y == now.year) now else YearMonth.of(y, 12)).toString(); period = "year"
+                                }
+                            }
+                            Text(if (period == "year") "Tap a month to open its report." else "Tap a year to open it.", Modifier.padding(top = 8.dp),
+                                style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                        }
+                        PeriodCard(period, pm) { reportScope.launch { runCatching { sharePeriodReport(ctx, period, month.year) } } }
+                    }
                     else if (view == "overview") {
                         Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp)) {
                             Text("Last 6 months", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
                             Row(Modifier.padding(top = 4.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 Dot(Brand.Blue600, "Collected"); Dot(Brand.Saffron500, "Spent")
                             }
-                            BarChart(last6, month)
+                            BarChart(last6.map { BarPoint(it.month.format(DateTimeFormatter.ofPattern("MMM")), it.collected, it.expenses) },
+                                last6.indexOfFirst { it.month == month }) { monthText = last6[it].month.toString() }
+                            Text("Tap a month to open its report.", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                         }
                         Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(18.dp)) {
                             Text("Money in · $monthLabel", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
@@ -278,30 +306,37 @@ private fun Dot(c: Color, t: String) = Row(verticalAlignment = Alignment.CenterV
 }
 
 @Composable
-private fun BarChart(data: List<MonthMoney>, selected: YearMonth) {
-    val max = (data.maxOfOrNull { maxOf(it.collected, it.expenses) } ?: 0L).coerceAtLeast(1L)
+private fun BarChart(data: List<BarPoint>, selected: Int, onTap: (Int) -> Unit) {
+    val max = (data.maxOfOrNull { maxOf(it.collected, it.spent) } ?: 0L).coerceAtLeast(1L)
     Column {
-        Canvas(Modifier.fillMaxWidth().height(150.dp)) {
-            val slot = size.width / data.size
-            val bw = slot * 0.26f
-            for (k in 0..3) drawLine(Brand.Line, Offset(0f, size.height * k / 3f), Offset(size.width, size.height * k / 3f), 1f)
-            data.forEachIndexed { i, m ->
-                val x = slot * i + slot / 2
-                val alpha = if (m.month == selected) 1f else 0.45f
-                val h1 = size.height * m.collected / max
-                val h2 = size.height * m.expenses / max
-                drawRoundRect(Brand.Blue600.copy(alpha = alpha), Offset(x - bw - 2f, size.height - h1), Size(bw, h1), CornerRadius(bw / 2, bw / 2))
-                drawRoundRect(Brand.Saffron500.copy(alpha = alpha), Offset(x + 2f, size.height - h2), Size(bw, h2), CornerRadius(bw / 2, bw / 2))
+        Box(Modifier.fillMaxWidth().height(150.dp)) {
+            Canvas(Modifier.matchParentSize()) {
+                val slot = size.width / data.size
+                val bw = slot * 0.26f
+                for (k in 0..3) drawLine(Brand.Line, Offset(0f, size.height * k / 3f), Offset(size.width, size.height * k / 3f), 1f)
+                data.forEachIndexed { i, b ->
+                    val x = slot * i + slot / 2
+                    val alpha = if (selected < 0 || i == selected) 1f else 0.45f
+                    val h1 = size.height * b.collected / max
+                    val h2 = size.height * b.spent / max
+                    drawRoundRect(Brand.Blue600.copy(alpha = alpha), Offset(x - bw - 2f, size.height - h1), Size(bw, h1), CornerRadius(bw / 2, bw / 2))
+                    drawRoundRect(Brand.Saffron500.copy(alpha = alpha), Offset(x + 2f, size.height - h2), Size(bw, h2), CornerRadius(bw / 2, bw / 2))
+                }
             }
+            // one tap area per bar
+            Row(Modifier.matchParentSize()) { data.indices.forEach { i -> Box(Modifier.weight(1f).fillMaxHeight().clickable { onTap(i) }) } }
         }
         Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            data.forEach { m ->
-                Text(m.month.format(DateTimeFormatter.ofPattern("MMM")), Modifier.weight(1f), textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.labelMedium, color = if (m.month == selected) Brand.Ink else Brand.Slate400)
+            data.forEachIndexed { i, b ->
+                Text(b.label, Modifier.weight(1f).clickable { onTap(i) }, textAlign = TextAlign.Center, maxLines = 1,
+                    style = MaterialTheme.typography.labelMedium, color = if (i == selected) Brand.Ink else Brand.Slate400)
             }
         }
     }
 }
+
+/** One bar: money in and out, with its label (month or year). */
+private data class BarPoint(val label: String, val collected: Long, val spent: Long)
 
 /** A one-page monthly report to share or print. */
 fun shareReport(ctx: Context, m: MonthMoney, enquiries: List<Enquiry>) {

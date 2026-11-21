@@ -54,7 +54,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Abhyasika seats & lockers"), Backup("Backup & export"), Updates("App updates"), Cloud("Cloud sync"), Telegram("Telegram & WhatsApp"), News("MPSC News & AI") }
+private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message templates"), Reminders("Reminders"), Library("Seats & lockers"), Backup("Backup & restore"), Updates("Updates"), Cloud("Cloud sync"), Telegram("Telegram bot"), News("News & current affairs") }
 
 @Composable
 fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}, onClose: () -> Unit = {}, asTab: Boolean = false,
@@ -148,27 +148,27 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
         Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Spacer(Modifier.height(14.dp)) // keeps the first group name clear of the header card
             Group("Academy") {
-                SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses, batches & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
+                SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
                     if (AppSettings.lateFeeOn) " · late fee on" else "") { open(Page.Courses) }
-                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Abhyasika seats & lockers", "Rooms, plans · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
+                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Seats & lockers", "Rooms · plans · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
             }
-            Group("Telegram & WhatsApp") {
+            Group("Messages") {
                 SettingRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Telegram bot",
                     if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) "@${AppSettings.botName} · ${`in`.vidyadhan.academy.telegram.TelegramBot.linkedCount()} connected" else "Not connected") { open(Page.Telegram) }
-                SettingRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message wording", "Fee, Abhyasika, enquiry and birthday messages · tests") { open(Page.Messages) }
+                SettingRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message templates", "Fee, Abhyasika, enquiry, birthday") { open(Page.Messages) }
                 SettingRow(Icons.Rounded.NotificationsActive, Brand.Red600, "Reminders", "Follow up after ${AppSettings.enquiryDays} days · daily at %02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)) { open(Page.Reminders) }
-                SettingRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message to many", "Telegram, students' group, WhatsApp or SMS", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Broadcast, 0) }
+                SettingRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Broadcast", "Telegram, group, WhatsApp or SMS", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Broadcast, 0) }
             }
-            Group("MPSC News & AI") {
-                SettingRow(Icons.Rounded.AutoAwesome, Brand.Violet700, "MPSC News & current affairs",
+            Group("MPSC News") {
+                SettingRow(Icons.Rounded.AutoAwesome, Brand.Violet700, "News & current affairs",
                     if (!`in`.vidyadhan.academy.ai.AiRouter.ready()) "Add an API key" else "Checks twice a day", divider = false) { open(Page.News) }
             }
             Group("Reports") {
-                SettingRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Monthly reports", "Income, expenses, profit · PDF report", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Money, 0) }
+                SettingRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Reports", "Month, year, all time · PDF", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Money, 0) }
             }
             Group("Security") {
-                SettingRow(Icons.Rounded.Password, Brand.Violet700, "Change PIN", "4-digit PIN to open the app") { pinDialog = true }
-                SettingRow(Icons.Rounded.Fingerprint, Brand.Green600, "Fingerprint unlock", if (bio) "On" else "Off", divider = false,
+                SettingRow(Icons.Rounded.Password, Brand.Violet700, "PIN", "4-digit PIN to open the app") { pinDialog = true }
+                SettingRow(Icons.Rounded.Fingerprint, Brand.Green600, "Fingerprint", if (bio) "On" else "Off", divider = false,
                     trailing = { Switch(bio, { bio = it; lock.biometricOn = it }, colors = SwitchDefaults.colors(checkedTrackColor = Brand.Blue600)) }) { bio = !bio; lock.biometricOn = bio }
             }
             Group("Data") {
@@ -179,10 +179,10 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
                     `in`.vidyadhan.academy.cloud.Cloud.State.NotSetUp -> "Not set up in this version"
                     else -> "Off · sign in with Google to use on more phones"
                 }) { open(Page.Cloud) }
-                SettingRow(Icons.Rounded.CloudUpload, Brand.Blue600, "Backup & export", "Save a copy to Google Drive, restore, Excel export", divider = false) { open(Page.Backup) }
+                SettingRow(Icons.Rounded.CloudUpload, Brand.Blue600, "Backup & restore", "Google Drive copy · Excel export", divider = false) { open(Page.Backup) }
             }
             Group("App") {
-                SettingRow(Icons.Rounded.SystemUpdate, Brand.Saffron700, "App updates", "Version $version") { open(Page.Updates) }
+                SettingRow(Icons.Rounded.SystemUpdate, Brand.Saffron700, "Updates", "Version $version") { open(Page.Updates) }
                 SettingRow(Icons.Rounded.Info, Brand.Slate600, "About", "Vidyadhan Academy · build $code", divider = false)
             }
             Text("Made for ${AppSettings.academyName}\n" + if (`in`.vidyadhan.academy.cloud.Cloud.state == `in`.vidyadhan.academy.cloud.Cloud.State.On) "Records are kept on this phone and in your cloud" else "All data is stored only on this phone", Modifier.fillMaxWidth(),
@@ -419,7 +419,7 @@ private fun CloudPage() {
         Text("This phone and your cloud both have records. Which should be kept?", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
         OptionRow(Icons.Rounded.CloudDownload, Brand.Blue600, "Use the cloud's records", "This phone's records are replaced by the ones in the cloud") { scope.launch { c.finish(ctx, keepCloud = true) } }
         OptionRow(Icons.Rounded.CloudUpload, Brand.Saffron700, "Keep this phone's records", "The cloud is replaced by this phone's records. Other phones then take them.") { scope.launch { c.finish(ctx, keepCloud = false) } }
-        Text("Tip: make a backup first (Settings → Backup & export).", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        Text("Tip: make a backup first (Settings → Backup & restore).", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
     }
     if (on) {
         OptionRow(Icons.AutoMirrored.Rounded.Logout, Brand.Red600, "Sign out", "Stops syncing on this phone. Records stay here.") { signOut = true }

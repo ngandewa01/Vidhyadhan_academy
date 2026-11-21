@@ -127,7 +127,7 @@ class ScreenshotTest {
         nav("Enquiries"); shot("07b-enquiries")
 
         // Seats: no room yet → create one → edit → view
-        nav("Abhyasika"); shot("08-seats-start")
+        nav("Abhyasika"); rule.onNodeWithText("Room plan", substring = true).performClick(); settle(); shot("08-seats-start")
         rule.onNodeWithText("+ Create room").performClick(); shot("08b-room-edit")
         repeat(4) { rule.onNodeWithContentDescription("Top wall more").performScrollTo().performClick() }
         repeat(3) { rule.onNodeWithContentDescription("Bottom wall more").performScrollTo().performClick() }
@@ -137,7 +137,9 @@ class ScreenshotTest {
         rule.onNodeWithText("Live map").performClick(); shot("08c-room-plan")
         rule.onNodeWithContentDescription("Seat 7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
 
-        nav("Abhyasika"); rule.onNodeWithText("Members").performScrollTo().performClick(); shot("09-members")
+        nav("Abhyasika")
+        if (rule.onAllNodesWithText("Members").fetchSemanticsNodes().isNotEmpty()) { rule.onNodeWithText("Members").performScrollTo().performClick(); settle() }
+        shot("09-members")
         rule.onNode(hasSetTextAction()).performTextReplacement("Snehal"); settle()
         rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Snehal Mane"))
         rule.onNodeWithText("Snehal Mane").performClick(); shot("10-member-detail")
@@ -153,9 +155,9 @@ class ScreenshotTest {
         rule.onNodeWithText("Renew", substring = true).performScrollTo().performClick(); shot("12-renew-sheet"); back()
         backButton()
 
-        nav("Settings"); rule.onNodeWithText("Monthly reports").performScrollTo().performClick(); shot("13-money")
+        nav("Settings"); rule.onNodeWithText("Reports").performScrollTo().performClick(); shot("13-money")
         rule.onNodeWithText("Expenses (3)").performClick(); shot("13b-expenses")
-        nav("Settings"); rule.onNodeWithText("Send a message to many").performScrollTo().performClick(); shot("14-broadcast")
+        nav("Settings"); rule.onNodeWithText("Broadcast").performScrollTo().performClick(); shot("14-broadcast")
         backButton()
         nav("Dashboard"); shot("15-dashboard")
         rule.onNodeWithContentDescription("Search").performClick(); settle()

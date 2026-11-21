@@ -51,6 +51,9 @@ internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: 
     val ctx = LocalContext.current
     val members by vm.members.collectAsStateWithLifecycle()
     val rooms by vm.rooms.collectAsStateWithLifecycle()
+    // students who also have a seat (Combo): their course, for the tag
+    val studs by remember { `in`.vidyadhan.academy.data.AppDb.get(ctx).students().students() }.collectAsStateWithLifecycle(emptyList())
+    val courseOf = remember(studs) { studs.associate { it.id to it.course } }
     var sort by rememberSaveable { mutableStateOf("Seat number") }
     var query by rememberSaveable { mutableStateOf("") }
     val t = today()
@@ -98,7 +101,7 @@ internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: 
                 EmptyState(Icons.Rounded.SearchOff, if (members.isEmpty()) "No members yet" else "Nobody here",
                     if (members.isEmpty()) "Tap “Add member”, or tap a free seat on the Seats page." else "No member matches this search or filter.")
             }
-            items(shown, key = { it.id }) { m -> MemberCard(m, rooms, t, { onOpen(m.id) }) { `in`.vidyadhan.academy.ui.Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) } }
+            items(shown, key = { it.id }) { m -> MemberCard(m, rooms, t, { onOpen(m.id) }, combo = m.studentId?.let { "Combo · ${courseOf[it] ?: "course"}" }) { `in`.vidyadhan.academy.ui.Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) } }
         }
     }
 }
@@ -139,7 +142,7 @@ internal fun seatLine(m: LibraryMember, rooms: List<LibraryRoom>) =
     listOf("Seat ${m.seatNo}", roomOf(m.seatNo, rooms)?.name ?: "").filter { it.isNotBlank() }.joinToString(" · ")
 
 @Composable
-internal fun MemberCard(m: LibraryMember, rooms: List<LibraryRoom>, t: Long, onClick: () -> Unit, onRemind: () -> Unit) {
+internal fun MemberCard(m: LibraryMember, rooms: List<LibraryRoom>, t: Long, onClick: () -> Unit, combo: String? = null, onRemind: () -> Unit) {
     val st = memberStatus(m, t)
     val edge = when { !m.active -> Color.Transparent; st == SeatStatus.Expired -> Brand.Red500; st == SeatStatus.Ending -> Brand.Saffron500; else -> Color.Transparent }
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 5.dp).clip(RoundedCornerShape(22.dp))
@@ -149,6 +152,7 @@ internal fun MemberCard(m: LibraryMember, rooms: List<LibraryRoom>, t: Long, onC
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(m.name, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                combo?.let { SmallTag(it, Color(0xFF4338CA)) }
                 Text("+91 ${m.mobile}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
             }
             if (!m.active) StatusChip("Left", Tone.Neutral)

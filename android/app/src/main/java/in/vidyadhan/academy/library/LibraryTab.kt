@@ -102,12 +102,12 @@ fun LibraryTab(
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Main) }
     var memberFilter by rememberSaveable { mutableStateOf(MemberFilter.All) }
-    var seats by rememberSaveable { mutableStateOf(true) } // the room plan opens first, like the prototype
+    var seats by rememberSaveable { mutableStateOf(false) } // the list of names opens first; the room plan is one tap away
     LaunchedEffect(openSeats) { if (openSeats) { seats = true; screen = Screen.Main; onOpened() } }
     LaunchedEffect(openNew, openId, startFilter) { if (openNew || openId > 0 || startFilter != MemberFilter.All) seats = false }
     val switcher: @Composable () -> Unit = {
         Spacer(Modifier.height(14.dp))
-        Text("← Room plan", Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.15f)).clickable { seats = true }
+        Text("Room plan →", Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.15f)).clickable { seats = true }
             .padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge, color = Color.White)
     }
     LaunchedEffect(startFilter) { if (startFilter != MemberFilter.All) memberFilter = startFilter }
