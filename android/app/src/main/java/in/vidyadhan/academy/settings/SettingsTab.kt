@@ -172,17 +172,6 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
                     trailing = { Switch(bio, { bio = it; lock.biometricOn = it }, colors = SwitchDefaults.colors(checkedTrackColor = Brand.Blue600)) }) { bio = !bio; lock.biometricOn = bio }
             }
             Group("Data") {
-                var khataText by remember { mutableStateOf<String?>(null) }
-                val khataScope = rememberCoroutineScope()
-                val khataPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-                    if (uri != null) khataScope.launch {
-                        khataText = withContext(Dispatchers.IO) { ctx.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: "" }
-                    }
-                }
-                SettingRow(Icons.Rounded.UploadFile, Brand.Saffron700, "Import old Khatabook", "The CSV file prepared for the app") {
-                    khataPicker.launch(arrayOf("*/*"))
-                }
-                khataText?.let { `in`.vidyadhan.academy.khata.KhataImportDialog(it) { khataText = null } }
                 val c = `in`.vidyadhan.academy.cloud.Cloud
                 SettingRow(Icons.Rounded.CloudSync, Brand.Teal700, "Cloud sync", when (c.state) {
                     `in`.vidyadhan.academy.cloud.Cloud.State.On -> "On · ${c.email}"
