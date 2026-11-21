@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -51,7 +52,7 @@ import java.time.format.DateTimeFormatter
 /** Where a dashboard shortcut should take the owner. */
 enum class Go {
     Students, NewStudent, Student, Enquiries, NewEnquiry, Enquiry, Library, NewMember, Member, Money, NewExpense, Settings, Backup, Search, Broadcast,
-    Seats, MemberDues, MemberEnding,
+    Seats, MemberDues, MemberEnding, Khata,
 }
 
 fun isBirthday(dob: Long?, day: LocalDate): Boolean = dob != null && LocalDate.ofEpochDay(dob).let { it.month == day.month && it.dayOfMonth == day.dayOfMonth }
@@ -78,6 +79,8 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val allStudents by remember { studentsWithFees(db.students()) }.collectAsStateWithLifecycle(emptyList())
     val students = allStudents.filter { it.current }
     val enquiries by db.enquiries().all().collectAsStateWithLifecycle(emptyList())
+    val khataEntries by db.khata().all().collectAsStateWithLifecycle(emptyList())
+    val khataPeople = remember(khataEntries) { `in`.vidyadhan.academy.khata.Khata.people(khataEntries).filter { it.balance > 0 } }
     val members by db.library().members().collectAsStateWithLifecycle(emptyList())
     val rooms by db.library().rooms().collectAsStateWithLifecycle(emptyList())
     val types by db.library().seatTypes().collectAsStateWithLifecycle(emptyList())
@@ -243,6 +246,18 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
         }
 
         Column(Modifier.offset(y = (-14).dp).padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (khataPeople.isNotEmpty()) ListCard(onClick = { onGo(Go.Khata, 0) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconTile(Icons.Rounded.MenuBook, Brand.Saffron600, 44.dp, filled = true)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Old khata", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                        Text("${khataPeople.size} people still owe ${`in`.vidyadhan.academy.students.rupees(khataPeople.sumOf { it.balance })}",
+                            style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                    }
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Brand.Slate300)
+                }
+            }
             if (needsBackup) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Amber50).border(1.dp, Color(0xFFFDE68A), RoundedCornerShape(16.dp))
                 .clickable { onGo(Go.Backup, 0) }.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.WarningAmber, null, tint = Brand.Amber700); Spacer(Modifier.width(10.dp))

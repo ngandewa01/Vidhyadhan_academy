@@ -117,6 +117,15 @@ interface LibraryDao {
 }
 
 @Dao
+interface KhataDao {
+    @Query("SELECT * FROM KhataEntry ORDER BY date, id") fun all(): Flow<List<KhataEntry>>
+    @Query("SELECT COUNT(*) FROM KhataEntry") suspend fun countNow(): Int
+    @Insert suspend fun insertAll(list: List<KhataEntry>)
+    @Query("DELETE FROM KhataEntry") suspend fun clear()
+    @Query("UPDATE KhataEntry SET mobile = :mobile WHERE key = :key") suspend fun setMobile(key: String, mobile: String)
+}
+
+@Dao
 interface NoteDao {
     @Query("SELECT * FROM Note WHERE kind = :kind AND ownerId = :id ORDER BY createdAt DESC") fun notes(kind: String, id: Long): Flow<List<Note>>
     @Query("SELECT * FROM Note WHERE kind = :kind ORDER BY createdAt DESC") fun allOf(kind: String): Flow<List<Note>>
@@ -159,9 +168,9 @@ class V2toV3 : AutoMigrationSpec {
 }
 
 @Database(
-    entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class, LibraryRoom::class, MemberPlan::class],
-    version = 8, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = V6toV7::class), AutoMigration(from = 7, to = 8)],
+    entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class, LibraryRoom::class, MemberPlan::class, KhataEntry::class],
+    version = 9, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = V6toV7::class), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9)],
 )
 abstract class AppDb : RoomDatabase() {
     init { Ids.db = this; Ids.forget() }
@@ -170,6 +179,7 @@ abstract class AppDb : RoomDatabase() {
     abstract fun library(): LibraryDao
     abstract fun notes(): NoteDao
     abstract fun expenses(): ExpenseDao
+    abstract fun khata(): KhataDao
 
     companion object {
         @Volatile private var inst: AppDb? = null

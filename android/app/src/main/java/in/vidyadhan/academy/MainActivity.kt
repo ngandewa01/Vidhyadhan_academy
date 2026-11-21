@@ -99,6 +99,7 @@ private fun AppShell(lock: LockStore) {
     var settings by rememberSaveable { mutableStateOf(false) }
     var search by rememberSaveable { mutableStateOf(false) }
     var broadcast by rememberSaveable { mutableStateOf(false) }
+    var khata by rememberSaveable { mutableStateOf(false) }
     var pending by remember { mutableStateOf<Go?>(null) }
     var pendingId by remember { mutableLongStateOf(0L) }
     val hider = remember { mutableIntStateOf(0) }
@@ -112,6 +113,7 @@ private fun AppShell(lock: LockStore) {
             Go.Settings, Go.Backup -> tab = Tab.More
             Go.Search -> search = true
             Go.Broadcast -> broadcast = true
+            Go.Khata -> khata = true
             Go.Students, Go.Student -> tab = Tab.Students
             Go.NewStudent -> tab = Tab.Enquiries
             Go.Enquiries, Go.NewEnquiry, Go.Enquiry -> tab = Tab.Enquiries
@@ -153,6 +155,9 @@ private fun AppShell(lock: LockStore) {
             }
             AnimatedVisibility(settings, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
                 SettingsTab(lock, openBackup = pending == Go.Backup, onOpened = done, onClose = { settings = false })
+            }
+            AnimatedVisibility(khata, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
+                `in`.vidyadhan.academy.khata.KhataScreen(onClose = { khata = false })
             }
             AnimatedVisibility(broadcast, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
                 `in`.vidyadhan.academy.home.BroadcastScreen(onClose = { broadcast = false })

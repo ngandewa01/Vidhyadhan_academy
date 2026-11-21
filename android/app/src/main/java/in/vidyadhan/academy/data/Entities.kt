@@ -181,3 +181,16 @@ data class StudentWithFees(
 
 /** One received payment, for "Recent payments" (not stored as its own table). */
 data class PaymentRow(val name: String, val amount: Long, val paidOn: Long, val kind: String, val mode: String = "", val detail: String = "")
+
+/** One line of the old Khatabook ledger, imported from the CSV file. Debit = charged, credit = paid. */
+@Entity(indices = [Index("key")])
+data class KhataEntry(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val key: String, // normalised name, used to group one person's lines
+    val name: String, // name as written in the old book
+    val date: Long, // epoch day
+    val debit: Long = 0,
+    val credit: Long = 0,
+    val details: String = "",
+    val mobile: String = "", // typed in by the owner, used for reminders
+)
