@@ -117,6 +117,9 @@ class ScreenshotTest {
         rule.waitUntil(30_000) { rule.onAllNodesWithText("Rohan Deshmukh").fetchSemanticsNodes().isNotEmpty() } // the list loads from the database
         shot("04-students")
         rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("05-student-detail")
+        rule.onNodeWithText("Split", substring = true).performScrollTo().performClick(); shot("05c-split")
+        rule.onNodeWithText("Unequal").performClick(); settle(); shot("05d-split-unequal"); back()
+        if (rule.onAllNodesWithText("Record a payment").fetchSemanticsNodes().isEmpty()) { rule.onNodeWithText("Rohan Deshmukh").performClick(); settle() }
         rule.onNodeWithText("Record a payment").performScrollTo().performClick(); shot("05b-payment-sheet"); back()
         backButton()
         rule.onNodeWithText("Admit").performClick(); shot("06-student-form")
@@ -171,7 +174,8 @@ class ScreenshotTest {
         rule.activityRule.scenario.recreate(); settle()
         nav("Dashboard"); shot("L1-dashboard")
         nav("Students"); shot("L2-students")
-        rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("L3-student-sheet"); back()
+        rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("L3-student-sheet")
+        rule.onNodeWithText("Split", substring = true).performScrollTo().performClick(); rule.onNodeWithText("Unequal").performClick(); settle(); shot("L3b-split-unequal"); back(); back()
         nav("Enquiries"); shot("L4-enquiries")
         rule.onNodeWithText("+ New Admission").performClick(); settle()
         rule.onNodeWithText("Course fee").performTextInput("45000"); settle()

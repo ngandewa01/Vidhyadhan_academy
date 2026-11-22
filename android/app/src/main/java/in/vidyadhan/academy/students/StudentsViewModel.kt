@@ -36,6 +36,10 @@ class StudentsViewModel(app: Application) : AndroidViewModel(app) {
         val all = (done + partly + split).sortedWith(compareBy({ it.dueOn }, { it.number })).mapIndexed { i, x -> x.copy(id = 0, number = i + 1) }
         dao.replacePlan(s, all)
     }
+    /** Puts what is still to pay on new installments (equal or unequal), keeping what is paid. */
+    fun splitBalance(s: Student, plan: List<Installment>, paid: Long, rows: List<Pair<Long, Long>>) = viewModelScope.launch {
+        splitPlan(s.id, s.totalFee, plan, paid, rows)?.let { dao.replacePlan(s, it) }
+    }
     fun student(id: Long) = dao.student(id)
     fun installments(id: Long) = dao.installments(id)
     fun payments(id: Long) = dao.payments(id)

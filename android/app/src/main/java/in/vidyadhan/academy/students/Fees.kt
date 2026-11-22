@@ -50,3 +50,23 @@ suspend fun studentsWithFeesNow(dao: StudentDao): List<StudentWithFees> {
     val byPay = dao.paymentList().groupBy { it.studentId }
     return dao.allStudents().map { summarise(it, byPlan[it.id].orEmpty(), byPay[it.id].orEmpty()) }
 }
+
+/** What is still to pay on the plan: the fee minus fully paid installments and the paid part of a part-paid one. */
+fun leftToSplit(totalFee: Long, plan: List<Installment>, paid: Long): Long {
+    val st = allocate(plan, paid)
+    return (totalFee - st.filter { it.fullyPaid }.sumOf { it.inst.amount } - st.filter { it.partlyPaid }.sumOf { it.covered }).coerceAtLeast(0)
+}
+
+/**
+ * Splits what is still to pay into [rows] (amount to due date). Paid installments stay; a part-paid one keeps only what
+ * was paid. Null when the rows do not add up to exactly what is left, or an amount is not above zero.
+ */
+fun splitPlan(studentId: Long, totalFee: Long, plan: List<Installment>, paid: Long, rows: List<Pair<Long, Long>>): List<Installment>? {
+    val st = allocate(plan, paid)
+    val rest = leftToSplit(totalFee, plan, paid)
+    if (rows.isEmpty() || rows.any { it.first <= 0 } || rows.sumOf { it.first } != rest) return null
+    val kept = st.filter { it.fullyPaid }.map { it.inst } + st.filter { it.partlyPaid }.map { it.inst.copy(amount = it.covered) }
+    val added = rows.map { (a, d) -> Installment(studentId = studentId, number = 0, amount = a, dueOn = d) }
+    return (kept.sortedWith(compareBy({ it.dueOn }, { it.number })) + added.sortedBy { it.dueOn })
+        .mapIndexed { i, x -> x.copy(id = 0, number = i + 1) }
+}

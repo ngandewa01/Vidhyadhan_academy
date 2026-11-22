@@ -384,6 +384,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     var linking by remember { mutableStateOf(false) }
     var refund by remember { mutableStateOf(false) }
     var resplit by remember { mutableStateOf(false) }
+    var split by remember { mutableStateOf(false) }
     var remind by remember { mutableStateOf(false) }
     var tgMessage by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -484,6 +485,8 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                 statuses.forEach { s2 -> ScheduleRow(s2, paidOn[s2.inst.number], t, onCollect = { payFor = s2.remaining }) }
             }
             if (balance > 0) SoftButton("Record a payment", { payFor = next?.remaining ?: balance }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
+            val splitRest = leftToSplit(st.totalFee, plan, paid)
+            if (balance > 0 && splitRest > 0) SoftButton("Split ${rupees(splitRest)} into installments", { split = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.DateRange)
             else Text("All installments cleared ✓", style = MaterialTheme.typography.labelLarge, color = Brand.Green700)
 
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 4.dp)) {
@@ -517,7 +520,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
                                 Text("+ " + rupees(p.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Green700)
-                                Text(p.paidOn.asDate() + (if (p.mode.isNotBlank()) " · ${p.mode}" else "") + (if (p.note.isNotBlank()) " · ${p.note}" else ""),
+                                Text(p.paidOn.asDate() + (if (p.mode.isNotBlank()) " · ${p.mode}" else "") + (if (p.note.isNotBlank()) " · ${p.note.replace("From old book", "Old book")}" else ""),
                                     style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
                             }
                             SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send receipt on WhatsApp", Brand.WhatsAppDark) { whatsappReceipt(ctx, receiptOf(p), st.mobile) }
@@ -651,6 +654,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     if (refund) seat?.let { m ->
         ConfirmDialog("Refund ${rupees(m.deposit)} deposit?", "Records the deposit as returned to ${st.name} today.", "Refund", onConfirm = { vm.returnDeposit(m); refund = false }, onDismiss = { refund = false })
     }
+    if (split) SplitSheet(leftToSplit(st.totalFee, plan, paid), paid, t, onSave = { rows -> vm.splitBalance(st, plan, paid, rows); split = false }) { split = false }
     if (resplit) ConfirmDialog("Re-split the balance equally?", "Paid installments stay. The ${rupees(balance)} still due is divided equally over the ${statuses.count { !it.fullyPaid }} unpaid installments, on their dates.",
         "Re-split", onConfirm = { vm.resplit(st, plan, paid); resplit = false }, onDismiss = { resplit = false })
     receiptFor?.let { p -> ReceiptActions(receiptOf(p), st.mobile, "s${st.id}", onDelete = { deletePay = p }, onDismiss = { receiptFor = null }) }
@@ -796,4 +800,74 @@ private fun EditPaymentSheet(p: StudentPayment, onSave: (StudentPayment) -> Unit
             SoftButton("Delete payment", onDelete, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.Rounded.DeleteOutline)
         }
     }
+}
+
+/** Split what is still to pay: equal (number of installments, first date, gap) or unequal (each amount and date). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SplitSheet(rest: Long, paidSoFar: Long, t: Long, onSave: (List<Pair<Long, Long>>) -> Unit, onClose: () -> Unit) {
+    var unequal by remember { mutableStateOf(false) }
+    var count by remember { mutableIntStateOf(3) }
+    var first by remember { mutableLongStateOf(LocalDate.ofEpochDay(t).plusMonths(1).toEpochDay()) }
+    var gap by remember { mutableIntStateOf(1) }
+    fun equalRows(): List<Pair<Long, Long>> {
+        val each = rest / count; val extra = rest - each * count
+        return (0 until count).map { i -> (each + if (i == 0) extra else 0L) to LocalDate.ofEpochDay(first).plusMonths((i * gap).toLong()).toEpochDay() }
+    }
+    // unequal starts from the equal split, to change as needed
+    val rows = remember { mutableStateListOf<PlanRow>().apply { equalRows().forEach { add(PlanRow(it.first.toString(), it.second)) } } }
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+        Column(Modifier.verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SheetTitle("Split the balance", "${rupees(paidSoFar)} already paid stays as it is · ${rupees(rest)} to split")
+            Segmented(listOf("eq" to "Equal", "un" to "Unequal"), if (unequal) "un" else "eq", { unequal = it == "un" })
+            if (!unequal) {
+                Text("Number of installments", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(2, 3, 4, 5, 6, 9, 12).forEach { n -> Pick("$n", count == n) { count = n } }
+                }
+                DateField("First installment due", first, { first = it })
+                Text("Then every", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(1, 2, 3).forEach { g -> Pick(if (g == 1) "1 month" else "$g months", gap == g) { gap = g } }
+                }
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(14.dp)).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    equalRows().forEach { (a, d) ->
+                        Row { Text(d.asDate(), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+                            Text(rupees(a), style = MaterialTheme.typography.titleSmall, color = Brand.Ink) }
+                    }
+                }
+                PrimaryButton("Save installments", { onSave(equalRows()) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Check)
+            } else {
+                Text("Each installment: amount and due date", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                rows.toList().forEachIndexed { i, r ->
+                    // amount and remove on one line, the due date full width under it (fits large text)
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            DigitsField("Installment ${i + 1}", r.amount, 7, { rows[i] = r.copy(amount = it) }, prefix = "₹ ", modifier = Modifier.weight(1f))
+                            if (rows.size > 1) SmallIconButton(Icons.Rounded.Close, "Remove installment ${i + 1}", Brand.Slate500) { rows.removeAt(i) }
+                        }
+                        DateField("Due on", r.due, { rows[i] = r.copy(due = it) }, Modifier.fillMaxWidth())
+                    }
+                }
+                SoftButton("Add installment", {
+                    rows.add(PlanRow("", LocalDate.ofEpochDay(rows.lastOrNull()?.due ?: first).plusMonths(1).toEpochDay()))
+                }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
+                val left = rest - rows.sumOf { it.amount.toLongOrNull() ?: 0L }
+                Text(when { left == 0L -> "Adds up to ${rupees(rest)} ✓"; left > 0 -> "${rupees(left)} still to assign"; else -> "${rupees(-left)} more than the balance" },
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (left == 0L) Brand.Green50 else Brand.Red50).padding(horizontal = 12.dp, vertical = 9.dp),
+                    style = MaterialTheme.typography.titleSmall, color = if (left == 0L) Brand.Green700 else Brand.Red600)
+                PrimaryButton("Save installments", { onSave(rows.map { (it.amount.toLongOrNull() ?: 0L) to it.due }) }, Modifier.fillMaxWidth(),
+                    enabled = left == 0L && rows.all { (it.amount.toLongOrNull() ?: 0L) > 0 }, icon = Icons.Rounded.Check)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Pick(text: String, on: Boolean, onClick: () -> Unit) {
+    Text(text, Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) Brand.Blue700 else Color.White)
+        .border(1.dp, if (on) Brand.Blue700 else Brand.Line, RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
+        style = MaterialTheme.typography.labelLarge, color = if (on) Color.White else Brand.Ink)
 }
