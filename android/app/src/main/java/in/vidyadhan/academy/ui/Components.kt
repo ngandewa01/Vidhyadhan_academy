@@ -816,7 +816,7 @@ fun NotesSection(kind: String, ownerId: Long) {
     SectionHeader("Notes", action = if (notes.isNotEmpty()) "${notes.size}" else null)
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Field(text, { text = it }, "Add a note, e.g. promised to pay on 5th", modifier = Modifier.weight(1f), singleLine = false)
+            Field(text, { text = it }, "Add note", modifier = Modifier.weight(1f), singleLine = false)
             Spacer(Modifier.width(8.dp))
             Box(Modifier.size(48.dp).clip(CircleShape).background(if (text.isBlank()) Brush.linearGradient(listOf(Brand.Slate300, Brand.Slate300)) else PrimaryBrush)
                 .clickable(enabled = text.isNotBlank()) {

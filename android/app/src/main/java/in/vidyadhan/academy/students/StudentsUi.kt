@@ -532,18 +532,18 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                     }
                 }
                 NotesSection("STUDENT", st.id)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // one button per line so the full names fit with large text
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SoftButton("Admission form", {
                         shareAdmissionForm(ctx, "ADMISSION FORM  /  प्रवेश अर्ज", "${AppSettings.receiptPrefix}-A${st.id.toString().padStart(4, '0')}", st.name, st.photo,
                             listOf("Mobile" to "+91 ${st.mobile}", "Aadhaar" to st.aadhaar.chunked(4).joinToString(" ").ifBlank { "—" },
                                 "Date of birth" to (st.dob?.asDate() ?: "—"), "Course" to st.course, "Batch" to st.batch.ifBlank { "—" },
                                 "Joining date" to st.joinedOn.asDate(), "Total fee" to rupees(st.totalFee)),
                             "Fee plan", listOf(listOf("No.", "Due date", "Amount")) + plan.map { listOf("${it.number}", it.dueOn.asDate(), rupees(it.amount)) })
-                    }, Modifier.weight(1f), icon = Icons.Rounded.Description)
-                    if (st.leftOn == null) SoftButton("Former student", { leaving = true }, Modifier.weight(1f), color = Brand.Slate600, icon = Icons.Rounded.History)
+                    }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Description)
+                    if (st.leftOn == null) SoftButton("Mark as former student", { leaving = true }, Modifier.fillMaxWidth(), color = Brand.Slate600, icon = Icons.Rounded.History)
+                    SoftButton("Delete student", { confirmDelete = true }, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.Rounded.DeleteOutline)
                 }
-                Text("Delete student", Modifier.align(Alignment.CenterHorizontally).clip(RoundedCornerShape(8.dp)).clickable { confirmDelete = true }.padding(8.dp),
-                    style = MaterialTheme.typography.labelLarge, color = Brand.Red600)
                 Spacer(Modifier.height(20.dp))
         }
     }
