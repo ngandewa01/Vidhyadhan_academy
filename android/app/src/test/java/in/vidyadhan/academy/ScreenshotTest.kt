@@ -186,6 +186,18 @@ class ScreenshotTest {
         rule.onAllNodesWithText("Connect")[0].performClick(); settle(); shot("17d-tg-connect")
         back(); back(); back()
         AppSettings.botToken = ""; AppSettings.botName = ""; AppSettings.clearTelegramChat("k_s1")
+        // account card and devices
+        val now = System.currentTimeMillis()
+        `in`.vidyadhan.academy.cloud.Cloud.previewSignedIn("vidyadhan.academy@gmail.com")
+        `in`.vidyadhan.academy.cloud.Devices.preview(listOf(
+            `in`.vidyadhan.academy.cloud.Devices.Device(AppSettings.installId, "Samsung Galaxy M34", "0.7.76", now, false),
+            `in`.vidyadhan.academy.cloud.Devices.Device("b", "Redmi Note 12", "0.7.76", now - 10 * 60_000, false),
+            `in`.vidyadhan.academy.cloud.Devices.Device("c", "Vivo Y21", "0.7.60", now - 12L * 86_400_000, false)), AppSettings.installId)
+        nav("Dashboard"); nav("Settings"); settle(); shot("17e-account-card")
+        rule.onNodeWithText("Devices", substring = true).performClick(); settle(); shot("17f-devices")
+        back()
+        `in`.vidyadhan.academy.cloud.Devices.preview(emptyList(), "")
+        `in`.vidyadhan.academy.cloud.Cloud.previewSignedOut()
 
         // the same main screens with large text, as on the owner's phone (catches cut-off and overflowing text)
         org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
@@ -200,5 +212,11 @@ class ScreenshotTest {
         rule.onNodeWithText("Unequal plan").performScrollTo(); shot("L5-admission-plan")
         nav("Abhyasika"); shot("L6-room")
         nav("Settings"); shot("L7-bot")
+        `in`.vidyadhan.academy.cloud.Cloud.previewSignedIn("vidyadhan.academy@gmail.com")
+        `in`.vidyadhan.academy.cloud.Devices.preview(listOf(
+            `in`.vidyadhan.academy.cloud.Devices.Device(AppSettings.installId, "Samsung Galaxy M34", "0.7.76", System.currentTimeMillis(), false),
+            `in`.vidyadhan.academy.cloud.Devices.Device("b", "Redmi Note 12", "0.7.76", System.currentTimeMillis() - 600_000, false)), AppSettings.installId)
+        settle(); shot("L8-account-card")
+        rule.onNodeWithText("Devices", substring = true).performClick(); settle(); shot("L9-devices")
     }
 }

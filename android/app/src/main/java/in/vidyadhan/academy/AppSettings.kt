@@ -34,6 +34,8 @@ object AppSettings {
     var welcomed: Boolean get() = get("welcomed", "") == "1"; set(v) = put("welcomed", if (v) "1" else "")
     var cloudAcademy: String get() = get("cloudAcademy", ""); set(v) = put("cloudAcademy", v)
     var cloudDevice: Long get() = get("cloudDevice", "0").toLongOrNull() ?: 0; set(v) = put("cloudDevice", v.toString())
+    /** This phone's own id in the cloud's list of devices; made once and kept. */
+    val installId: String get() = get("installId", "").ifBlank { java.util.UUID.randomUUID().toString().also { put("installId", it) } }
     var cloudLast: Long get() = get("cloudLast", "0").toLongOrNull() ?: 0; set(v) = put("cloudLast", v.toString())
 
     var academyName: String get() = get("name", "Vidyadhan Academy"); set(v) = put("name", v)
