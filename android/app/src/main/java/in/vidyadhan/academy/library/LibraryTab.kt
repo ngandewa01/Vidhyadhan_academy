@@ -501,7 +501,9 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     if (vacate) ConfirmDialog("Free seat ${m.seatNo}?",
         if (m.depositPaid && m.depositReturnedOn == null) "The deposit of ${rupees(m.deposit)} has not been returned yet. Return it first if needed." else "${m.name} moves to Past members. Their records are kept.",
         "Free seat", onConfirm = { vm.update(m.copy(active = false, leftOn = t)); vacate = false; onBack() }, onDismiss = { vacate = false })
-    if (confirm) ConfirmDialog("Delete ${m.name}?", "All their payment records are deleted too. To keep records, use “Member left” instead.", "Delete", danger = true,
-        onConfirm = { Photos.delete(ctx, m.photo); Photos.delete(ctx, m.aadhaarPhoto); vm.delete(m); confirm = false; onBack() }, onDismiss = { confirm = false })
+    if (confirm) DeletePersonDialog("Delete ${m.name}?", "All their payment records are deleted too. To keep records, use “Member left” instead.",
+        `in`.vidyadhan.academy.telegram.TelegramBot.isLinked("m${m.id}"),
+        onConfirm = { tg -> if (tg) `in`.vidyadhan.academy.telegram.TelegramBot.unlink("m${m.id}")
+            Photos.delete(ctx, m.photo); Photos.delete(ctx, m.aadhaarPhoto); vm.delete(m); confirm = false; onBack() }, onDismiss = { confirm = false })
     viewPhoto?.let { PhotoViewer(it) { viewPhoto = null } }
 }

@@ -99,12 +99,12 @@ fun ConnectedPeoplePage(onBack: () -> Unit) {
 @Composable
 private fun PersonRow(p: Linked, onDisconnect: () -> Unit) {
     val (bg, fg) = when (p.kind) { "owner" -> Color(0xFFF3E8FF) to Color(0xFF6D28D9); "m" -> Brand.Green50 to Brand.Green700; "g" -> Color(0xFFE0F2FE) to Color(0xFF0284C7); else -> Brand.Blue100 to Brand.Blue700 }
-    val icon: ImageVector? = when (p.kind) { "owner" -> Icons.Rounded.Star; "g" -> Icons.Rounded.Groups; else -> null }
+    val icon: ImageVector? = when { p.kind == "owner" -> Icons.Rounded.Star; p.kind == "g" -> Icons.Rounded.Groups; p.name.endsWith("(removed)") -> Icons.Rounded.PersonOff; else -> null }
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).border(1.dp, Brand.Line, RoundedCornerShape(18.dp)).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(bg), Alignment.Center) {
             if (icon != null) Icon(icon, null, tint = fg)
-            else Text(p.name.split(" ").filter { it.isNotBlank() }.take(2).joinToString("") { it.take(1).uppercase() }, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = fg)
+            else Text(p.name.split(" ").filter { it.firstOrNull()?.isLetter() == true }.take(2).joinToString("") { it.take(1).uppercase() }, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = fg)
         }
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {

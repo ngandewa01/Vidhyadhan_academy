@@ -686,8 +686,10 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     editPay?.let { p -> EditPaymentSheet(p, onSave = { vm.updatePayment(it); editPay = null }, onDelete = { editPay = null; deletePay = p }, onClose = { editPay = null }) }
     deletePay?.let { p -> ConfirmDialog("Delete this payment?", "${rupees(p.amount)} received on ${p.paidOn.asDate()} will be removed.", "Delete", danger = true,
         onConfirm = { vm.deletePayment(p); deletePay = null }, onDismiss = { deletePay = null }) }
-    if (confirmDelete) ConfirmDialog("Delete ${st.name}?", "This removes the student, their installments and payments. It cannot be undone.", "Delete", danger = true,
-        onConfirm = { Photos.delete(ctx, st.photo); Photos.delete(ctx, st.aadhaarPhoto); vm.delete(st); confirmDelete = false; onBack() }, onDismiss = { confirmDelete = false })
+    if (confirmDelete) DeletePersonDialog("Delete ${st.name}?", "This removes the student, their installments and payments. It cannot be undone.",
+        `in`.vidyadhan.academy.telegram.TelegramBot.isLinked("s${st.id}"),
+        onConfirm = { tg -> if (tg) `in`.vidyadhan.academy.telegram.TelegramBot.unlink("s${st.id}")
+            Photos.delete(ctx, st.photo); Photos.delete(ctx, st.aadhaarPhoto); vm.delete(st); confirmDelete = false; onBack() }, onDismiss = { confirmDelete = false })
     viewPhoto?.let { PhotoViewer(it) { viewPhoto = null } }
 }
 
