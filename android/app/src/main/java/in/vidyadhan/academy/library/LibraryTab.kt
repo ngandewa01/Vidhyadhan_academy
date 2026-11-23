@@ -322,6 +322,11 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     val t = today()
     val due = m.validTill < t
     val icon = types.firstOrNull { it.name == m.seatType }?.icon ?: "CHAIR"
+    // a member saved without a monthly fee renews at the seat type's fee (plus the locker), which is then kept on the member
+    val seatTypeFee = (types.firstOrNull { it.name == m.seatType } ?: typeForSeat(m.seatNo, types))?.fee ?: 0L
+    val lockerPart = if (m.hasLocker) m.lockerFee.takeIf { it > 0 } ?: AppSettings.lockerFee.toLong() else 0L
+    val fee = m.monthlyFee.takeIf { it > 0 } ?: (seatTypeFee + lockerPart)
+    val feeMissing = m.monthlyFee == 0L && fee > 0
     HideBottomNav()
     val remindText = libraryReminder(m, t)
 
@@ -387,10 +392,10 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                             }
                             PillButton("Collect", { collect = "BALANCE" }, Brand.Violet700, Icons.Rounded.Payments)
                         }
-                        PrimaryButton("Renew · from ${rupees(m.monthlyFee)}", { collect = "FEE" }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Autorenew)
+                        PrimaryButton(if (fee > 0) "Renew · from ${rupees(fee)}" else "Renew", { collect = "FEE" }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Autorenew)
                     }
                 }
-                Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (m.deposit > 0 || m.depositPaid) Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconTile(Icons.Rounded.Savings, Brand.Violet700, 46.dp, filled = true)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
@@ -411,7 +416,7 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                     HorizontalDivider(color = Brand.Line)
                     InfoRow(Icons.Rounded.Loyalty, "Plan", m.planName.ifBlank { "Monthly" } + if (m.balance > 0) " · ${rupees(m.balance)} balance" else "")
                     HorizontalDivider(color = Brand.Line)
-                    InfoRow(Icons.Rounded.CurrencyRupee, "Monthly fee", rupees(m.monthlyFee) + if (m.hasLocker && m.lockerFee > 0) " (seat ${rupees(m.monthlyFee - m.lockerFee)} + locker ${rupees(m.lockerFee)})" else "")
+                    InfoRow(Icons.Rounded.CurrencyRupee, "Monthly fee", if (feeMissing) "${rupees(fee)} (seat type fee: none was saved)" else rupees(m.monthlyFee) + if (m.hasLocker && m.lockerFee > 0) " (seat ${rupees(m.monthlyFee - m.lockerFee)} + locker ${rupees(m.lockerFee)})" else "")
                     if (m.hasLocker) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.Rounded.Lock, "Locker", if (m.lockerNo == "-") "Yes (number not noted)" else "Locker no. ${m.lockerNo}") }
                 }
                 SectionHeader("Payment history")
@@ -448,7 +453,7 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                     shareAdmissionForm(ctx, AdmissionDoc("ABHYASIKA ADMISSION", "${AppSettings.receiptPrefix}-LA${m.id.toString().padStart(4, '0')}", m.joinedOn,
                         m.name, m.mobile, m.photo, listOfNotNull("Seat ${m.seatNo}", m.seatType.ifBlank { null }, if (m.hasLocker) lockerLabel(m) else null, "Joined ${m.joinedOn.asDate()}"),
                         m.dob, m.aadhaar, "", "", "", "FEES",
-                        listOf(Triple("Monthly fee", rupees(m.monthlyFee), ""),
+                        listOf(Triple("Monthly fee", rupees(fee), ""),
                             Triple("Refundable deposit", rupees(m.deposit), if (m.depositPaid && m.depositReturnedOn == null && m.deposit > 0) "HELD" else ""))))
                 }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Description)
                 SeatHistory(history, onOpen, excludeId = m.id)
@@ -459,7 +464,7 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     }
     collect?.let { kind ->
         var mode by remember { mutableStateOf("Cash") }
-        val options = renewOptions(m.monthlyFee, plans, m.hasLocker)
+        val options = renewOptions(fee, plans, m.hasLocker)
         var optName by remember { mutableStateOf(options.firstOrNull { it.name == m.planName }?.name ?: options.first().name) }
         val chosen = options.firstOrNull { it.name == optName } ?: options.first()
         val full = when (kind) { "FEE" -> chosen.price; "BALANCE" -> m.balance; else -> m.deposit }
@@ -483,7 +488,8 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                 ModeChoice(mode) { mode = it }
                 PrimaryButton("Confirm ${rupees(amount)}", {
                     val updated = when (kind) {
-                        "FEE" -> m.copy(validTill = till, planName = chosen.name, balance = m.balance + balanceAfter(0, chosen.price, amount))
+                        "FEE" -> m.copy(validTill = till, planName = chosen.name, balance = m.balance + balanceAfter(0, chosen.price, amount),
+                            monthlyFee = if (feeMissing) fee else m.monthlyFee, lockerFee = if (feeMissing) lockerPart else m.lockerFee)
                         "BALANCE" -> m.copy(balance = (m.balance - amount).coerceAtLeast(0))
                         "DEPOSIT" -> m.copy(depositPaid = true)
                         else -> m.copy(depositReturnedOn = t)
