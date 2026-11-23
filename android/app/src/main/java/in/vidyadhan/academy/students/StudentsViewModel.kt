@@ -40,6 +40,10 @@ class StudentsViewModel(app: Application) : AndroidViewModel(app) {
     fun splitBalance(s: Student, plan: List<Installment>, paid: Long, rows: List<Pair<Long, Long>>) = viewModelScope.launch {
         splitPlan(s.id, s.totalFee, plan, paid, rows)?.let { dao.replacePlan(s, it) }
     }
+    /** The next installment as the owner corrected it before sending a receipt. */
+    fun changeNext(s: Student, plan: List<Installment>, paid: Long, amount: Long, due: Long) = viewModelScope.launch {
+        changeNextPlan(plan, paid, amount, due)?.let { dao.replacePlan(s, it) }
+    }
     fun student(id: Long) = dao.student(id)
     fun installments(id: Long) = dao.installments(id)
     fun payments(id: Long) = dao.payments(id)

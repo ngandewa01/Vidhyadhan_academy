@@ -3,6 +3,7 @@ package `in`.vidyadhan.academy
 import `in`.vidyadhan.academy.data.Installment
 import `in`.vidyadhan.academy.students.leftToSplit
 import `in`.vidyadhan.academy.students.splitPlan
+import `in`.vidyadhan.academy.students.changeNextPlan
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -33,5 +34,28 @@ class SplitPlanTest {
         val p = listOf(Installment(studentId = 1, number = 1, amount = 10000, dueOn = 1), Installment(studentId = 1, number = 2, amount = 20000, dueOn = 50))
         val out = splitPlan(1, 30000, p, 10000, listOf(10000L to 60L, 10000L to 90L))!!
         assertEquals(listOf(10000L, 10000L, 10000L), out.map { it.amount })
+    }
+
+    private val three = listOf(Installment(studentId = 2, number = 1, amount = 10000, dueOn = 10), Installment(studentId = 2, number = 2, amount = 8000, dueOn = 40),
+        Installment(studentId = 2, number = 3, amount = 7000, dueOn = 70))
+
+    @Test fun nextDateOnly() {
+        val out = changeNextPlan(three, 13000, 5000, 55)!!
+        assertEquals(listOf(10000L, 8000L, 7000L), out.map { it.amount }); assertEquals(55L, out[1].dueOn)
+    }
+
+    @Test fun lowerNextMovesDifferenceOn() {
+        val out = changeNextPlan(three, 13000, 3000, 40)!! // 5,000 left on installment 2 → 3,000
+        assertEquals(listOf(10000L, 6000L, 9000L), out.map { it.amount }); assertEquals(25000L, out.sumOf { it.amount })
+    }
+
+    @Test fun lowerLastAddsANewOne() {
+        val out = changeNextPlan(three, 21000, 2000, 70)!! // 4,000 left on the last → 2,000
+        assertEquals(listOf(10000L, 8000L, 5000L, 2000L), out.map { it.amount })
+    }
+
+    @Test fun raiseTakesFromLaterOrFails() {
+        assertEquals(listOf(10000L, 11000L, 4000L), changeNextPlan(three, 13000, 8000, 40)!!.map { it.amount })
+        assertNull(changeNextPlan(three, 13000, 20000, 40))
     }
 }

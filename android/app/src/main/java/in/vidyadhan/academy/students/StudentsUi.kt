@@ -259,6 +259,9 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
     var dob by remember { mutableStateOf<Long?>(null) }
     var photo by remember { mutableStateOf("") }
     var aadhaarPhoto by remember { mutableStateOf("") }
+    var guardian by remember { mutableStateOf("") }
+    var guardianMobile by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
     var viewPhoto by remember { mutableStateOf<String?>(null) }
     var fee by remember { mutableStateOf("") }
     var count by remember { mutableIntStateOf(AppSettings.defaultInstallments) }
@@ -272,6 +275,7 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
         if (!loaded && s != null && (existingPlan.isNotEmpty() || s.totalFee == 0L)) {
             name = s.name; mobile = s.mobile; aadhaar = s.aadhaar; course = s.course; fee = s.totalFee.toString(); joined = s.joinedOn
             batch = s.batch; dob = s.dob; photo = s.photo; aadhaarPhoto = s.aadhaarPhoto; telegram = s.telegram
+            guardian = s.guardianName; guardianMobile = s.guardianMobile; address = s.address
             if (existingPlan.isNotEmpty()) {
                 count = existingPlan.size; first = existingPlan.first().dueOn
                 rows.clear(); rows.addAll(existingPlan.map { PlanRow(it.amount.toString(), it.dueOn, it.label) })
@@ -306,6 +310,9 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
                 DocPhoto("Aadhaar card photo", aadhaarPhoto, aadhaarPicker.open) { viewPhoto = aadhaarPhoto }
                 OptionalDateField("Date of birth (optional)", dob, { dob = it })
                 DateField("Joining date", joined, { joined = it })
+                Field(guardian, { guardian = it }, "Parent / guardian name (optional)", Icons.Rounded.Person)
+                DigitsField("Guardian mobile (optional)", guardianMobile, 10, { guardianMobile = it }, Icons.Rounded.Phone, phone = true)
+                Field(address, { address = it }, "Address (optional)", Icons.Rounded.Home, singleLine = false, minLines = 2)
             }
             FormCard("Course and batch", Icons.Rounded.School, Brand.Saffron600) {
                 ChoicePills(AppSettings.courseList, course, { course = it })
@@ -351,7 +358,8 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
             PrimaryButton(if (id == 0L) "Add student" else "Save changes", {
                 val s = (existing ?: Student(name = "", mobile = "", totalFee = 0, joinedOn = joined)).copy(
                     id = if (id == 0L) 0 else id, name = name.trim(), mobile = mobile, aadhaar = aadhaar, course = course, totalFee = feeN, joinedOn = joined,
-                    batch = batch, dob = dob, photo = photo, aadhaarPhoto = aadhaarPhoto, telegram = telegram)
+                    batch = batch, dob = dob, photo = photo, aadhaarPhoto = aadhaarPhoto, telegram = telegram,
+                    guardianName = guardian.trim(), guardianMobile = guardianMobile, address = address.trim())
                 val plan = rows.sortedBy { it.due }.mapIndexed { i, r -> Installment(studentId = s.id, number = i + 1, amount = r.amount.toLong(), dueOn = r.due, label = r.label.trim()) }
                 vm.save(s, plan, onSaved)
             }, Modifier.weight(1.6f), enabled = valid, icon = Icons.Rounded.Check)
@@ -400,17 +408,23 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     val balance = (st.totalFee - paid).coerceAtLeast(0)
     val statuses = allocate(plan, paid)
     val next = statuses.firstOrNull { !it.fullyPaid }
+    val latestPay = payments.maxWithOrNull(compareBy({ it.paidOn }, { it.id }))
     val frac = if (st.totalFee == 0L) 0f else paid.toFloat() / st.totalFee
 
     var receiptFor by remember { mutableStateOf<StudentPayment?>(null) }
     fun receipt(p: StudentPayment) { receiptFor = p }
     fun receiptOf(p: StudentPayment): ReceiptData {
-        val upTo = payments.filter { it.paidOn < p.paidOn || (it.paidOn == p.paidOn && it.id <= p.id) }.sumOf { it.amount }
-        return ReceiptData("${AppSettings.receiptPrefix}-S${p.id.toString().padStart(5, '0')}", p.paidOn, "FEE RECEIPT  /  फी पावती", st.name,
-            listOf("Mobile" to "+91 ${st.mobile}", "Course" to (st.course + if (st.batch.isNotBlank()) " · ${st.batch}" else ""), "Payment mode" to p.mode.ifBlank { "—" }) +
-                (if (p.note.isNotBlank()) listOf("Note" to p.note) else emptyList()),
-            p.amount, listOf("Total fee" to rupees(st.totalFee), "Paid so far" to rupees(upTo), "Balance" to rupees((st.totalFee - upTo).coerceAtLeast(0))),
-            footnote = next?.let { "Next installment ${rupees(it.remaining)} on ${it.inst.dueOn.asDate()}" }.orEmpty())
+        val before = payments.filter { it.paidOn < p.paidOn || (it.paidOn == p.paidOn && it.id < p.id) }.sumOf { it.amount }
+        val upTo = before + p.amount
+        val k = allocate(plan, before).indexOfFirst { !it.fullyPaid } + 1
+        val nextAfter = allocate(plan, upTo).firstOrNull { !it.fullyPaid }
+        val note = p.note.replace("From old book", "Old book")
+        return ReceiptData("${AppSettings.receiptPrefix}-S${p.id.toString().padStart(5, '0')}", p.paidOn, "FEE RECEIPT", st.name,
+            listOf("Mobile" to "+91 ${st.mobile}"), p.amount,
+            listOf("Total fee" to rupees(st.totalFee), "Paid so far" to rupees(upTo), "Balance" to rupees((st.totalFee - upTo).coerceAtLeast(0))),
+            forText = "${st.course} course fee" + if (st.batch.isNotBlank()) " · ${st.batch} batch" else "",
+            forSub = listOfNotNull(if (k > 0 && plan.size > 1) "Installment $k of ${plan.size}" else null, p.mode.ifBlank { null }, note.ifBlank { null }).joinToString(" · "),
+            nextAmount = nextAfter?.remaining ?: 0L, nextDue = nextAfter?.inst?.dueOn)
     }
 
     val m = seat
@@ -504,6 +518,11 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                 InfoRow(Icons.Rounded.School, "Course", st.course + (if (st.batch.isNotBlank()) " · ${st.batch}" else "") + " · joined ${st.joinedOn.asDate()}")
                 if (st.dob != null) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.Rounded.Cake, "Birthday", LocalDate.ofEpochDay(st.dob).format(java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy"))) }
                 HorizontalDivider(color = Brand.Line)
+                if (st.guardianName.isNotBlank() || st.guardianMobile.isNotBlank()) {
+                    InfoRow(Icons.Rounded.Person, "Parent / guardian", listOf(st.guardianName, st.guardianMobile.takeIf { it.isNotBlank() }?.let { "+91 $it" }.orEmpty()).filter { it.isNotBlank() }.joinToString(" · "))
+                    HorizontalDivider(color = Brand.Line)
+                }
+                if (st.address.isNotBlank()) { InfoRow(Icons.Rounded.Home, "Address", st.address); HorizontalDivider(color = Brand.Line) }
                 InfoRow(Icons.Rounded.CreditCard, "Aadhaar", if (st.aadhaar.isBlank()) "Not added" else if (showAadhaar) st.aadhaar.chunked(4).joinToString(" ") else maskAadhaar(st.aadhaar)) {
                     if (st.aadhaar.isNotBlank()) SmallIconButton(if (showAadhaar) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, "Show", Brand.Slate500) { showAadhaar = !showAadhaar }
                 }
@@ -523,7 +542,7 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                                 Text(p.paidOn.asDate() + (if (p.mode.isNotBlank()) " · ${p.mode}" else "") + (if (p.note.isNotBlank()) " · ${p.note.replace("From old book", "Old book")}" else ""),
                                     style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
                             }
-                            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send receipt on WhatsApp", Brand.WhatsAppDark) { whatsappReceipt(ctx, receiptOf(p), st.mobile) }
+                            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send receipt on WhatsApp", Brand.WhatsAppDark) { if (p.id == latestPay?.id) receiptFor = p else whatsappReceipt(ctx, receiptOf(p), st.mobile) }
                             Spacer(Modifier.width(6.dp))
                             SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receiptFor = p }
                             Spacer(Modifier.width(6.dp))
@@ -535,11 +554,11 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                 // one button per line so the full names fit with large text
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SoftButton("Admission form", {
-                        shareAdmissionForm(ctx, "ADMISSION FORM  /  प्रवेश अर्ज", "${AppSettings.receiptPrefix}-A${st.id.toString().padStart(4, '0')}", st.name, st.photo,
-                            listOf("Mobile" to "+91 ${st.mobile}", "Aadhaar" to st.aadhaar.chunked(4).joinToString(" ").ifBlank { "—" },
-                                "Date of birth" to (st.dob?.asDate() ?: "—"), "Course" to st.course, "Batch" to st.batch.ifBlank { "—" },
-                                "Joining date" to st.joinedOn.asDate(), "Total fee" to rupees(st.totalFee)),
-                            "Fee plan", listOf(listOf("No.", "Due date", "Amount")) + plan.map { listOf("${it.number}", it.dueOn.asDate(), rupees(it.amount)) })
+                        shareAdmissionForm(ctx, AdmissionDoc("ADMISSION FORM", "${AppSettings.receiptPrefix}-A${st.id.toString().padStart(4, '0')}", st.joinedOn,
+                            st.name, st.mobile, st.photo, listOfNotNull(st.course, st.batch.ifBlank { null }, "Joined ${st.joinedOn.asDate()}"),
+                            st.dob, st.aadhaar, st.guardianName, st.guardianMobile, st.address, "FEES · TOTAL ${rupees(st.totalFee)}",
+                            statuses.map { s2 -> Triple("Installment ${s2.inst.number} · ${s2.inst.dueOn.asDate()}", rupees(s2.inst.amount),
+                                if (s2.fullyPaid) "PAID" else "${rupees(s2.remaining)} DUE") }))
                     }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Description)
                     if (st.leftOn == null) SoftButton("Mark as former student", { leaving = true }, Modifier.fillMaxWidth(), color = Brand.Slate600, icon = Icons.Rounded.History)
                     SoftButton("Delete student", { confirmDelete = true }, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.Rounded.DeleteOutline)
@@ -657,7 +676,13 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     if (split) SplitSheet(leftToSplit(st.totalFee, plan, paid), paid, t, onSave = { rows -> vm.splitBalance(st, plan, paid, rows); split = false }) { split = false }
     if (resplit) ConfirmDialog("Re-split the balance equally?", "Paid installments stay. The ${rupees(balance)} still due is divided equally over the ${statuses.count { !it.fullyPaid }} unpaid installments, on their dates.",
         "Re-split", onConfirm = { vm.resplit(st, plan, paid); resplit = false }, onDismiss = { resplit = false })
-    receiptFor?.let { p -> ReceiptActions(receiptOf(p), st.mobile, "s${st.id}", onDelete = { deletePay = p }, onDismiss = { receiptFor = null }) }
+    receiptFor?.let { p -> ReceiptActions(receiptOf(p), st.mobile, "s${st.id}", onDelete = { deletePay = p }, onDismiss = { receiptFor = null },
+        next = if (p.id == latestPay?.id) next?.let { it.remaining to it.inst.dueOn } else null,
+        fullyPaid = p.id == latestPay?.id && balance == 0L,
+        onChangeNext = { a, d ->
+            if (changeNextPlan(plan, paid, a, d) == null) android.widget.Toast.makeText(ctx, "That is more than the balance after this installment", android.widget.Toast.LENGTH_LONG).show()
+            else vm.changeNext(st, plan, paid, a, d)
+        }) }
     editPay?.let { p -> EditPaymentSheet(p, onSave = { vm.updatePayment(it); editPay = null }, onDelete = { editPay = null; deletePay = p }, onClose = { editPay = null }) }
     deletePay?.let { p -> ConfirmDialog("Delete this payment?", "${rupees(p.amount)} received on ${p.paidOn.asDate()} will be removed.", "Delete", danger = true,
         onConfirm = { vm.deletePayment(p); deletePay = null }, onDismiss = { deletePay = null }) }

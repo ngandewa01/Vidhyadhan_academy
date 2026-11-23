@@ -48,6 +48,16 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
     var name by remember(from) { mutableStateOf(from?.name ?: "") }
     var mobile by remember(from) { mutableStateOf(from?.mobile ?: "") }
     var telegram by remember(from) { mutableStateOf(from?.telegram ?: "") }
+    var dob by remember { mutableStateOf<Long?>(null) }
+    var aadhaar by remember { mutableStateOf("") }
+    var aadhaarPhoto by remember { mutableStateOf("") }
+    var photo by remember { mutableStateOf("") }
+    var guardian by remember { mutableStateOf("") }
+    var guardianMobile by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
+    var viewPhoto by remember { mutableStateOf<String?>(null) }
+    val photoPicker = rememberPhotoPicker("Student photo", photo.isNotBlank(), { photo = it }, { photo = "" })
+    val aadhaarPicker = rememberPhotoPicker("Aadhaar card photo", aadhaarPhoto.isNotBlank(), { aadhaarPhoto = it }, { aadhaarPhoto = "" })
     var type by remember(from) { mutableStateOf("Combo") } // Academy, Abhyasika, Combo
     var course by remember(from) { mutableStateOf(from?.course?.takeIf { it in AppSettings.courseList } ?: AppSettings.courseList.first()) }
     var batch by remember { mutableStateOf("") }
@@ -95,14 +105,23 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
     val adv = if (academy) advance.toLongOrNull() ?: 0L else 0L
     val firstAmount = if (academy && paidFirst) plan.firstOrNull()?.amount ?: 0L else 0L
     val advOk = adv <= (fee - firstAmount).coerceAtLeast(0)
-    val valid = name.isNotBlank() && mobile.length == 10 && planOk && (!library || seat > 0) && (!library || !locker || lockerNo.isNotBlank()) && advOk
+    val valid = name.isNotBlank() && mobile.length == 10 && (aadhaar.isEmpty() || aadhaar.length == 12) && planOk && (!library || seat > 0) && (!library || !locker || lockerNo.isNotBlank()) && advOk
     val payingNow = firstAmount + adv + (if (library) seatFee + lockerFee + dep else 0L)
 
     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Step("1. Student & Telegram details") {
+        Step("1. Student details") {
+            PhotoAvatarEdit(name, photo, photoPicker.open)
             Field(name, { name = it }, "Full name *", Icons.Rounded.Person)
             PhoneField(mobile, { mobile = it }, onName = { if (name.isBlank()) name = it }, icon = null, isError = mobile.isNotEmpty() && mobile.length < 10,
                 supporting = "Tap the contacts button to pick a number. Telegram is linked later through your bot.")
+            OptionalDateField("Date of birth (optional)", dob, { dob = it })
+            DigitsField("Aadhaar number", aadhaar, 12, { aadhaar = it }, Icons.Rounded.CreditCard,
+                supporting = if (aadhaar.isNotEmpty() && aadhaar.length < 12) "Enter all 12 digits" else "Optional · kept only on this phone", isError = aadhaar.isNotEmpty() && aadhaar.length < 12)
+            DocPhoto("Aadhaar card photo", aadhaarPhoto, aadhaarPicker.open) { viewPhoto = aadhaarPhoto }
+            Field(guardian, { guardian = it }, "Parent / guardian name (optional)", Icons.Rounded.Person)
+            DigitsField("Guardian mobile (optional)", guardianMobile, 10, { guardianMobile = it }, Icons.Rounded.Phone, phone = true)
+            Field(address, { address = it }, "Address (optional)", Icons.Rounded.Home, singleLine = false, minLines = 2)
+            viewPhoto?.let { PhotoViewer(it) { viewPhoto = null } }
         }
 
         Step("2. Course, seat & locker") {
@@ -199,7 +218,8 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
                 var studentId = 0L
                 if (academy) {
                     AppSettings.setCourseFee(course, fee)
-                    val s = Student(name = name.trim(), mobile = mobile, course = course, totalFee = fee, joinedOn = t, batch = batch, telegram = telegram)
+                    val s = Student(name = name.trim(), mobile = mobile, course = course, totalFee = fee, joinedOn = t, batch = batch, telegram = telegram,
+                        dob = dob, aadhaar = aadhaar, photo = photo, aadhaarPhoto = aadhaarPhoto, guardianName = guardian.trim(), guardianMobile = guardianMobile, address = address.trim())
                     val first = if (paidFirst && plan.isNotEmpty()) StudentPayment(studentId = 0, amount = plan[0].amount, paidOn = t, mode = mode, note = "Admission") else null
                     studentId = db.students().create(s, plan, first)
                     if (adv > 0) db.students().insertPayment(StudentPayment(studentId = studentId, amount = adv, paidOn = t, mode = mode, note = "Advance"))
@@ -207,7 +227,7 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
                 var memberId = 0L
                 if (library && seat > 0) {
                     val monthly = seatFee + lockerFee
-                    val m = LibraryMember(name = name.trim(), mobile = mobile, seatNo = seat, seatType = seatType?.name ?: "", monthlyFee = monthly, deposit = dep,
+                    val m = LibraryMember(name = name.trim(), mobile = mobile, dob = dob, aadhaar = aadhaar, photo = photo, aadhaarPhoto = aadhaarPhoto, seatNo = seat, seatType = seatType?.name ?: "", monthlyFee = monthly, deposit = dep,
                         depositPaid = dep > 0, joinedOn = t, validTill = LocalDate.ofEpochDay(t).plusMonths(1).toEpochDay(),
                         lockerNo = if (locker) lockerNo.ifBlank { "-" } else "", lockerFee = lockerFee, planName = "1 month", studentId = studentId.takeIf { it > 0 })
                     val pays = buildList {

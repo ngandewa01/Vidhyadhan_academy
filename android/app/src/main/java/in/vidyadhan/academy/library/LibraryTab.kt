@@ -329,10 +329,11 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     fun receipt(p: LibraryPayment) { receiptFor = p }
     fun receiptOf(p: LibraryPayment) = (ReceiptData(
         "${AppSettings.receiptPrefix}-L${p.id.toString().padStart(5, '0')}", p.paidOn,
-        if (p.kind == "DEPOSIT_RETURN") "DEPOSIT REFUND  /  अनामत परत" else "LIBRARY RECEIPT  /  लायब्ररी पावती", m.name,
+        if (p.kind == "DEPOSIT_RETURN") "DEPOSIT REFUND" else "ABHYASIKA RECEIPT", m.name,
         listOf("Mobile" to "+91 ${m.mobile}", "Seat" to listOfNotNull("${m.seatNo}", roomOf(m.seatNo, rooms)?.name, m.seatType.ifBlank { null }).joinToString(" · "), "For" to kindLabel(p.kind), "Payment mode" to p.mode.ifBlank { "—" }),
         p.amount, if (p.kind == "FEE") listOfNotNull("Valid up to" to m.validTill.asDate(), m.planName.takeIf { it.isNotBlank() }?.let { "Plan" to it },
-            m.balance.takeIf { it > 0 }?.let { "Balance left" to rupees(it) }) else emptyList()))
+            m.balance.takeIf { it > 0 }?.let { "Balance left" to rupees(it) }) else emptyList(),
+        forText = "${kindLabel(p.kind)} · seat ${m.seatNo}" + (roomOf(m.seatNo, rooms)?.name?.let { " · $it" } ?: ""), forSub = p.mode))
     receiptFor?.let { p -> ReceiptActions(receiptOf(p), m.mobile, m.studentId?.takeIf { !`in`.vidyadhan.academy.telegram.TelegramBot.isLinked("m${m.id}") }?.let { "s$it" } ?: "m${m.id}",
         onDelete = { deletePay = p }, onDismiss = { receiptFor = null }) }
 
@@ -440,10 +441,11 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                 }
                 NotesSection("MEMBER", m.id)
                 SoftButton("Admission form (PDF)", {
-                    shareAdmissionForm(ctx, "LIBRARY ADMISSION  /  लायब्ररी प्रवेश", "${AppSettings.receiptPrefix}-LA${m.id.toString().padStart(4, '0')}", m.name, m.photo,
-                        listOf("Mobile" to "+91 ${m.mobile}", "Aadhaar" to m.aadhaar.chunked(4).joinToString(" ").ifBlank { "—" }, "Date of birth" to (m.dob?.asDate() ?: "—"),
-                            "Seat" to "${m.seatNo} · ${m.seatType}", "Locker" to (if (m.hasLocker) lockerLabel(m) else "No"), "Joining date" to m.joinedOn.asDate(),
-                            "Monthly fee" to rupees(m.monthlyFee), "Deposit" to rupees(m.deposit)))
+                    shareAdmissionForm(ctx, AdmissionDoc("ABHYASIKA ADMISSION", "${AppSettings.receiptPrefix}-LA${m.id.toString().padStart(4, '0')}", m.joinedOn,
+                        m.name, m.mobile, m.photo, listOfNotNull("Seat ${m.seatNo}", m.seatType.ifBlank { null }, if (m.hasLocker) lockerLabel(m) else null, "Joined ${m.joinedOn.asDate()}"),
+                        m.dob, m.aadhaar, "", "", "", "FEES",
+                        listOf(Triple("Monthly fee", rupees(m.monthlyFee), ""),
+                            Triple("Refundable deposit", rupees(m.deposit), if (m.depositPaid && m.depositReturnedOn == null && m.deposit > 0) "HELD" else ""))))
                 }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Description)
                 SeatHistory(history, onOpen, excludeId = m.id)
                 if (m.active) SoftButton("Member left · free seat ${m.seatNo}", { vacate = true }, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.AutoMirrored.Rounded.Logout)

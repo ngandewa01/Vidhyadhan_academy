@@ -70,3 +70,29 @@ fun splitPlan(studentId: Long, totalFee: Long, plan: List<Installment>, paid: Lo
     return (kept.sortedWith(compareBy({ it.dueOn }, { it.number })) + added.sortedBy { it.dueOn })
         .mapIndexed { i, x -> x.copy(id = 0, number = i + 1) }
 }
+
+/**
+ * Sets the next unpaid installment to [newRemaining] still to pay, due on [newDue]. Lowering it moves the difference to
+ * the installment after it (or a new one a month later); raising it takes the difference from the ones after it.
+ * Null when there is nothing unpaid or the later installments cannot cover a raise. The total stays the same.
+ */
+fun changeNextPlan(plan: List<Installment>, paid: Long, newRemaining: Long, newDue: Long): List<Installment>? {
+    val st = allocate(plan, paid)
+    val i = st.indexOfFirst { !it.fullyPaid }
+    if (i < 0 || newRemaining <= 0) return null
+    val insts = st.map { it.inst }.toMutableList()
+    val diff = st[i].remaining - newRemaining
+    insts[i] = insts[i].copy(amount = st[i].covered + newRemaining, dueOn = newDue)
+    if (diff > 0) {
+        if (i + 1 < insts.size) insts[i + 1] = insts[i + 1].copy(amount = insts[i + 1].amount + diff)
+        else insts += Installment(studentId = insts[i].studentId, number = 0, amount = diff, dueOn = java.time.LocalDate.ofEpochDay(newDue).plusMonths(1).toEpochDay())
+    } else if (diff < 0) {
+        var need = -diff
+        for (j in i + 1 until insts.size) {
+            val take = minOf(need, insts[j].amount); insts[j] = insts[j].copy(amount = insts[j].amount - take); need -= take
+            if (need == 0L) break
+        }
+        if (need > 0) return null
+    }
+    return insts.filter { it.amount > 0 }.mapIndexed { k, x -> x.copy(id = 0, number = k + 1) }
+}

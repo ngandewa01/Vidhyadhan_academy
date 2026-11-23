@@ -100,9 +100,19 @@ class ScreenshotTest {
             val bmp = android.graphics.Bitmap.createBitmap(840, 1190, android.graphics.Bitmap.Config.ARGB_8888)
             val cv = android.graphics.Canvas(bmp); cv.drawColor(android.graphics.Color.WHITE); cv.scale(2f, 2f)
             `in`.vidyadhan.academy.ui.drawReceipt(ApplicationProvider.getApplicationContext(), cv, `in`.vidyadhan.academy.ui.ReceiptData("VA-S00042", LocalDate.now().toEpochDay(),
-                "FEE RECEIPT  /  फी पावती", "Rohan Deshmukh", listOf("Mobile" to "+91 98220 01122", "Course" to "MPSC · Evening", "Payment mode" to "UPI", "Note" to "Installment 2 of 3"),
-                8800, listOf("Total fee" to "₹25,000", "Paid so far" to "₹21,000", "Balance" to "₹4,000"), footnote = "Next installment ₹4,000 on 10 Dec 2026"))
+                "FEE RECEIPT", "Rohan Deshmukh", listOf("Mobile" to "+91 98220 01122"),
+                8800, listOf("Total fee" to "₹25,000", "Paid so far" to "₹21,000", "Balance" to "₹4,000"),
+                forText = "MPSC course fee · Evening batch", forSub = "Installment 2 of 3 · UPI · 4512 8890 1123",
+                nextAmount = 4000, nextDue = LocalDate.now().plusDays(17).toEpochDay()))
             File(out, "18-receipt.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            // the admission form, as a picture
+            val fb = android.graphics.Bitmap.createBitmap(1190, 1684, android.graphics.Bitmap.Config.ARGB_8888)
+            val fc = android.graphics.Canvas(fb); fc.drawColor(android.graphics.Color.WHITE); fc.scale(2f, 2f)
+            `in`.vidyadhan.academy.ui.drawAdmissionForm(ApplicationProvider.getApplicationContext(), fc, `in`.vidyadhan.academy.ui.AdmissionDoc(
+                "ADMISSION FORM", "VA-A0002", LocalDate.now().toEpochDay(), "Rohan Deshmukh", "9822001122", "", listOf("MPSC", "Evening", "Joined 12 Sep 2026"),
+                null, "", "Sunil Deshmukh", "", "Flat 4, Sai Residency, Malwadi, Hadapsar, Pune 411028", "FEES · TOTAL ₹25,000",
+                listOf(Triple("Installment 1 · 12 Sep 2026", "₹10,000", "PAID"), Triple("Installment 2 · 11 Nov 2026", "₹8,000", "PAID"), Triple("Installment 3 · 10 Dec 2026", "₹7,000", "₹4,000 DUE"))))
+            File(out, "18b-admission.png").outputStream().use { fb.compress(Bitmap.CompressFormat.PNG, 100, it) }
             // the monthly report, both pages
             val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
             val rep = runBlocking { `in`.vidyadhan.academy.money.loadReport(ctx, java.time.YearMonth.now()) }

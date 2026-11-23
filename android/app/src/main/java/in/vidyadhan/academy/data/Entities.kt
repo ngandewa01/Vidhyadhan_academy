@@ -20,6 +20,9 @@ data class Student(
     @ColumnInfo(defaultValue = "") val leftReason: String = "",
     @ColumnInfo(defaultValue = "") val telegram: String = "", // Telegram username, without @
     @ColumnInfo(defaultValue = "") val khataKey: String = "", // the old khata person this student came from
+    @ColumnInfo(defaultValue = "") val guardianName: String = "",
+    @ColumnInfo(defaultValue = "") val guardianMobile: String = "",
+    @ColumnInfo(defaultValue = "") val address: String = "",
 )
 
 /** The planned schedule. What has actually been paid lives in [StudentPayment]. */
