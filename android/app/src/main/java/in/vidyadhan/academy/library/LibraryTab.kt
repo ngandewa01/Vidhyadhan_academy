@@ -300,15 +300,13 @@ private fun MemberForm(vm: LibraryViewModel, startSeat: Int, id: Long, onCancel:
     viewPhoto?.let { PhotoViewer(it) { viewPhoto = null } }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onOpen: (Long) -> Unit, onEdit: () -> Unit) {
     val ctx = LocalContext.current
     val mm by remember(id) { vm.member(id) }.collectAsStateWithLifecycle(null)
     val pays by remember(id) { vm.payments(id) }.collectAsStateWithLifecycle(emptyList())
     var deletePay by remember { mutableStateOf<`in`.vidyadhan.academy.data.LibraryPayment?>(null) }
-    deletePay?.let { p -> ConfirmDialog("Delete this payment?", "${rupees(p.amount)} on ${p.paidOn.asDate()} will be removed from the records. The paid-till date does not change; edit the member if needed.",
-        "Delete", danger = true, onConfirm = { vm.deletePayment(p); deletePay = null }, onDismiss = { deletePay = null }) }
     val types by vm.types.collectAsStateWithLifecycle()
     val rooms by vm.rooms.collectAsStateWithLifecycle()
     val plans by vm.plans.collectAsStateWithLifecycle()
@@ -327,6 +325,23 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     val lockerPart = if (m.hasLocker) m.lockerFee.takeIf { it > 0 } ?: AppSettings.lockerFee.toLong() else 0L
     val fee = m.monthlyFee.takeIf { it > 0 } ?: (seatTypeFee + lockerPart)
     val feeMissing = m.monthlyFee == 0L && fee > 0
+    // deleting the latest monthly fee also undoes that renewal: the paid-till date goes back by its plan's months
+    deletePay?.let { p ->
+        val latestFee = p.kind == "FEE" && pays.filter { it.kind == "FEE" }.maxWithOrNull(compareBy({ it.paidOn }, { it.id }))?.id == p.id
+        val opt = renewOptions(fee, plans, m.hasLocker).firstOrNull { it.name == m.planName }
+        val months = opt?.months ?: m.planName.substringBefore(" ").toIntOrNull() ?: 1
+        val back = LocalDate.ofEpochDay(m.validTill).minusMonths(months.toLong()).toEpochDay()
+        val undo = latestFee && pays.count { it.kind == "FEE" } > 1 && back >= m.joinedOn
+        ConfirmDialog(if (undo) "Undo this renewal?" else "Delete this payment?",
+            if (undo) "${rupees(p.amount)} on ${p.paidOn.asDate()} is removed, and fee paid up to goes back from ${m.validTill.asDate()} to ${back.asDate()}."
+            else "${rupees(p.amount)} on ${p.paidOn.asDate()} will be removed from the records. The paid-till date does not change.",
+            if (undo) "Undo renewal" else "Delete", danger = true,
+            onConfirm = {
+                vm.deletePayment(p)
+                if (undo) vm.update(m.copy(validTill = back, balance = (m.balance - ((opt?.price ?: p.amount) - p.amount).coerceAtLeast(0)).coerceAtLeast(0)))
+                deletePay = null
+            }, onDismiss = { deletePay = null })
+    }
     HideBottomNav()
     val remindText = libraryReminder(m, t)
 
@@ -439,10 +454,11 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                                     color = if (out) Brand.Red600 else Brand.Green700, maxLines = 1, softWrap = false)
                             }
                             Row(Modifier.padding(start = 54.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                     PayAction("WhatsApp", Icons.AutoMirrored.Rounded.Chat, Brand.WhatsAppDark, Color(0xFFE7F6F3)) { whatsappReceipt(ctx, receiptOf(p), m.mobile) }
                                     PayAction("Receipt", Icons.Rounded.ReceiptLong, Brand.Blue600, Color(0xFFEFF6FF)) { receiptFor = p }
                                 }
+                                Spacer(Modifier.width(6.dp))
                                 SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
                             }
                         }

@@ -64,6 +64,12 @@ class LayoutTest {
         val today = LocalDate.of(2026, 11, 18).toEpochDay()
         assertEquals(LocalDate.of(2027, 2, 21).toEpochDay(), renewedTill(LocalDate.of(2026, 11, 21).toEpochDay(), today, 3)) // still running: add on
         assertEquals(LocalDate.of(2027, 5, 18).toEpochDay(), renewedTill(LocalDate.of(2026, 10, 1).toEpochDay(), today, 6)) // lapsed: from today
+        // paid 2 days late: the monthly date stays on the 21st
+        assertEquals(LocalDate.of(2026, 12, 21).toEpochDay(), renewedTill(LocalDate.of(2026, 11, 21).toEpochDay(), LocalDate.of(2026, 11, 23).toEpochDay(), 1))
+        // older versions moved it to the payment day: put back once
+        assertEquals(LocalDate.of(2026, 12, 21).toEpochDay(), cycleFix(LocalDate.of(2026, 10, 21).toEpochDay(), LocalDate.of(2026, 12, 23).toEpochDay(), LocalDate.of(2026, 11, 23).toEpochDay(), 1))
+        assertEquals(null, cycleFix(LocalDate.of(2026, 10, 21).toEpochDay(), LocalDate.of(2026, 12, 21).toEpochDay(), LocalDate.of(2026, 11, 20).toEpochDay(), 1)) // paid early: nothing to fix
+        assertEquals(null, cycleFix(LocalDate.of(2026, 11, 23).toEpochDay(), LocalDate.of(2026, 12, 23).toEpochDay(), LocalDate.of(2026, 11, 23).toEpochDay(), 1)) // joining payment
         assertEquals(400L, balanceAfter(0, 2400, 2000))
         assertEquals(0L, balanceAfter(0, 900, 900))
         assertEquals(100L, balanceAfter(100, 900, 900))

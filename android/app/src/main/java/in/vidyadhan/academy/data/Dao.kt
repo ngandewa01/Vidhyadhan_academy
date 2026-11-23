@@ -81,6 +81,8 @@ interface LibraryDao {
     @Delete suspend fun deleteRoom(r: LibraryRoom)
 
     @Query("SELECT * FROM MemberPlan ORDER BY months, price") fun plans(): Flow<List<MemberPlan>>
+    @Query("SELECT * FROM MemberPlan") suspend fun plansNow(): List<MemberPlan>
+    @Query("SELECT * FROM LibraryPayment WHERE memberId = :id") suspend fun paymentsNow(id: Long): List<LibraryPayment>
     @Insert suspend fun insertPlanRow(p: MemberPlan): Long
     suspend fun insertPlan(p: MemberPlan): Long = insertPlanRow(if (p.id == 0L) p.copy(id = Ids.next("MemberPlan")) else p)
     @Update suspend fun updatePlan(p: MemberPlan)

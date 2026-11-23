@@ -162,15 +162,12 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(s.name, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.width(6.dp))
-                    Text(rollNo(s.id, s.joinedOn), style = MaterialTheme.typography.labelSmall, color = Brand.Slate400, maxLines = 1)
-                }
-                Text(s.course + if (s.batch.isNotBlank()) " · ${s.batch}" else "", style = MaterialTheme.typography.labelMedium, color = Brand.Blue700, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(s.name, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis)
+                Text(s.course + (if (s.batch.isNotBlank()) " · ${s.batch}" else "") + " · ${rollNo(s.id, s.joinedOn)}", style = MaterialTheme.typography.labelMedium, color = Brand.Blue700, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val info = s.mobile.takeIf { it.isNotBlank() }?.let { "+91 $it" }.orEmpty()
                 if (info.isNotBlank()) Text(info, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!s.current) Box(Modifier.padding(top = 6.dp)) { StatusChip(s.leftReason.ifBlank { "Former" }, Tone.Neutral) }
             }
             if (s.telegram.isNotBlank()) {
                 Spacer(Modifier.width(6.dp))
@@ -179,7 +176,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
                     Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color(0xFF0369A1), modifier = Modifier.size(11.dp)); Spacer(Modifier.width(3.dp))
                     Text("@${s.telegram}", style = MaterialTheme.typography.labelSmall, color = Color(0xFF0369A1), maxLines = 1)
                 }
-            } else if (!s.current) { Spacer(Modifier.width(6.dp)); StatusChip(s.leftReason.ifBlank { "Former" }, Tone.Neutral) }
+            }
         }
         val pills = seat != null || advance > 0
         if (pills) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

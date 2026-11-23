@@ -109,6 +109,19 @@ private fun AppShell(lock: LockStore) {
         val d = `in`.vidyadhan.academy.data.AppDb.get(activity)
         runCatching { `in`.vidyadhan.academy.khata.OldBook.convertAll(d) }
         runCatching { `in`.vidyadhan.academy.khata.OldBook.repairOnce(d) }
+        // once: members renewed a few days late keep their monthly date (joined 21st: due on the 21st)
+        if (!AppSettings.cycleRepaired) runCatching {
+            val lib = d.library()
+            val plans = lib.plansNow()
+            val since = java.time.LocalDate.now().minusDays(62).toEpochDay()
+            lib.allMembers().filter { it.active }.forEach { m ->
+                val last = lib.paymentsNow(m.id).filter { it.kind == "FEE" }.maxByOrNull { it.paidOn } ?: return@forEach
+                if (last.paidOn < since) return@forEach
+                val months = plans.firstOrNull { it.name == m.planName }?.months ?: m.planName.substringBefore(" ").toIntOrNull() ?: 1
+                `in`.vidyadhan.academy.library.cycleFix(m.joinedOn, m.validTill, last.paidOn, months)?.let { lib.updateMember(m.copy(validTill = it)) }
+            }
+            AppSettings.cycleRepaired = true
+        }
     }
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
