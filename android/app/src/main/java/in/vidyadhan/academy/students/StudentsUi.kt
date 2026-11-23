@@ -210,6 +210,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
                 },
                 Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
                 color = when { left == 0L && s.current -> Brand.Green700; s.nextDue != null && s.nextDue < t -> Brand.Red600; else -> Brand.Slate600 }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.width(8.dp))
             Text("Manage plan", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
             Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
         }
