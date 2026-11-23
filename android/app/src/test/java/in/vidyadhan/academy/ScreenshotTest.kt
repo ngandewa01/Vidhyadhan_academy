@@ -151,6 +151,8 @@ class ScreenshotTest {
         rule.onNodeWithText("Apply layout", substring = true).performScrollTo().performClick(); settle()
         rule.onNodeWithContentDescription("Seat 1").performScrollTo(); shot("08b2-all-walls")
         rule.onNodeWithText("Live map").performClick(); shot("08c-room-plan")
+        rule.onNodeWithContentDescription("Seat 6").performScrollTo().performClick(); settle(); shot("08e-occupied-seat")
+        rule.onNodeWithText("Renew…").performClick(); settle(); shot("08f-renew-from-map"); back(); backButton(); settle()
         rule.onNodeWithContentDescription("Seat 7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
 
         nav("Abhyasika")

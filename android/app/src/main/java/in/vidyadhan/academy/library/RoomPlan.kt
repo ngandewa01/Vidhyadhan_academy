@@ -63,7 +63,7 @@ private fun lookOf(m: LibraryMember?, t: Long): Look = when (m?.let { memberStat
 /** "Abhyasika room plan": cubicles along the walls (and optional back-to-back rows in the middle), coloured by who sits there. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Long) -> Unit, onMembers: () -> Unit) {
+internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (Long) -> Unit, onMembers: () -> Unit, onRenew: (Long) -> Unit = onOpen) {
     val members by vm.members.collectAsStateWithLifecycle()
     val types by vm.types.collectAsStateWithLifecycle()
     val rooms by vm.rooms.collectAsStateWithLifecycle()
@@ -95,7 +95,7 @@ internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (L
             layout = planText(FloorPlan(walls = w, centre = c)))) { roomId = it; editing = true }
     }
 
-    HeroPage("Abhyasika room plan", "${seats.size} seats · ${looks[Look.Free] ?: 0} free · Potential ${rupees(potential)}/mo",
+    HeroPage("Abhyasika room plan", "${seats.size} seats · ${looks[Look.Free] ?: 0} free" + if (potential > 0) " · Potential ${rupees(potential)}/mo" else "",
         actions = {
             Row(Modifier.clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.25f)).border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)).padding(2.dp)) {
                 ModeChip("Live map", !editing, Color.White, Brand.Blue700) { editing = false }
@@ -189,7 +189,7 @@ internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (L
         val ty = typeForSeat(n, types)
         ModalBottomSheet({ seatSheet = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
             Column(Modifier.padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("${if (xl) "Extra legroom XL seat" else "Normal seat"} · ${rupees(ty?.fee ?: 0)}/mo".uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                Text(("${if (xl) "Extra legroom XL seat" else "Normal seat"}" + ((m?.monthlyFee?.takeIf { it > 0 } ?: ty?.fee)?.takeIf { it > 0 }?.let { " · ${rupees(it)}/mo" } ?: "")).uppercase(), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = if (xl) XlEdge else Brand.Blue700)
                 Text("Seat $n", style = MaterialTheme.typography.titleLarge, color = Brand.Ink)
                 if (m == null) {
@@ -208,12 +208,16 @@ internal fun RoomPlanPage(vm: LibraryViewModel, onAdd: (Int) -> Unit, onOpen: (L
                         SheetLine("Valid until", m.validTill.asDate(), look.color)
                     }
                     var vacate by remember { mutableStateOf(false) }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Renew +1 month (${rupees(m.monthlyFee)})", Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Brand.Green600).clickable {
-                            vm.pay(m.copy(validTill = renewedTill(m.validTill, t, 1), planName = "1 month"), "FEE", m.monthlyFee, "Cash"); seatSheet = null
-                        }.padding(vertical = 11.dp), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Color.White, textAlign = TextAlign.Center)
-                        Text("Vacate seat", Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Brand.Red50).border(1.dp, Brand.Red100, RoundedCornerShape(12.dp)).clickable { vacate = true }
-                            .padding(vertical = 11.dp), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Red700, textAlign = TextAlign.Center)
+                    Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // opens the same renewal sheet as the member page: period, amount, Cash or UPI, confirm, receipt
+                        Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(Brand.Green600).clickable { seatSheet = null; onRenew(m.id) }
+                            .padding(vertical = 11.dp, horizontal = 6.dp), Alignment.Center) {
+                            Text("Renew…", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Color.White, textAlign = TextAlign.Center)
+                        }
+                        Box(Modifier.weight(1f).fillMaxHeight().clip(RoundedCornerShape(12.dp)).background(Brand.Red50).border(1.dp, Brand.Red100, RoundedCornerShape(12.dp)).clickable { vacate = true }
+                            .padding(vertical = 11.dp, horizontal = 6.dp), Alignment.Center) {
+                            Text("Vacate seat", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Red700, textAlign = TextAlign.Center)
+                        }
                     }
                     Text("Open member page ›", Modifier.clickable { seatSheet = null; onOpen(m.id) }.padding(4.dp), style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
                     if (vacate) ConfirmDialog("Vacate seat $n?", "${m.name} moves to past members. Records are kept." +

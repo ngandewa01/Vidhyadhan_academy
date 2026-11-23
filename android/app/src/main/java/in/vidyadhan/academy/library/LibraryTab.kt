@@ -78,7 +78,7 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
 private sealed interface Screen {
     data object Main : Screen
     data class Form(val seat: Int, val id: Long = 0) : Screen
-    data class Detail(val id: Long) : Screen
+    data class Detail(val id: Long, val renew: Boolean = false) : Screen
     data object Plans : Screen
 }
 
@@ -127,14 +127,14 @@ fun LibraryTab(
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "lib") { s ->
         when (s) {
-            Screen.Main -> if (seats) RoomPlanPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) }, onMembers = { seats = false })
+            Screen.Main -> if (seats) RoomPlanPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) }, onMembers = { seats = false }, onRenew = { screen = Screen.Detail(it, renew = true) })
             else MembersPage(vm, memberFilter, { memberFilter = it }, onAdd = {
                 val taken = members.filter { it.active }.map { it.seatNo }.toSet()
                 screen = Screen.Form(allSeats(vm.rooms.value, AppSettings.seatCount).firstOrNull { it !in taken } ?: 0)
             }, onOpen = { screen = Screen.Detail(it) }, onPlans = { screen = Screen.Plans }, switcher = switcher)
             Screen.Plans -> PlansPage(vm) { screen = Screen.Main }
             is Screen.Form -> MemberForm(vm, s.seat, s.id, onCancel = { screen = if (s.id == 0L) Screen.Main else Screen.Detail(s.id) }, onSaved = { screen = Screen.Detail(it) })
-            is Screen.Detail -> MemberDetail(vm, s.id, onBack = { screen = Screen.Main }, onOpen = { screen = Screen.Detail(it) }, onEdit = { screen = Screen.Form(0, s.id) })
+            is Screen.Detail -> MemberDetail(vm, s.id, startRenew = s.renew, onBack = { screen = Screen.Main }, onOpen = { screen = Screen.Detail(it) }, onEdit = { screen = Screen.Form(0, s.id) })
         }
     }
 }
@@ -302,7 +302,7 @@ private fun MemberForm(vm: LibraryViewModel, startSeat: Int, id: Long, onCancel:
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onOpen: (Long) -> Unit, onEdit: () -> Unit) {
+private fun MemberDetail(vm: LibraryViewModel, id: Long, startRenew: Boolean = false, onBack: () -> Unit, onOpen: (Long) -> Unit, onEdit: () -> Unit) {
     val ctx = LocalContext.current
     val mm by remember(id) { vm.member(id) }.collectAsStateWithLifecycle(null)
     val pays by remember(id) { vm.payments(id) }.collectAsStateWithLifecycle(emptyList())
@@ -312,7 +312,7 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     val plans by vm.plans.collectAsStateWithLifecycle()
     var confirm by remember { mutableStateOf(false) }
     var vacate by remember { mutableStateOf(false) }
-    var collect by remember { mutableStateOf<String?>(null) } // FEE, BALANCE, DEPOSIT or DEPOSIT_RETURN
+    var collect by remember { mutableStateOf<String?>(if (startRenew) "FEE" else null) } // FEE, BALANCE, DEPOSIT or DEPOSIT_RETURN
     var saved by remember { mutableStateOf<LibraryPayment?>(null) }
     var viewPhoto by remember { mutableStateOf<String?>(null) }
     val m = mm ?: return
