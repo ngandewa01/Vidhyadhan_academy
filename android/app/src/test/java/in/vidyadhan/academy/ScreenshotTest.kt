@@ -178,6 +178,14 @@ class ScreenshotTest {
         backButton()
         nav("Settings"); rule.onNodeWithText("Telegram bot").performScrollTo().performClick(); shot("17-settings")
         back()
+        // Telegram people: everyone listed, connected or not
+        AppSettings.botToken = "test"; AppSettings.botName = "TestBot"; AppSettings.setTelegramChat("k_s1", 11L)
+        nav("Dashboard"); nav("Settings"); rule.onNodeWithText("Telegram bot").performScrollTo().performClick(); settle()
+        rule.onNodeWithText("Telegram people", substring = true).performScrollTo().performClick(); settle(); shot("17b-tg-people")
+        rule.onAllNodesWithText("Not connected", substring = true)[0].performClick(); settle(); shot("17c-tg-not-connected")
+        rule.onAllNodesWithText("Connect")[0].performClick(); settle(); shot("17d-tg-connect")
+        back(); back(); back()
+        AppSettings.botToken = ""; AppSettings.botName = ""; AppSettings.clearTelegramChat("k_s1")
 
         // the same main screens with large text, as on the owner's phone (catches cut-off and overflowing text)
         org.robolectric.RuntimeEnvironment.setFontScale(1.3f)

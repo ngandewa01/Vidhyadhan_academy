@@ -99,7 +99,7 @@ fun BotPage(onGo: (Go, Long) -> Unit, onBack: () -> Unit = {}, onMessages: () ->
                     Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Sky50), Alignment.Center) { Icon(Icons.Rounded.Groups, null, tint = Sky700) }
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Connected people · $linked", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
+                        Text("Telegram people · $linked connected", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
                         Text(sub, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                     }
                     Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Slate400)
