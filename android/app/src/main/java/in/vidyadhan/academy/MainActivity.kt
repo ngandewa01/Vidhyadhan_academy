@@ -151,7 +151,7 @@ private fun AppShell(lock: LockStore) {
                             Tab.Library -> LibraryTab(openSeats = pending == Go.Seats, openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0,
                                 startFilter = when (pending) { Go.MemberDues -> MemberFilter.Expired; Go.MemberEnding -> MemberFilter.Ending; else -> MemberFilter.All }, onOpened = done)
                             Tab.More -> SettingsTab(lock, openBackup = pending == Go.Backup, onOpened = done, asTab = true, onGo = ::go)
-                            Tab.Money -> MoneyTab(openNew = pending == Go.NewExpense, onOpened = done)
+                            Tab.Money -> MoneyTab(openNew = pending == Go.NewExpense, onOpened = done, onGo = ::go)
                         }
                     }
                 }

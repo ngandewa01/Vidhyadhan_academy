@@ -420,22 +420,26 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                     pays.forEachIndexed { i, p ->
                         if (i > 0) HorizontalDivider(Modifier.padding(start = 70.dp, end = 16.dp), color = Brand.Line)
                         val out = p.kind == "DEPOSIT_RETURN"
-                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconTile(when (p.kind) { "FEE" -> Icons.Rounded.CalendarMonth; "DEPOSIT", "DEPOSIT_RETURN" -> Icons.Rounded.Savings; else -> Icons.Rounded.HowToReg },
-                                if (out) Brand.Red600 else Brand.Green600, 40.dp)
-                            Spacer(Modifier.width(14.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(kindLabel(p.kind), style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
-                                Text(p.paidOn.asDate() + if (p.mode.isNotBlank()) " · ${p.mode}" else "", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconTile(when (p.kind) { "FEE" -> Icons.Rounded.CalendarMonth; "DEPOSIT", "DEPOSIT_RETURN" -> Icons.Rounded.Savings; else -> Icons.Rounded.HowToReg },
+                                    if (out) Brand.Red600 else Brand.Green600, 40.dp)
+                                Spacer(Modifier.width(14.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(kindLabel(p.kind), style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                                    Text(p.paidOn.asDate() + if (p.mode.isNotBlank()) " · ${p.mode}" else "", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text((if (out) "− " else "+ ") + rupees(p.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
+                                    color = if (out) Brand.Red600 else Brand.Green700, maxLines = 1, softWrap = false)
                             }
-                            Text((if (out) "− " else "+ ") + rupees(p.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
-                                color = if (out) Brand.Red600 else Brand.Green700)
-                            Spacer(Modifier.width(6.dp))
-                            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send receipt on WhatsApp", Brand.WhatsAppDark) { whatsappReceipt(ctx, receiptOf(p), m.mobile) }
-                            Spacer(Modifier.width(6.dp))
-                            SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receiptFor = p }
-                            Spacer(Modifier.width(6.dp))
-                            SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
+                            Row(Modifier.padding(start = 54.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    PayAction("WhatsApp", Icons.AutoMirrored.Rounded.Chat, Brand.WhatsAppDark, Color(0xFFE7F6F3)) { whatsappReceipt(ctx, receiptOf(p), m.mobile) }
+                                    PayAction("Receipt", Icons.Rounded.ReceiptLong, Brand.Blue600, Color(0xFFEFF6FF)) { receiptFor = p }
+                                }
+                                SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
+                            }
                         }
                     }
                 }
@@ -506,4 +510,14 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
         onConfirm = { tg -> if (tg) `in`.vidyadhan.academy.telegram.TelegramBot.unlink("m${m.id}")
             Photos.delete(ctx, m.photo); Photos.delete(ctx, m.aadhaarPhoto); vm.delete(m); confirm = false; onBack() }, onDismiss = { confirm = false })
     viewPhoto?.let { PhotoViewer(it) { viewPhoto = null } }
+}
+
+
+@Composable
+private fun PayAction(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, fg: Color, bg: Color, onClick: () -> Unit) {
+    Row(Modifier.clip(RoundedCornerShape(50)).background(bg).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = fg, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1, softWrap = false)
+    }
 }

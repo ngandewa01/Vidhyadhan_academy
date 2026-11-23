@@ -156,6 +156,7 @@ class ScreenshotTest {
         rule.onNode(hasSetTextAction()).performTextReplacement("Snehal"); settle()
         rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Snehal Mane"))
         rule.onNodeWithText("Snehal Mane").performClick(); shot("10-member-detail")
+        rule.onAllNodesWithText("Receipt")[0].performScrollTo(); shot("10a-member-payments")
         rule.onNodeWithContentDescription("Edit").performClick(); shot("10b-member-edit")
         rule.onNodeWithText("Seat and locker").performScrollTo(); shot("10c-member-locker")
         backButton()
@@ -169,6 +170,8 @@ class ScreenshotTest {
         backButton()
 
         nav("Settings"); rule.onNodeWithText("Reports").performScrollTo().performClick(); shot("13-money")
+        if (rule.onAllNodesWithText("Who paid", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()) { rule.onNodeWithText("Who paid", substring = true, ignoreCase = true).performScrollTo(); shot("13a-who-paid") }
+        if (rule.onAllNodesWithText("Where it went", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()) { rule.onNodeWithText("Enquiries ·", substring = true).performScrollTo(); shot("13c-where-went") }
         rule.onNodeWithText("Expenses (3)").performClick(); shot("13b-expenses")
         nav("Settings"); rule.onNodeWithText("Broadcast").performScrollTo().performClick(); shot("14-broadcast")
         backButton()
@@ -211,6 +214,9 @@ class ScreenshotTest {
         rule.onNodeWithText("Course fee").performTextInput("45000"); settle()
         rule.onNodeWithText("Unequal plan").performScrollTo(); shot("L5-admission-plan")
         nav("Abhyasika"); shot("L6-room")
+        nav("Settings"); rule.onNodeWithText("Reports").performScrollTo().performClick(); settle()
+        if (rule.onAllNodesWithText("Who paid", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()) { rule.onNodeWithText("Who paid", substring = true, ignoreCase = true).performScrollTo(); shot("L10-who-paid") }
+        if (rule.onAllNodesWithText("Where it went", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()) { rule.onNodeWithText("Where it went", substring = true, ignoreCase = true).performScrollTo(); shot("L11-where-went") }
         nav("Settings"); shot("L7-bot")
         `in`.vidyadhan.academy.cloud.Cloud.previewSignedIn("vidyadhan.academy@gmail.com")
         `in`.vidyadhan.academy.cloud.Devices.preview(listOf(

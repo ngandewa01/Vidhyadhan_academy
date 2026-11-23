@@ -82,7 +82,7 @@ fun categoryIcon(c: String): Pair<ImageVector, Color> = when (c) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
+fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}, onGo: (`in`.vidyadhan.academy.home.Go, Long) -> Unit = { _, _ -> }) {
     val ctx = LocalContext.current
     val db = remember { AppDb.get(ctx) }
     val scope = rememberCoroutineScope()
@@ -96,6 +96,8 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
     var edit by remember { mutableStateOf<Expense?>(null) }
     LaunchedEffect(openNew) { if (openNew) { view = "expenses"; edit = Expense(category = "", amount = 0, spentOn = today()); onOpened() } }
     val kh by db.khata().payments().collectAsStateWithLifecycle(emptyList())
+    val students by db.students().students().collectAsStateWithLifecycle(emptyList())
+    val members by db.library().members().collectAsStateWithLifecycle(emptyList())
     var period by rememberSaveable { mutableStateOf("month") }
     val cur = monthMoney(month, sp, lp, ex, kh)
     // the months in the chosen period: one month, the months of a year, or every month since the first record
@@ -192,6 +194,7 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                             LegendLine(Brand.Green500, "Total collected", rupees(cur.collected))
                             if (cur.depositsIn + cur.depositsOut > 0) Text("Deposits are kept aside, not counted as income: ${rupees(cur.depositsIn)} received, ${rupees(cur.depositsOut)} returned.",
                                 style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, modifier = Modifier.padding(top = 6.dp))
+                            WhoPaid(month, sp, lp, kh, students, members, onGo)
                         }
                         Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("Money out · ${rupees(cur.expenses)}", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
@@ -206,6 +209,18 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                                         ProgressBar(a.toFloat() / cur.expenses, color = col, track = Brand.Line, height = 5.dp)
                                     }
                                 }
+                            }
+                            val mEx = ex.filter { it.spentOn in month.range() }.sortedByDescending { it.spentOn }
+                            if (mEx.isNotEmpty()) {
+                                Column {
+                                SubHead("Where it went · ${mEx.size} expense${if (mEx.size == 1) "" else "s"}")
+                                mEx.forEachIndexed { i, e ->
+                                    if (i > 0) HorizontalDivider(color = Brand.Line)
+                                    val (ic, col) = categoryIcon(e.category)
+                                    LineItem(ic, col, e.note.ifBlank { e.category }, listOfNotNull(e.category.takeIf { e.note.isNotBlank() }, e.spentOn.shortDay()).joinToString(" · "),
+                                        rupees(e.amount), Brand.Saffron700) { edit = e }
+                                }
+                            }
                             }
                         }
                         val mEnq = enq.filter { it.createdOn in month.range() }
@@ -378,4 +393,79 @@ fun shareReport(ctx: Context, m: MonthMoney, enquiries: List<Enquiry>) {
     ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
         type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }, "Share report").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
+
+private fun Long.shortDay(): String = java.time.LocalDate.ofEpochDay(this).format(DateTimeFormatter.ofPattern("d MMM"))
+
+@Composable
+private fun SubHead(text: String) =
+    Text(text.uppercase(), Modifier.padding(top = 14.dp, bottom = 4.dp), style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
+
+/** One line of the report: icon or initials, what, details, amount; tap to open. */
+@Composable
+private fun LineItem(icon: ImageVector?, color: Color, title: String, sub: String, amount: String, amountColor: Color, initials: String = "", onClick: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth().let { if (onClick != null) it.clickable(onClick = onClick) else it }.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.12f)), Alignment.Center) {
+            if (icon != null) Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+            else Text(initials, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold,
+                fontSize = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toSp() }), color = color, maxLines = 1, softWrap = false)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(sub, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 2)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(amount, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = amountColor, maxLines = 1, softWrap = false)
+    }
+}
+
+private data class Paid(val kind: String, val name: String, val what: String, val day: Long, val mode: String, val amount: Long, val go: `in`.vidyadhan.academy.home.Go?, val id: Long)
+
+/** Every payment counted in the month's "collected", newest first, with filters and Show all. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WhoPaid(month: YearMonth, sp: List<StudentPayment>, lp: List<LibraryPayment>, kh: List<KhataEntry>,
+                    students: List<Student>, members: List<LibraryMember>, onGo: (`in`.vidyadhan.academy.home.Go, Long) -> Unit) {
+    val r = month.range()
+    val all = remember(month, sp, lp, kh, students, members) {
+        val sById = students.associateBy { it.id }; val mById = members.associateBy { it.id }
+        buildList {
+            sp.filter { it.paidOn in r }.forEach { p ->
+                val s = sById[p.studentId]
+                add(Paid("c", s?.name ?: "Student (removed)", "Course fee" + (s?.course?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""), p.paidOn, p.mode, p.amount, if (s != null) `in`.vidyadhan.academy.home.Go.Student else null, p.studentId))
+            }
+            lp.filter { it.paidOn in r && (it.kind == "FEE" || it.kind == "REGISTRATION") }.forEach { p ->
+                val m = mById[p.memberId]
+                add(Paid(if (p.kind == "FEE") "l" else "r", m?.name ?: "Member (removed)", if (p.kind == "FEE") "Abhyasika" + (m?.let { " · seat ${it.seatNo}" } ?: "") else "Registration",
+                    p.paidOn, p.mode, p.amount, if (m != null) `in`.vidyadhan.academy.home.Go.Member else null, p.memberId))
+            }
+            kh.filter { it.kind == "PAYMENT" && it.date in r }.forEach { k -> add(Paid("c", k.name, "Old book payment", k.date, "", k.credit, null, 0)) }
+        }.sortedByDescending { it.day }
+    }
+    if (all.isEmpty()) return
+    var filter by rememberSaveable(month.toString()) { mutableStateOf("all") }
+    var showAll by rememberSaveable(month.toString()) { mutableStateOf(false) }
+    val shown = all.filter { filter == "all" || it.kind == filter }
+    SubHead("Who paid · ${all.size} payment${if (all.size == 1) "" else "s"}")
+    FlowRow(Modifier.padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf("all" to "All", "c" to "Course", "l" to "Abhyasika", "r" to "Registration").filter { (k, _) -> k == "all" || all.any { it.kind == k } }.forEach { (k, l) ->
+            val on = filter == k
+            Text(l, Modifier.clip(RoundedCornerShape(50)).background(if (on) Brand.Blue100 else Color.White).border(1.dp, if (on) Brand.Blue700.copy(alpha = 0.4f) else Brand.Line, RoundedCornerShape(50))
+                .clickable { filter = k }.padding(horizontal = 11.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, color = if (on) Brand.Blue700 else Brand.Slate600, maxLines = 1)
+        }
+    }
+    (if (showAll) shown else shown.take(5)).forEachIndexed { i, p ->
+        if (i > 0) HorizontalDivider(color = Brand.Line)
+        val color = when (p.kind) { "l" -> Brand.Green700; "r" -> Brand.Violet700; else -> Brand.Blue700 }
+        LineItem(null, color, p.name, listOf(p.what, p.day.shortDay()).plus(listOfNotNull(p.mode.ifBlank { null })).joinToString(" · "), rupees(p.amount), Brand.Ink,
+            initials = p.name.split(" ").filter { it.firstOrNull()?.isLetter() == true }.take(2).joinToString("") { it.take(1).uppercase() }.ifBlank { "?" },
+            onClick = p.go?.let { g -> { onGo(g, p.id) } })
+    }
+    if (shown.size > 5) {
+        HorizontalDivider(color = Brand.Line)
+        Text(if (showAll) "Show less" else "Show all ${shown.size} ›", Modifier.fillMaxWidth().clickable { showAll = !showAll }.padding(top = 10.dp, bottom = 2.dp),
+            style = MaterialTheme.typography.labelLarge, color = Brand.Blue700, textAlign = TextAlign.Center)
+    }
 }
