@@ -45,6 +45,8 @@ fun BotPage(onGo: (Go, Long) -> Unit, onBack: () -> Unit = {}, onMessages: () ->
     var linked by remember { mutableIntStateOf(TelegramBot.linkedCount()) }
     var preview by remember { mutableStateOf("receipt") }
     val connected = TelegramBot.connected
+    var showPeople by remember { mutableStateOf(false) }
+    if (showPeople) { ConnectedPeoplePage { showPeople = false; linked = TelegramBot.linkedCount() }; return }
     LaunchedEffect(connected) { if (connected) linked = TelegramBot.refresh() }
 
     HeroPage("Telegram & WhatsApp", if (connected) "@${AppSettings.botName} · Connected ✓" else "Bot not connected yet", onBack = onBack,
@@ -67,21 +69,46 @@ fun BotPage(onGo: (Go, Long) -> Unit, onBack: () -> Unit = {}, onMessages: () ->
             } else Card("Your bot", trailing = { Text("Live Bot API", Modifier.clip(RoundedCornerShape(50)).background(Brand.Green50).padding(horizontal = 8.dp, vertical = 2.dp),
                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Green700) }) {
                 val withTg = students.count { it.leftOn == null && it.telegram.isNotBlank() }
-                Text("$linked connected on Telegram · new ones are picked up every 15 minutes", style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
+                Text("New connections are picked up every 15 minutes.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
                 Text(if (AppSettings.botOwnerChat != 0L) "Test messages come to you ✓" else "Send /owner to your bot to get the test messages yourself.",
                     style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                 Text(if (AppSettings.botStaffChat != 0L) "Staff group connected ✓" else "For the staff digest: add the bot to your staff group and send /staff there.",
                     style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SoftButton("Share bot link", {
                         val msg = "${AppSettings.academyName}: get your fee receipts, reminders and MPSC updates on Telegram. Open ${TelegramBot.joinLink}, press Start, then tap “Share my phone number”."
                         runCatching { ctx.startActivity(android.content.Intent.createChooser(android.content.Intent(android.content.Intent.ACTION_SEND).setType("text/plain")
                             .putExtra(android.content.Intent.EXTRA_TEXT, msg), "Share bot link")) }
                     },
-                        Modifier.weight(1f), icon = Icons.Rounded.Share)
-                    SoftButton("Refresh", { scope.launch { linked = TelegramBot.refresh() } }, Modifier.weight(1f), icon = Icons.Rounded.Refresh)
+                        Modifier.fillMaxWidth(), icon = Icons.Rounded.Share)
+                    SoftButton("Refresh now", { scope.launch { linked = TelegramBot.refresh() } }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Refresh)
                 }
-                Text("Disconnect bot", Modifier.clickable { TelegramBot.disconnect(); token = "" }.padding(2.dp), style = MaterialTheme.typography.labelMedium, color = Brand.Red600)
+            }
+
+            // who is connected: one row; the list opens on its own page
+            if (connected) {
+                val keys = TelegramBot.linkedKeys()
+                val groups = listOf(AppSettings.botStudentsChat, AppSettings.botStaffChat).count { it != 0L }
+                val sub = listOfNotNull(keys.count { it.startsWith("s") }.takeIf { it > 0 }?.let { "$it student${if (it == 1) "" else "s"}" },
+                    keys.count { it.startsWith("m") }.takeIf { it > 0 }?.let { "$it Abhyasika" },
+                    keys.count { it.startsWith("e") }.takeIf { it > 0 }?.let { "$it enquir${if (it == 1) "y" else "ies"}" },
+                    groups.takeIf { it > 0 }?.let { "$it group${if (it == 1) "" else "s"}" },
+                    if (AppSettings.botOwnerChat != 0L) "you" else null).joinToString(" · ").ifBlank { "No one yet: share the bot link" }
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(22.dp)).background(Color.White).border(1.dp, Brand.Line, RoundedCornerShape(22.dp))
+                    .clickable { showPeople = true }.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(Sky50), Alignment.Center) { Icon(Icons.Rounded.Groups, null, tint = Sky700) }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Connected people · $linked", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
+                        Text(sub, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                    }
+                    Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Slate400)
+                }
+                Card("Disconnect the bot") {
+                    Text("Stops all Telegram messages from the app. People stay connected and come back if you connect the bot again.",
+                        style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
+                    SoftButton("Disconnect bot", { TelegramBot.disconnect(); token = "" }, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.Rounded.LinkOff)
+                }
             }
 
             Card("Automated Telegram workflows") {

@@ -102,6 +102,8 @@ object AppSettings {
     /** Telegram chat of a student, learnt when they press Start in the bot; keyed by @username (lower case). */
     fun telegramChat(username: String): Long? = s["tg_${username.lowercase().removePrefix("@")}"]?.toLongOrNull()
     fun setTelegramChat(username: String, chat: Long) = put("tg_${username.lowercase().removePrefix("@")}", chat.toString())
+    /** Forgets one Telegram link (they can connect again with the join link). */
+    fun clearTelegramChat(username: String) = put("tg_${username.lowercase().removePrefix("@")}", "")
     fun telegramChats(): Map<String, Long> = s.filterKeys { it.startsWith("tg_") }.mapNotNull { (k, v) -> v.toLongOrNull()?.let { k.removePrefix("tg_") to it } }.toMap()
 
     /** Day (epoch day) of the last successful backup; 0 = never. */

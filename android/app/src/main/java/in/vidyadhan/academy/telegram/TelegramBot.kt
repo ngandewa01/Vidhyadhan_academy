@@ -126,6 +126,10 @@ object TelegramBot {
 
     fun linkedCount() = AppSettings.telegramChats().keys.count { it.startsWith("k_") }
     fun isLinked(key: String) = AppSettings.telegramChat("k_$key") != null
+    /** Keys of everyone connected: s12 (student), m3 (Abhyasika member), e5 (enquiry). */
+    fun linkedKeys(): List<String> = AppSettings.telegramChats().keys.filter { it.startsWith("k_") }.map { it.removePrefix("k_") }
+    /** Stops messages to one person; they can connect again with the join link. */
+    fun unlink(key: String) = AppSettings.clearTelegramChat("k_$key")
     /** The personal link for a student (s12), Abhyasika member (m3) or enquiry (e5): tapping Start in it links them. */
     fun linkFor(key: String) = "$link?start=$key"
     fun invite(key: String) = "${AppSettings.academyName}: get your fee receipts and reminders on Telegram. Tap ${linkFor(key)} and press Start."
