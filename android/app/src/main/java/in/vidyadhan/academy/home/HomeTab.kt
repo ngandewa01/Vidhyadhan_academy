@@ -358,42 +358,61 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SheetTitle("Today's alerts & Telegram feed", if (`in`.vidyadhan.academy.telegram.TelegramBot.connected)
                 "Due reminders and birthday wishes go out by the bot at ${"%02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)}" else "Everything that needs you today")
-            if (callsToday > 0) OptionRow(Icons.Rounded.Call, Brand.Saffron500, "$callsToday enquir${if (callsToday == 1) "y" else "ies"} to call") { showReminders = false; onGo(Go.Enquiries, 0) }
             if (birthdays.isNotEmpty()) OptionRow(Icons.Rounded.Cake, Brand.Saffron500, "${birthdays.size} birthday${if (birthdays.size == 1) "" else "s"} today") { showReminders = false; showBirthdays = true }
             if (alerts == 0) Text("Nothing needs you today ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
-            // the people behind the counts: each one can be reminded straight from here
+            // three tabs: enquiries, academy fees, Abhyasika fees
             val dueStudents = students.filter { it.nextDue != null && it.nextDue <= t }.sortedBy { it.nextDue }
             val dueMembers = active.filter { it.validTill <= t || it.balance > 0 }.sortedBy { it.validTill }
-            // academy first, then Abhyasika; each list shows 5 and opens in full with "Show all", so both stay reachable
+            val enqList = openEnq.sortedBy { it.followUpOn }
+            var tab by rememberSaveable { mutableStateOf("enq") }
             var showAllAcad by remember { mutableStateOf(false) }
             var showAllLib by remember { mutableStateOf(false) }
-            if (dueStudents.isNotEmpty()) {
-                Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("ACADEMY · ${dueStudents.size} DUE", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
-                    Text("Quick collect ›", Modifier.clickable { showReminders = false; showCollect = true }.padding(4.dp), style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
+            Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("enq" to "Enquiries ${enqList.size}", "acad" to "Academy ${dueStudents.size}", "lib" to "Abhyasika ${dueMembers.size}").forEach { (k, l) ->
+                    val on = tab == k
+                    Text(l, Modifier.weight(1f).clip(RoundedCornerShape(50)).background(if (on) Brand.Blue700 else Color.White)
+                        .border(1.dp, if (on) Brand.Blue700 else Brand.Line, RoundedCornerShape(50)).clickable { tab = k }.padding(vertical = 8.dp),
+                        style = MaterialTheme.typography.labelLarge, color = if (on) Color.White else Brand.Slate600, textAlign = TextAlign.Center, maxLines = 1)
                 }
-                (if (showAllAcad) dueStudents else dueStudents.take(5)).forEach { s ->
-                    val due = s.nextDue ?: t
-                    val tgKey = if (`in`.vidyadhan.academy.telegram.TelegramBot.isLinked("s${s.id}")) "s${s.id}" else null
-                    ReminderPerson(s.name, "Instalment ${if (due < t) "overdue since" else "due"} ${shortDate(due)} · ${rupees(s.nextDueAmount)}", due < t,
-                        onOpen = { showReminders = false; onGo(Go.Student, s.id) },
-                        onRemind = { Contact.whatsapp(ctx, s.mobile, feeMessage(true, s.name, s.nextDueAmount, due, AppSettings.academyName)) },
-                        telegramKey = tgKey,
-                        onTelegram = { tgSend(ctx, "s${s.id}", feeMessage(true, s.name, s.nextDueAmount, due, AppSettings.academyName)) })
-                }
-                if (dueStudents.size > 5) TextButton(onClick = { showAllAcad = !showAllAcad }) { Text(if (showAllAcad) "Show less" else "Show all ${dueStudents.size}") }
             }
-            if (dueMembers.isNotEmpty()) {
-                Text("ABHYASIKA · ${dueMembers.size} DUE", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, modifier = Modifier.padding(top = 10.dp))
-                (if (showAllLib) dueMembers else dueMembers.take(5)).forEach { m ->
-                    val tgKey = if (`in`.vidyadhan.academy.telegram.TelegramBot.isLinked("m${m.id}")) "m${m.id}" else null
-                    ReminderPerson("${m.name} · Seat ${m.seatNo}", if (m.validTill < t) "Renewal overdue since ${shortDate(m.validTill)}" else if (m.validTill <= t) "Renewal due today" else "Balance ${rupees(m.balance)}", m.validTill < t,
-                        onOpen = { showReminders = false; onGo(Go.Member, m.id) },
-                        onRemind = { Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) },
-                        telegramKey = tgKey,
-                        onTelegram = { tgSend(ctx, "m${m.id}", libraryReminder(m, t)) })
+            when (tab) {
+                "enq" -> {
+                    if (enqList.isEmpty()) Text("No enquiries to follow up ✓", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500, modifier = Modifier.padding(top = 6.dp))
+                    enqList.take(8).forEach { e ->
+                        ReminderPerson(e.name, (if (e.followUpOn <= t) "Follow up today" else "Follow up ${relativeDay(e.followUpOn)}") + if (e.source.isNotBlank()) " · ${e.source}" else "",
+                            e.followUpOn <= t, onOpen = { showReminders = false; onGo(Go.Enquiries, 0) },
+                            onRemind = { Contact.whatsapp(ctx, e.mobile) })
+                    }
                 }
-                if (dueMembers.size > 5) TextButton(onClick = { showAllLib = !showAllLib }) { Text(if (showAllLib) "Show less" else "Show all ${dueMembers.size}") }
+                "acad" -> {
+                    Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Fees due now", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
+                        Text("Quick collect ›", Modifier.clickable { showReminders = false; showCollect = true }.padding(4.dp), style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
+                    }
+                    if (dueStudents.isEmpty()) Text("No academy fees due ✓", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+                    (if (showAllAcad) dueStudents else dueStudents.take(5)).forEach { s ->
+                        val due = s.nextDue ?: t
+                        val tgKey = if (`in`.vidyadhan.academy.telegram.TelegramBot.isLinked("s${s.id}")) "s${s.id}" else null
+                        ReminderPerson(s.name, "${if (due < t) "Overdue" else "Due"} ${shortDate(due)} · ${rupees(s.nextDueAmount)}", due < t,
+                            onOpen = { showReminders = false; onGo(Go.Student, s.id) },
+                            onRemind = { Contact.whatsapp(ctx, s.mobile, feeMessage(true, s.name, s.nextDueAmount, due, AppSettings.academyName)) },
+                            telegramKey = tgKey,
+                            onTelegram = { tgSend(ctx, "s${s.id}", feeMessage(true, s.name, s.nextDueAmount, due, AppSettings.academyName)) })
+                    }
+                    if (dueStudents.size > 5) TextButton(onClick = { showAllAcad = !showAllAcad }) { Text(if (showAllAcad) "Show less" else "Show all ${dueStudents.size}") }
+                }
+                else -> {
+                    if (dueMembers.isEmpty()) Text("No Abhyasika fees due ✓", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+                    (if (showAllLib) dueMembers else dueMembers.take(5)).forEach { m ->
+                        val tgKey = if (`in`.vidyadhan.academy.telegram.TelegramBot.isLinked("m${m.id}")) "m${m.id}" else null
+                        ReminderPerson("${m.name} · Seat ${m.seatNo}", if (m.validTill < t) "Renewal overdue since ${shortDate(m.validTill)}" else if (m.validTill <= t) "Renewal due today" else "Balance ${rupees(m.balance)}", m.validTill < t,
+                            onOpen = { showReminders = false; onGo(Go.Member, m.id) },
+                            onRemind = { Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) },
+                            telegramKey = tgKey,
+                            onTelegram = { tgSend(ctx, "m${m.id}", libraryReminder(m, t)) })
+                    }
+                    if (dueMembers.size > 5) TextButton(onClick = { showAllLib = !showAllLib }) { Text(if (showAllLib) "Show less" else "Show all ${dueMembers.size}") }
+                }
             }
         }
     }
@@ -734,19 +753,19 @@ private fun RecordAnySheet(students: List<StudentWithFees>, members: List<Librar
 /** A person in the reminders list: tap the name to open them, Remind sends the WhatsApp reminder. */
 @Composable
 private fun ReminderPerson(name: String, detail: String, late: Boolean, onOpen: () -> Unit, onRemind: () -> Unit, telegramKey: String? = null, onTelegram: (() -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f).clickable(onClick = onOpen)) {
+    // quiet colours: a muted amber for "late", never a hard red
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White).border(1.dp, Brand.Line, RoundedCornerShape(14.dp))
+        .clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
             Text(name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(detail, style = MaterialTheme.typography.bodySmall, color = if (late) Brand.Red600 else Brand.Slate500, maxLines = 2)
+            Text(detail, style = MaterialTheme.typography.labelMedium, color = if (late) Color(0xFF9A6700) else Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        Spacer(Modifier.width(8.dp))
-        // Telegram only when the person is connected: the bot sends it, so there is no WhatsApp step
+        Spacer(Modifier.width(6.dp))
         if (telegramKey != null && onTelegram != null) ChannelButton("Telegram", Color(0xFF229ED9), onTelegram) {
-            Icon(Icons.AutoMirrored.Rounded.Send, "Send on Telegram", tint = Color(0xFF229ED9), modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Rounded.Send, "Send on Telegram", tint = Color(0xFF229ED9), modifier = Modifier.size(18.dp))
         }
-        Spacer(Modifier.width(8.dp))
-        ChannelButton("WhatsApp", Brand.WhatsAppDark, onRemind) { WhatsAppLogo(Modifier.size(26.dp)) }
+        Spacer(Modifier.width(6.dp))
+        ChannelButton("WhatsApp", Brand.WhatsAppDark, onRemind) { WhatsAppLogo(Modifier.size(30.dp)) }
     }
 }
 
