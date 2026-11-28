@@ -160,7 +160,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
         else -> Color.Transparent
     }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
-        .drawBehind { if (edgeColor != Color.Transparent) drawRoundRect(edgeColor, topLeft = androidx.compose.ui.geometry.Offset(0f, 18.dp.toPx()), size = androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height - 36.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())) }
+        .drawBehind { if (edgeColor != Color.Transparent) drawRect(edgeColor, size = androidx.compose.ui.geometry.Size(6.dp.toPx(), size.height)) }
         .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.Top) {
             Box {

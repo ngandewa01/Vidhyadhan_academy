@@ -49,6 +49,7 @@ private fun matches(f: MemberFilter, m: LibraryMember, t: Long): Boolean = when 
 
 /** "Members": counts, search, filters and the member cards. */
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: (MemberFilter) -> Unit, onAdd: () -> Unit, onOpen: (Long) -> Unit, onRenew: (Long) -> Unit = onOpen, onPlans: () -> Unit,
                          switcher: @Composable () -> Unit = {}) {
     val ctx = LocalContext.current
@@ -159,7 +160,7 @@ internal fun MemberCard(m: LibraryMember, rooms: List<LibraryRoom>, t: Long, onC
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 5.dp).clip(RoundedCornerShape(22.dp))
         .pressCard(RoundedCornerShape(22.dp), onClick, normal = Brand.Line)
         // status strip down the left edge, rounded and inset (same as the student cards)
-        .drawBehind { if (edge != Color.Transparent) drawRoundRect(edge, topLeft = androidx.compose.ui.geometry.Offset(0f, 18.dp.toPx()), size = androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height - 36.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())) }
+        .drawBehind { if (edge != Color.Transparent) drawRect(edge, size = androidx.compose.ui.geometry.Size(6.dp.toPx(), size.height)) }
         .padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Avatar(m.name, 48.dp, photo = m.photo)

@@ -1,8 +1,8 @@
 package `in`.vidyadhan.academy.enquiries
 
 import androidx.compose.runtime.rememberCoroutineScope
-import in.vidyadhan.academy.data.AppDb
-import in.vidyadhan.academy.data.Note
+import `in`.vidyadhan.academy.data.AppDb
+import `in`.vidyadhan.academy.data.Note
 import android.app.Application
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
