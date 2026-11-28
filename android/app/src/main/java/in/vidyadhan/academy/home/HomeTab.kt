@@ -179,20 +179,24 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
             if (recent.isEmpty()) Text("No payments or expenses yet", Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
             recent.forEachIndexed { i, x ->
                 if (i > 0) HorizontalDivider(color = Brand.Line)
-                Row(Modifier.fillMaxWidth().clickable(enabled = x.go != null) { x.go?.let { onGo(it, x.id) } }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(34.dp).clip(CircleShape).background(if (x.income) Brand.Green50 else Brand.Red50), Alignment.Center) {
-                        Text(x.title.take(1).uppercase(), style = MaterialTheme.typography.titleSmall, color = if (x.income) Brand.Green700 else Brand.Red600)
+                Row(Modifier.fillMaxWidth().clickable(enabled = x.go != null) { x.go?.let { onGo(it, x.id) } }.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(if (x.income) Brand.Green50 else Brand.Red50), Alignment.Center) {
+                        Icon(if (x.income) Icons.Rounded.Payments else Icons.Rounded.ReceiptLong, null,
+                            tint = if (x.income) Brand.Green700 else Brand.Red600, modifier = Modifier.size(19.dp))
                     }
-                    Spacer(Modifier.width(10.dp))
+                    Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(x.title, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${x.subtitle} · ${relativeDay(x.day)}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        Text(x.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${x.subtitle} · ${relativeDay(x.day)}", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    Spacer(Modifier.width(8.dp))
                     Column(horizontalAlignment = Alignment.End) {
                         Text((if (x.income) "+ " else "− ") + rupees(x.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
-                            color = if (x.income) Brand.Green600 else Brand.Red600)
-                        if (x.mode.isNotBlank()) Text(x.mode, style = MaterialTheme.typography.labelSmall, color = Brand.Slate400)
+                            color = if (x.income) Brand.Green600 else Brand.Red600, maxLines = 1, softWrap = false)
+                        if (x.mode.isNotBlank()) Text(x.mode, Modifier.clip(RoundedCornerShape(50)).background(Brand.Slate50).padding(horizontal = 7.dp, vertical = 1.dp),
+                            style = MaterialTheme.typography.labelSmall, color = Brand.Slate600)
                     }
+                }
                 }
             }
         }
@@ -255,7 +259,8 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                             }
                             Text(rupees(studentPending), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Color(0xFFFDE68A), maxLines = 1, softWrap = false)
                         }
-                        if (libraryPending > 0) Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Top) {
+                        if (studentPending > 0 && libraryPending > 0) HorizontalDivider(Modifier.padding(top = 10.dp), color = Color.White.copy(alpha = 0.25f))
+                        if (libraryPending > 0) Row(Modifier.fillMaxWidth().padding(top = 10.dp), verticalAlignment = Alignment.Top) {
                             Column(Modifier.weight(1f)) {
                                 Text("Abhyasika", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
                                 Text("$libDueMembers due", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
@@ -631,7 +636,8 @@ private fun SectionCard(title: String, subtitle: String, icon: ImageVector, colo
 @Composable
 private fun Column3(value: String, label: String, chip: String, color: Color, chipBg: Color, chipFg: Color, modifier: Modifier, onClick: () -> Unit) {
     Column(modifier.clickable(onClick = onClick).padding(horizontal = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = color, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
+        Text(value, style = (if (value.length > 7) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge).copy(fontWeight = FontWeight.ExtraBold),
+            color = color, maxLines = 1, softWrap = false, textAlign = TextAlign.Center)
         Text(label, style = MaterialTheme.typography.labelMedium, color = Brand.Slate600, maxLines = 1)
         Spacer(Modifier.height(4.dp))
         Text(chip, Modifier.clip(RoundedCornerShape(6.dp)).background(chipBg).padding(horizontal = 6.dp, vertical = 2.dp), style = MaterialTheme.typography.labelSmall,
