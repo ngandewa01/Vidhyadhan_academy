@@ -105,15 +105,26 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
     val adv = if (academy) advance.toLongOrNull() ?: 0L else 0L
     val firstAmount = if (academy && paidFirst) plan.firstOrNull()?.amount ?: 0L else 0L
     val advOk = adv <= (fee - firstAmount).coerceAtLeast(0)
-    val valid = name.isNotBlank() && mobile.length == 10 && (aadhaar.isEmpty() || aadhaar.length == 12) && planOk && (!library || seat > 0) && (!library || !locker || lockerNo.isNotBlank()) && advOk
+    // duplicates: the same mobile is blocked (one phone, one student); the same name only warns (two people can share a name)
+    val allStudentsNow by db.students().students().collectAsStateWithLifecycle(emptyList())
+    val sameMobile = if (mobile.length == 10) allStudentsNow.firstOrNull { it.mobile.takeLast(10) == mobile } else null
+    val sameMobileMember = if (mobile.length == 10) members.firstOrNull { it.mobile.takeLast(10) == mobile } else null
+    val sameName = if (name.trim().length >= 3) allStudentsNow.firstOrNull { it.name.trim().equals(name.trim(), true) } else null
+    val valid = name.isNotBlank() && sameMobile == null && sameMobileMember == null && mobile.length == 10 && (aadhaar.isEmpty() || aadhaar.length == 12) && planOk && (!library || seat > 0) && (!library || !locker || lockerNo.isNotBlank()) && advOk
     val payingNow = firstAmount + adv + (if (library) seatFee + lockerFee + dep else 0L)
 
     Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Step("1. Student details") {
             PhotoAvatarEdit(name, photo, photoPicker.open)
             Field(name, { name = it }, "Full name *", Icons.Rounded.Person)
+            if (sameName != null) Text("A student named ${sameName.name} already exists (${sameName.course}, +91 ${sameName.mobile.takeLast(10)}). If this is a different person, continue.",
+                style = MaterialTheme.typography.bodySmall, color = Brand.Saffron600, modifier = Modifier.padding(start = 4.dp))
             PhoneField(mobile, { mobile = it }, onName = { if (name.isBlank()) name = it }, icon = null, isError = mobile.isNotEmpty() && mobile.length < 10,
-                supporting = "Tap the contacts button to pick a number. Telegram is linked later through your bot.")
+                supporting = when {
+                    sameMobile != null -> "Already a student: ${sameMobile.name}${if (sameMobile.course.isNotBlank()) " · ${sameMobile.course}" else ""}. Open that student instead."
+                    sameMobileMember != null -> "Already an Abhyasika member: ${sameMobileMember.name} · Seat ${sameMobileMember.seatNo}. Open that member instead."
+                    else -> "Tap the contacts button to pick a number. Telegram is linked later through your bot."
+                }, isError = sameMobile != null || sameMobileMember != null)
             OptionalDateField("Date of birth (optional)", dob, { dob = it })
             DigitsField("Aadhaar number", aadhaar, 12, { aadhaar = it }, Icons.Rounded.CreditCard,
                 supporting = if (aadhaar.isNotEmpty() && aadhaar.length < 12) "Enter all 12 digits" else "Optional · kept only on this phone", isError = aadhaar.isNotEmpty() && aadhaar.length < 12)
