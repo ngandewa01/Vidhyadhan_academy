@@ -23,6 +23,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -150,7 +151,16 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
     val ctx = LocalContext.current
     val left = (s.totalFee - s.paid).coerceAtLeast(0)
     val advance = s.advance
+    // status colour down the left edge: red overdue, amber due soon, green cleared
+    val edgeColor = when {
+        !s.current -> Color.Transparent
+        s.nextDue != null && s.nextDue < t && s.dueNow > 0 -> Brand.Red600
+        left == 0L -> Brand.Green600
+        s.nextDue != null && s.nextDue <= t + 7 -> Brand.Saffron500
+        else -> Color.Transparent
+    }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
+        .drawBehind { drawRect(edgeColor, size = androidx.compose.ui.geometry.Size(7f, size.height)) }
         .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.Top) {
             Box {
