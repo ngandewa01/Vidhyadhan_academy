@@ -191,7 +191,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                     Spacer(Modifier.width(10.dp))
                     Column(Modifier.weight(1f)) {
                         Text(x.title, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${x.subtitle} · ${relativeDay(x.day)}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${x.subtitle} · ${relativeDay(x.day)}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     Column(horizontalAlignment = Alignment.End) {
                         Text((if (x.income) "+ " else "− ") + rupees(x.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),

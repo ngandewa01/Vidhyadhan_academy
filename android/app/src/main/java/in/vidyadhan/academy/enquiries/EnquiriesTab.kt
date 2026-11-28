@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.automirrored.rounded.Chat
+import androidx.compose.material.icons.automirrored.rounded.Message
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.rounded.*
@@ -200,19 +201,32 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Saffron500)
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Brand.Blue100).clickable { Contact.call(ctx, e.mobile) }, Alignment.Center) {
-                            Icon(Icons.Rounded.Phone, "Call", tint = Brand.Blue700, modifier = Modifier.size(18.dp))
+                        listOf(Triple("Call", Brand.Blue100, Brand.Blue700), Triple("SMS", Brand.Slate50, Brand.Slate800), Triple("WhatsApp", Color(0xFFE7F6F3), Brand.WhatsAppDark)).forEach { (label, bg, fg) ->
+                            Box(Modifier.size(width = 0.dp, height = 44.dp).weight(1f).clip(RoundedCornerShape(12.dp)).background(bg)
+                                .clickable {
+                                    when (label) {
+                                        "Call" -> Contact.call(ctx, e.mobile)
+                                        "SMS" -> Contact.sms(ctx, e.mobile)
+                                        else -> Contact.whatsapp(ctx, e.mobile)
+                                    }
+                                }, Alignment.Center) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (label == "WhatsApp") WhatsAppLogo(Modifier.size(18.dp), fg)
+                                    else Icon(if (label == "Call") Icons.Rounded.Phone else Icons.AutoMirrored.Rounded.Message, label, tint = fg, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = fg, maxLines = 1, softWrap = false)
+                                }
+                            }
                         }
-                        Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Brand.Green50).clickable { Contact.whatsapp(ctx, e.mobile) }, Alignment.Center) {
-                            Icon(Icons.AutoMirrored.Rounded.Chat, "WhatsApp", tint = Brand.WhatsAppDark, modifier = Modifier.size(18.dp))
-                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF0F9FF)).border(1.dp, Color(0xFFBAE6FD), RoundedCornerShape(12.dp))
                             .clickable { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, "e${e.id}", e.mobile, `in`.vidyadhan.academy.telegram.TelegramBot.esc(`in`.vidyadhan.academy.Templates.fill("enquiry", false, mapOf("name" to e.name)))) }.padding(vertical = 9.dp),
                             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color(0xFF0369A1), modifier = Modifier.size(15.dp)); Spacer(Modifier.width(6.dp))
                             Text("Telegram", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color(0xFF0369A1), maxLines = 1, softWrap = false)
                         }
-                        Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Brand.Blue700).clickable { onAdmit(e) }.padding(vertical = 9.dp),
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Blue700).clickable { onAdmit(e) }.padding(vertical = 9.dp),
                             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                             Text("Admit student", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color.White); Spacer(Modifier.width(4.dp))
                             Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = Color.White, modifier = Modifier.size(15.dp))
@@ -343,4 +357,20 @@ private fun EnquiryDetail(vm: EnquiriesViewModel, id: Long, onBack: () -> Unit, 
     }
     if (confirm) ConfirmDialog("Delete this enquiry?", "${en.name}'s enquiry will be removed.", "Delete", danger = true,
         onConfirm = { vm.delete(en); confirm = false; onBack() }, onDismiss = { confirm = false })
+}
+
+
+/** The WhatsApp logo (speech bubble with a phone handset), drawn as a vector so no image file is needed. */
+@Composable
+private fun WhatsAppLogo(modifier: Modifier, tint: Color) {
+    androidx.compose.foundation.Canvas(modifier) {
+        val w = size.width
+        drawCircle(tint, radius = w / 2, center = androidx.compose.ui.geometry.Offset(w / 2, w / 2))
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(w * 0.22f, w * 0.80f); lineTo(w * 0.27f, w * 0.64f)
+            arcTo(androidx.compose.ui.geometry.Rect(w * 0.12f, w * 0.12f, w * 0.88f, w * 0.88f), 150f, -270f, false)
+            close()
+        }
+        drawPath(path, androidx.compose.ui.graphics.Color.White, style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.09f))
+    }
 }

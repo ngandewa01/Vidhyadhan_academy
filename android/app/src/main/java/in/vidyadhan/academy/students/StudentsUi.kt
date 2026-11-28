@@ -160,7 +160,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
         else -> Color.Transparent
     }
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
-        .drawBehind { drawRect(edgeColor, size = androidx.compose.ui.geometry.Size(7f, size.height)) }
+        .drawBehind { if (edgeColor != Color.Transparent) drawRoundRect(edgeColor, topLeft = androidx.compose.ui.geometry.Offset(0f, 18.dp.toPx()), size = androidx.compose.ui.geometry.Size(4.dp.toPx(), size.height - 36.dp.toPx()), cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx())) }
         .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.Top) {
             Box {
@@ -214,25 +214,31 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
             }
         }
         HorizontalDivider(color = Brand.Line)
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 when {
                     !s.current && left > 0 -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""} · ${rupees(left)} unpaid"
                     !s.current -> "Left ${s.leftOn?.let { shortDate(it) } ?: ""}"
-                    left == 0L -> "All installments cleared ✓"
+                    left == 0L -> "All instalments cleared ✓"
                     s.nextDue != null && s.nextDue < t -> "Overdue ${rupees(s.nextDueAmount)} · ${shortDate(s.nextDue)}"
                     s.nextDue != null -> "Next due ${rupees(s.nextDueAmount)} · ${shortDate(s.nextDue)}"
                     else -> "${rupees(left)} to pay"
                 },
-                Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
-                color = when { left == 0L && s.current -> Brand.Green700; s.nextDue != null && s.nextDue < t -> Brand.Red600; else -> Brand.Slate600 }, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.width(8.dp))
-            if (s.mobile.isNotBlank()) Icon(Icons.Rounded.Phone, "Call", tint = Brand.Blue700, modifier = Modifier.size(20.dp).clickable { Contact.call(ctx, s.mobile) })
-            if (s.mobile.isNotBlank()) Spacer(Modifier.width(10.dp))
-            if (s.mobile.isNotBlank()) Icon(Icons.AutoMirrored.Rounded.Chat, "WhatsApp", tint = Brand.WhatsAppDark, modifier = Modifier.size(20.dp).clickable { Contact.whatsapp(ctx, s.mobile) })
-            Spacer(Modifier.width(10.dp))
-            Text("Manage plan", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
-            Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
+                style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+                color = when { left == 0L && s.current -> Brand.Green700; s.nextDue != null && s.nextDue < t -> Brand.Red600; else -> Brand.Slate600 }, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (s.mobile.isNotBlank()) Box(Modifier.size(38.dp).clip(CircleShape).background(Brand.Blue100).clickable { Contact.call(ctx, s.mobile) }, Alignment.Center) {
+                    Icon(Icons.Rounded.Phone, "Call", tint = Brand.Blue700, modifier = Modifier.size(18.dp))
+                }
+                if (s.mobile.isNotBlank()) Box(Modifier.size(38.dp).clip(CircleShape).background(Brand.Green50).clickable { Contact.whatsapp(ctx, s.mobile) }, Alignment.Center) {
+                    Icon(Icons.AutoMirrored.Rounded.Chat, "WhatsApp", tint = Brand.WhatsAppDark, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.weight(1f))
+                Row(Modifier.clip(RoundedCornerShape(50)).background(Brand.Blue50).padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Manage plan", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700, maxLines = 1, softWrap = false)
+                    Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
+                }
+            }
         }
     }
 }
