@@ -15,6 +15,7 @@ import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -409,6 +410,14 @@ private fun Designer(walls: List<List<Int>>, centre: List<List<Int>>, others: Li
         Text("ROOM & SEAT DESIGNER", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron600)
         Text("Seats sit along the walls, facing the wall. Tap a seat to make it XL, renumber or remove it. Tap an empty place to add a seat.",
             style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
+        // live preview: the room as it will look once applied, before anything is saved
+        Text("Preview", style = MaterialTheme.typography.labelLarge, color = Brand.Ink)
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.White).padding(8.dp).clearAndSetSemantics { }) {
+            if (capacity > 0) {
+                val (pw, pc) = wallRoom(counts.toList(), islands, perIsland, current, nextSeatNumber(others, current))
+                WallRoom(pw, pc, emptyMap(), emptyList(), 0L, false, names = false, picked = null) { _, _, _ -> }
+            } else Text("Add seats to see the layout.", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        }
         Text("Seats on each wall", style = MaterialTheme.typography.labelLarge, color = Brand.Ink)
         listOf("Top wall", "Right wall", "Bottom wall", "Left wall").forEachIndexed { i, l -> Counter(l, counts[i], 0..20) { counts[i] = it } }
         Text("Middle of the room", style = MaterialTheme.typography.labelLarge, color = Brand.Ink)

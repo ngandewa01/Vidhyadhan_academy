@@ -128,6 +128,7 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
     val types by viewModel<LibraryViewModel>().types.collectAsStateWithLifecycle()
     var bio by remember { mutableStateOf(lock.biometricOn) }
     var pinDialog by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
     var done by remember { mutableStateOf<String?>(null) }
     val (code, version) = remember { Updater.currentVersion(ctx) }
     HeroPage("Settings", "Make the app work your way", onBack = onClose, header = {
@@ -148,6 +149,19 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
     }) {
         Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
             Spacer(Modifier.height(14.dp)) // keeps the first group name clear of the header card
+            // search: type a word (courses, PIN, reports, telegram...) and jump straight to that setting
+            OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true,
+                placeholder = { Text("Search settings") }, leadingIcon = { Icon(Icons.Rounded.Search, null) })
+            val matches = SETTING_INDEX.filter { (title, words, _) -> query.isNotBlank() && (title.contains(query, true) || words.contains(query, true)) }
+            if (query.isNotBlank()) {
+                if (matches.isEmpty()) Text("No setting called \"$query\"", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+                else Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).clip(RoundedCornerShape(24.dp))) {
+                    matches.forEachIndexed { i, (title, _, page) ->
+                        SettingRow(Icons.Rounded.Settings, Brand.Slate600, title, null, divider = i < matches.lastIndex) { open(page) }
+                    }
+                }
+                return@Column
+            }
             AccountCard(open)
             Group("Academy") {
                 SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
@@ -726,3 +740,19 @@ private fun DevicesPage(onSignedOut: () -> Unit) {
 private fun PillButton(text: String, color: Color, onClick: () -> Unit) =
     Text(text, Modifier.clip(RoundedCornerShape(50)).border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(50)).clickable(onClick = onClick)
         .padding(horizontal = 12.dp, vertical = 7.dp), style = MaterialTheme.typography.labelLarge, color = color, maxLines = 1, softWrap = false)
+
+
+/** Settings you can find by name in the search box: title, extra words people might type, and the page it opens. */
+private val SETTING_INDEX = listOf(
+    Triple("Courses & fees", "course fee installment late batch", Page.Courses),
+    Triple("Seats & lockers", "seat room locker hall plan abhyasika", Page.Library),
+    Triple("Telegram bot", "telegram bot connect group link syllabus", Page.Telegram),
+    Triple("Message templates", "template sms whatsapp message", Page.Messages),
+    Triple("Reminders", "reminder notification time daily", Page.Reminders),
+    Triple("News & current affairs", "mpsc news ai gemini groq key", Page.News),
+    Triple("Academy details", "name phone address logo", Page.Academy),
+    Triple("Cloud sync", "cloud google sign in devices", Page.Cloud),
+    Triple("Devices", "phones signed in disconnect main device", Page.Devices),
+    Triple("Backup & restore", "backup restore drive excel export start fresh", Page.Backup),
+    Triple("Updates", "version update app", Page.Updates),
+)
