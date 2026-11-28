@@ -115,7 +115,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 chips.forEach { c ->
                     val sel = c == filter
-                    Text(if (c == "Former" && former.isNotEmpty()) "Former (${former.size})" else c,
+                    Text(chipLabel(c, current, former.size),
                         Modifier.clip(RoundedCornerShape(50)).background(if (sel) Color.White else Color.White.copy(alpha = 0.12f)).clickable { filter = c }
                             .padding(horizontal = 12.dp, vertical = 7.dp),
                         style = MaterialTheme.typography.labelMedium, color = if (sel) Brand.Blue700 else Brand.Blue50, maxLines = 1)
@@ -147,6 +147,7 @@ private fun Pill(text: String, fg: Color, bg: Color) {
 
 @Composable
 private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onClick: () -> Unit) {
+    val ctx = LocalContext.current
     val left = (s.totalFee - s.paid).coerceAtLeast(0)
     val advance = s.advance
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
@@ -158,7 +159,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
                     Text(initials(s.name), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Blue700)
                 }
                 // red dot: this student came from the old book
-                if (s.khataKey.isNotBlank()) Box(Modifier.align(Alignment.TopEnd).size(12.dp).clip(CircleShape).background(Brand.Red600).border(2.dp, Color.White, CircleShape))
+                if (s.khataKey.isNotBlank() && s.dueNow > 0) Box(Modifier.align(Alignment.TopEnd).size(12.dp).clip(CircleShape).background(Brand.Red600).border(2.dp, Color.White, CircleShape))
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
@@ -188,7 +189,12 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
             }
             if (advance > 0) Pill("Advance +${rupees(advance)}", Brand.Amber700, Brand.Amber50)
         }
-        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp)).padding(vertical = 7.dp)) {
+        // a cleared student gets one compact line; a student who owes keeps the full three-figure box
+        if (s.current && left == 0L) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Green50).padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Text("Paid ${rupees(minOf(s.paid, s.totalFee))} ✓", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Green700)
+            Text("of ${rupees(s.totalFee)}", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
+        } else Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp)).padding(vertical = 7.dp)) {
             listOf(Triple("Total plan", rupees(s.totalFee), Brand.Ink), Triple("Paid", rupees(minOf(s.paid, s.totalFee)), Brand.Green600),
                 Triple("Balance", rupees(left), if (left > 0) Brand.Saffron500 else Brand.Green600)).forEach { (l, v, c) ->
                 Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -211,6 +217,10 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
                 Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
                 color = when { left == 0L && s.current -> Brand.Green700; s.nextDue != null && s.nextDue < t -> Brand.Red600; else -> Brand.Slate600 }, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.width(8.dp))
+            if (s.mobile.isNotBlank()) Icon(Icons.Rounded.Phone, "Call", tint = Brand.Blue700, modifier = Modifier.size(20.dp).clickable { Contact.call(ctx, s.mobile) })
+            if (s.mobile.isNotBlank()) Spacer(Modifier.width(10.dp))
+            if (s.mobile.isNotBlank()) Icon(Icons.AutoMirrored.Rounded.Chat, "WhatsApp", tint = Brand.WhatsAppDark, modifier = Modifier.size(20.dp).clickable { Contact.whatsapp(ctx, s.mobile) })
+            Spacer(Modifier.width(10.dp))
             Text("Manage plan", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
             Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
         }
@@ -896,4 +906,13 @@ private fun Pick(text: String, on: Boolean, onClick: () -> Unit) {
     Text(text, Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) Brand.Blue700 else Color.White)
         .border(1.dp, if (on) Brand.Blue700 else Brand.Line, RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
         style = MaterialTheme.typography.labelLarge, color = if (on) Color.White else Brand.Ink)
+}
+
+
+/** Filter chip text with the live count, e.g. "Fees due (26)". */
+private fun chipLabel(c: String, current: List<StudentWithFees>, formerCount: Int): String = when (c) {
+    "Former" -> if (formerCount > 0) "Former ($formerCount)" else c
+    "Fees due" -> "Fees due (${current.count { it.dueNow > 0 }})"
+    "Paid" -> "Paid (${current.count { it.totalFee > 0 && it.totalFee - it.paid <= 0 }})"
+    else -> c
 }
