@@ -119,12 +119,12 @@ fun AdmissionForm(from: Enquiry?, onDone: (String, Long) -> Unit) {
             Field(name, { name = it }, "Full name *", Icons.Rounded.Person)
             if (sameName != null) Text("A student named ${sameName.name} already exists (${sameName.course}, +91 ${sameName.mobile.takeLast(10)}). If this is a different person, continue.",
                 style = MaterialTheme.typography.bodySmall, color = Brand.Saffron600, modifier = Modifier.padding(start = 4.dp))
-            PhoneField(mobile, { mobile = it }, onName = { if (name.isBlank()) name = it }, icon = null, isError = mobile.isNotEmpty() && mobile.length < 10,
+            PhoneField(mobile, { mobile = it }, onName = { if (name.isBlank()) name = it }, icon = null,
                 supporting = when {
                     sameMobile != null -> "Already a student: ${sameMobile.name}${if (sameMobile.course.isNotBlank()) " · ${sameMobile.course}" else ""}. Open that student instead."
                     sameMobileMember != null -> "Already an Abhyasika member: ${sameMobileMember.name} · Seat ${sameMobileMember.seatNo}. Open that member instead."
                     else -> "Tap the contacts button to pick a number. Telegram is linked later through your bot."
-                }, isError = sameMobile != null || sameMobileMember != null)
+                }, isError = sameMobile != null || sameMobileMember != null || (mobile.isNotEmpty() && mobile.length < 10))
             OptionalDateField("Date of birth (optional)", dob, { dob = it })
             DigitsField("Aadhaar number", aadhaar, 12, { aadhaar = it }, Icons.Rounded.CreditCard,
                 supporting = if (aadhaar.isNotEmpty() && aadhaar.length < 12) "Enter all 12 digits" else "Optional · kept only on this phone", isError = aadhaar.isNotEmpty() && aadhaar.length < 12)
