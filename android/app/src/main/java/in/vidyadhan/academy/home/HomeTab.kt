@@ -369,6 +369,27 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
             if (libDue > 0) OptionRow(Icons.Rounded.EventSeat, Brand.Teal700, "$libDue Abhyasika due${if (libDue == 1) "" else "s"}") { showReminders = false; onGo(Go.MemberDues, 0) }
             if (birthdays.isNotEmpty()) OptionRow(Icons.Rounded.Cake, Brand.Saffron500, "${birthdays.size} birthday${if (birthdays.size == 1) "" else "s"} today") { showReminders = false; showBirthdays = true }
             if (alerts == 0) Text("Nothing needs you today ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
+            // the people behind the counts: each one can be reminded straight from here
+            val dueStudents = students.filter { it.nextDue != null && it.nextDue <= t }.sortedBy { it.nextDue }
+            if (dueStudents.isNotEmpty()) {
+                Text("ACADEMY · FEES DUE", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, modifier = Modifier.padding(top = 6.dp))
+                dueStudents.take(8).forEach { s ->
+                    val due = s.nextDue ?: t
+                    ReminderPerson(s.name, "Instalment ${if (due < t) "overdue since" else "due"} ${shortDate(due)} · ${rupees(s.nextDueAmount)}", due < t,
+                        onOpen = { showReminders = false; onGo(Go.Student, s.id) },
+                        onRemind = { Contact.whatsapp(ctx, s.mobile, feeMessage(true, s.name, s.nextDueAmount, due, AppSettings.academyName)) })
+                }
+                if (dueStudents.size > 8) Text("+ ${dueStudents.size - 8} more · tap a fee row above to collect", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+            }
+            val dueMembers = active.filter { it.validTill <= t || it.balance > 0 }.sortedBy { it.validTill }
+            if (dueMembers.isNotEmpty()) {
+                Text("ABHYASIKA · DUES", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, modifier = Modifier.padding(top = 6.dp))
+                dueMembers.take(8).forEach { m ->
+                    ReminderPerson("${m.name} · Seat ${m.seatNo}", if (m.validTill < t) "Renewal overdue since ${shortDate(m.validTill)}" else if (m.validTill <= t) "Renewal due today" else "Balance ${rupees(m.balance)}", m.validTill < t,
+                        onOpen = { showReminders = false; onGo(Go.Member, m.id) },
+                        onRemind = { Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) })
+                }
+            }
         }
     }
     if (showBirthdays) ModalBottomSheet({ showBirthdays = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
@@ -705,5 +726,20 @@ private fun RecordAnySheet(students: List<StudentWithFees>, members: List<Librar
                 SoftButton("Choose someone else", { pick = null }, Modifier.fillMaxWidth())
             }
         }
+    }
+}
+
+
+/** A person in the reminders list: tap the name to open them, Remind sends the WhatsApp reminder. */
+@Composable
+private fun ReminderPerson(name: String, detail: String, late: Boolean, onOpen: () -> Unit, onRemind: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f).clickable(onClick = onOpen)) {
+            Text(name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = if (late) Brand.Red600 else Brand.Slate500, maxLines = 2)
+        }
+        Spacer(Modifier.width(8.dp))
+        SoftButton("Remind", onRemind, Modifier.width(118.dp), color = Brand.Blue700, icon = Icons.AutoMirrored.Rounded.Chat)
     }
 }
