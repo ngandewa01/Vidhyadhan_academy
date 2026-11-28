@@ -42,6 +42,7 @@ import `in`.vidyadhan.academy.data.StudentWithFees
 import `in`.vidyadhan.academy.library.ENDING_DAYS
 import `in`.vidyadhan.academy.library.allSeats
 import `in`.vidyadhan.academy.library.renewedTill
+import `in`.vidyadhan.academy.library.libraryReminder
 import `in`.vidyadhan.academy.library.typeForSeat
 import `in`.vidyadhan.academy.students.*
 import `in`.vidyadhan.academy.ui.*
@@ -438,10 +439,24 @@ private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<Lib
     val db = remember { AppDb.get(ctx) }
     val scope = rememberCoroutineScope()
     var mode by remember { mutableStateOf("Cash") }
+    var tab by rememberSaveable { mutableStateOf("acad") } // academy and Abhyasika are separate lists and totals
     val done = remember { mutableStateMapOf<String, Long>() }
+    // a payment is only recorded after the owner confirms the name, instalment, mode and amount
+    var confirm by remember { mutableStateOf<CollectItem?>(null) }
     ModalBottomSheet(onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SheetTitle("Quick collect", "Tap Collect when the money is in your hand")
+        val waiting = confirm
+        if (waiting != null) PaymentConfirm(waiting, mode, onBack = { confirm = null }) { amt ->
+            confirm = null
+            scope.launch { waiting.record(amt, mode); done[waiting.key] = amt }
+        } else Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SheetTitle("Quick collect", "Tap Collect only when the money is in your hand")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("acad" to "Academy · ${students.size}", "lib" to "Abhyasika · ${members.size}").forEach { (k, l) ->
+                    Text(l, Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (tab == k) Brand.Blue700 else Brand.Slate50)
+                        .clickable { tab = k }.padding(vertical = 9.dp), style = MaterialTheme.typography.labelLarge,
+                        color = if (tab == k) Color.White else Brand.Slate600, textAlign = TextAlign.Center)
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("Cash", "UPI", "Bank").forEach { m ->
                     Text(m, Modifier.clip(RoundedCornerShape(50)).background(if (mode == m) Brand.Blue700 else Brand.Slate50)
@@ -449,31 +464,39 @@ private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<Lib
                         style = MaterialTheme.typography.labelLarge, color = if (mode == m) Color.White else Brand.Slate600)
                 }
             }
-            if (students.isEmpty() && members.isEmpty()) Text("Nobody owes anything right now ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
-            if (students.isNotEmpty()) Text("STUDENTS", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
-            students.forEach { s ->
-                val key = "s${s.id}"
-                val due = s.nextDue ?: t
-                CollectRow(s.name, "Instalment ${if (due < t) "overdue since" else "due"} ${shortDate(due)}", s.nextDueAmount, due < t, done[key], onOpen = { onClose(); onStudent(s.id) }) {
-                    scope.launch {
-                        val pid = db.students().insertPayment(StudentPayment(studentId = s.id, amount = s.nextDueAmount, paidOn = t, mode = mode))
-                        `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(ctx, s.id, s.nextDueAmount, mode, pid)
-                        done[key] = s.nextDueAmount
+            if (tab == "acad") {
+                if (students.isEmpty()) Text("No academy fees due right now ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
+                students.forEach { s ->
+                    val key = "s${s.id}"
+                    val due = s.nextDue ?: t
+                    val late = due < t
+                    val remind = feeMessage(true, s.name, s.nextDueAmount, due, AppSettings.academyName)
+                    CollectRow(s.name, "Instalment ${if (late) "overdue since" else "due"} ${shortDate(due)}", s.nextDueAmount, late, done[key],
+                        onOpen = { onClose(); onStudent(s.id) },
+                        onRemind = { Contact.whatsapp(ctx, s.mobile, remind) }) {
+                        confirm = CollectItem(key, s.name, "Instalment ${if (late) "overdue since" else "due"} ${shortDate(due)}", s.nextDueAmount, s.mobile, false) { amt, md ->
+                            db.students().insertPayment(StudentPayment(studentId = s.id, amount = amt, paidOn = t, mode = md)).also { pid ->
+                                `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(ctx, s.id, amt, md, pid)
+                            }
+                        }
                     }
                 }
-            }
-            if (members.isNotEmpty()) Text("ABHYASIKA", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
-            members.forEach { m ->
-                val key = "m${m.id}"
-                val renew = m.validTill <= t + ENDING_DAYS
-                val amount = (if (renew) m.monthlyFee else 0L) + m.balance
-                CollectRow("${m.name} · Seat ${m.seatNo}",
-                    if (renew) "Renew 1 month" + (if (m.balance > 0) " + ${rupees(m.balance)} balance" else "") + " · ends ${shortDate(m.validTill)}" else "Balance to pay",
-                    amount, m.validTill < t, done[key], onOpen = { onClose(); onMember(m.id) }) {
-                    scope.launch {
-                        val updated = if (renew) m.copy(validTill = renewedTill(m.validTill, t, 1), planName = "1 month", balance = 0) else m.copy(balance = 0)
-                        db.library().pay(updated, LibraryPayment(memberId = m.id, kind = "FEE", amount = amount, paidOn = t, mode = mode))
-                        done[key] = amount
+            } else {
+                if (members.isEmpty()) Text("Nobody owes anything right now ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
+                members.forEach { m ->
+                    val key = "m${m.id}"
+                    val renew = m.validTill <= t + ENDING_DAYS
+                    val full = (if (renew) m.monthlyFee else 0L) + m.balance
+                    val detail = if (renew) "Renew 1 month" + (if (m.balance > 0) " + ${rupees(m.balance)} balance" else "") + " · ends ${shortDate(m.validTill)}" else "Balance to pay"
+                    CollectRow("${m.name} · Seat ${m.seatNo}", detail, full, m.validTill < t, done[key],
+                        onOpen = { onClose(); onMember(m.id) },
+                        onRemind = { Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) }) {
+                        confirm = CollectItem(key, "${m.name} · Seat ${m.seatNo}", detail, full, m.mobile, true) { amt, md ->
+                            val updated = if (renew) m.copy(validTill = renewedTill(m.validTill, t, 1), planName = "1 month", balance = (full - amt).coerceAtLeast(0))
+                                else m.copy(balance = (full - amt).coerceAtLeast(0))
+                            db.library().pay(updated, LibraryPayment(memberId = m.id, kind = "FEE", amount = amt, paidOn = t, mode = md))
+                            0L
+                        }
                     }
                 }
             }
@@ -481,18 +504,48 @@ private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<Lib
     }
 }
 
+/** Step 2 of Quick collect: the owner checks the name, instalment, mode and amount, then records it. */
 @Composable
-private fun CollectRow(name: String, detail: String, amount: Long, late: Boolean, collected: Long?, onOpen: () -> Unit = {}, onCollect: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun PaymentConfirm(item: CollectItem, mode: String, onBack: () -> Unit, onRecord: (Long) -> Unit) {
+    var amountText by remember(item.key) { mutableStateOf(item.amount.toString()) }
+    val amt = amountText.toLongOrNull() ?: 0L
+    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SheetTitle("Confirm payment", item.name)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(item.detail, style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+            Text("Paid by $mode", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+        }
+        DigitsField("Amount received", amountText, 7, { amountText = it }, prefix = "₹ ",
+            supporting = when { amt > item.amount -> "More than ${rupees(item.amount)}"; amt < item.amount -> "${rupees(item.amount - amt)} will stay due"; else -> "Full amount" },
+            isError = amt > item.amount)
+        PrimaryButton("Yes, record ${rupees(amt)} for ${item.name.substringBefore(" ·")}", { onRecord(amt) }, Modifier.fillMaxWidth(),
+            enabled = amt in 1..item.amount, icon = Icons.Rounded.Check,
+            custom = androidx.compose.ui.graphics.Brush.linearGradient(listOf(Brand.Green600, Brand.Green700)))
+        SoftButton("Cancel", onBack, Modifier.fillMaxWidth(), color = Brand.Slate600)
+    }
+}
+
+/** One Quick collect payment waiting for the owner's confirmation. */
+private class CollectItem(val key: String, val name: String, val detail: String, val amount: Long, val mobile: String, val isMember: Boolean,
+                          val record: suspend (Long, String) -> Long)
+
+@Composable
+private fun CollectRow(name: String, detail: String, amount: Long, late: Boolean, collected: Long?, onOpen: () -> Unit = {},
+                       onRemind: () -> Unit, onCollect: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(12.dp)) {
         // tap the name to open the student or member
-        Column(Modifier.weight(1f).clickable(onClick = onOpen)) {
+        Column(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
             Text(name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(detail, style = MaterialTheme.typography.bodySmall, color = if (late) Brand.Red600 else Brand.Slate500, maxLines = 2)
             Text(rupees(amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron600)
         }
-        Spacer(Modifier.width(8.dp))
-        if (collected != null) StatusChip("Collected ✓", Tone.Good)
-        else PillButton("Collect", onCollect, Brand.Green600)
+        Spacer(Modifier.height(10.dp))
+        if (collected != null) StatusChip("Recorded ✓ ${rupees(collected)}", Tone.Good)
+        else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SoftButton("Remind", onRemind, Modifier.weight(1f), color = Brand.Blue700, icon = Icons.AutoMirrored.Rounded.Chat)
+            PrimaryButton("Collect", onCollect, Modifier.weight(1f), accent = false, icon = Icons.Rounded.Check)
+        }
     }
 }
 
