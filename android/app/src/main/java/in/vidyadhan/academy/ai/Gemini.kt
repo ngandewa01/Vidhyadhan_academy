@@ -97,7 +97,8 @@ object Gemini {
         val saved = AppSettings.geminiModel
         val order = if (saved.isNotBlank()) sequence { yield(saved); yieldAll(lazyModels(key).filter { it != saved }) } else lazyModels(key).asSequence()
         var last = "Gemini did not answer"
-        for (m in order.take(8)) {
+        // at most two models per check: every extra try spends the free allowance (and the owner's time)
+        for (m in order.take(2)) {
             var code: Int; var b: String; var tries = 0; var think = false
             while (true) {
                 val r = http.newCall(Request.Builder().url("$BASE/models/$m:generateContent").header("x-goog-api-key", key)

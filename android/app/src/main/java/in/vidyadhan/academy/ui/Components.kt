@@ -171,7 +171,7 @@ fun GlassStat(label: String, value: String, modifier: Modifier = Modifier, value
     ) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = Brand.Blue200, maxLines = 1)
         // with large phone text, long amounts step down a size so they are not cut off
-        val big = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.1f && value.length >= 7
+        val big = value.length >= 9 || (androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.1f && value.length >= 7)
         Text(value, style = (if (big) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium).copy(fontWeight = FontWeight.ExtraBold), color = valueColor, maxLines = 1, softWrap = false)
     }
 }
