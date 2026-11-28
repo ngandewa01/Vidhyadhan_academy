@@ -609,10 +609,6 @@ private fun SectionCard(title: String, subtitle: String, icon: ImageVector, colo
                 Text(title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(subtitle, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onLink).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(link, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
-                Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(18.dp))
-            }
         }
         content()
     }
