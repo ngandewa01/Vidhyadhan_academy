@@ -20,7 +20,7 @@ object AppSettings {
     // ── shared with the academy's other phones through the cloud ──
     /** Called after a setting changes (cloud sync listens). */
     var onChange: ((String) -> Unit)? = null
-    private val sharedKeys = setOf("name", "phone", "address", "rprefix", "courses", "batches", "inst", "lateFee", "lateOn", "enqDays", "seats", "lockerCount", "lockerDep", "lockerFee", "tgLink", "gemKey")
+    private val sharedKeys = setOf("name", "phone", "address", "rprefix", "courses", "batches", "inst", "lateFee", "lateOn", "enqDays", "seats", "lockerCount", "lockerDep", "lockerFee", "tgLink", "gemKey", "groupLink", "syllabusLink")
     /** Settings every phone of the academy uses (not phone-only things like the bot, reminders already sent or the dashboard order). */
     fun isShared(k: String) = k in sharedKeys || k.startsWith("cf_") || k.startsWith("tpl_")
     fun sharedValues(): Map<String, String> = s.filterKeys(::isShared).toMap()
@@ -39,6 +39,9 @@ object AppSettings {
     var cloudLast: Long get() = get("cloudLast", "0").toLongOrNull() ?: 0; set(v) = put("cloudLast", v.toString())
 
     var academyName: String get() = get("name", "Vidyadhan Academy"); set(v) = put("name", v)
+    /** Sent to each student after they start the bot: the academy group link and the syllabus (PDF link). Shared by all phones. */
+    var groupLink: String get() = get("groupLink", ""); set(v) = put("groupLink", v.trim())
+    var syllabusLink: String get() = get("syllabusLink", ""); set(v) = put("syllabusLink", v.trim())
     var academyPhone: String get() = get("phone", ""); set(v) = put("phone", v)
     var academyAddress: String get() = get("address", ""); set(v) = put("address", v)
     var receiptPrefix: String get() = get("rprefix", "VA"); set(v) = put("rprefix", v)

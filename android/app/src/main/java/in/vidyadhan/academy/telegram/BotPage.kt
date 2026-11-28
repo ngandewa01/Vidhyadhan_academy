@@ -111,6 +111,18 @@ fun BotPage(onGo: (Go, Long) -> Unit, onBack: () -> Unit = {}, onMessages: () ->
                 }
             }
 
+            Card("Links for new students") {
+                Text("Sent automatically when a student presses Start in the bot. Add the group invite link and the syllabus PDF link (from Google Drive, shared as 'anyone with the link').",
+                    style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
+                var group by remember { mutableStateOf(AppSettings.groupLink) }
+                var syllabus by remember { mutableStateOf(AppSettings.syllabusLink) }
+                OutlinedTextField(group, { group = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Academy group link") })
+                OutlinedTextField(syllabus, { syllabus = it }, Modifier.fillMaxWidth(), singleLine = true, label = { Text("Syllabus PDF link") })
+                SoftButton("Save links", {
+                    AppSettings.groupLink = group; AppSettings.syllabusLink = syllabus
+                    android.widget.Toast.makeText(ctx, "Links saved", android.widget.Toast.LENGTH_SHORT).show()
+                }, Modifier.fillMaxWidth(), color = Brand.Blue700)
+            }
             Card("Automated Telegram workflows") {
                 Toggle("Instant fee & installment receipt", "Auto-send receipt on every UPI/Cash entry", AppSettings.tgReceipt) { AppSettings.tgReceipt = it }
                 Toggle("Installment & seat expiry alerts", "Remind 3 days prior & on due date at ${"%02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)}", AppSettings.tgDue) { AppSettings.tgDue = it }

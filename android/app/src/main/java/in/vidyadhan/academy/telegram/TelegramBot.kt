@@ -82,7 +82,7 @@ object TelegramBot {
                     contact != null && type == "private" -> linkByPhone(chatId, fromId, contact)
                     text.startsWith("/start ") && type == "private" && text.removePrefix("/start ").trim() != "join" -> {
                         AppSettings.setTelegramChat("k_" + text.removePrefix("/start ").trim(), chatId)
-                        reply(chatId, "✅ Connected to <b>${esc(AppSettings.academyName)}</b>. Your fee receipts and reminders will come here.")
+                        reply(chatId, "✅ Connected to <b>${esc(AppSettings.academyName)}</b>. Your fee receipts and reminders will come here." + welcomeLinks())
                     }
                     (text.trim() == "/start" || text.trim() == "/start join") && type == "private" -> askPhone(chatId)
                     text.startsWith("/owner") && type == "private" -> AppSettings.botOwnerChat = chatId
@@ -118,7 +118,15 @@ object TelegramBot {
         db.enquiries().all().first().filter { it.mobile.takeLast(10) == mobile && mobile.length == 10 && it.status in listOf("NEW", "CONTACTED") }
             .forEach { AppSettings.setTelegramChat("k_e${it.id}", chat); names += it.name }
         if (names.isEmpty()) reply(chat, "We could not find +91 $mobile in ${esc(AppSettings.academyName)} records. Please ask the office to add or correct your mobile number, then tap /start again.", done)
-        else reply(chat, "✅ Connected: <b>${esc(names.distinct().joinToString(", "))}</b>.\nYour fee receipts, reminders and academy updates will come here.", done)
+        else reply(chat, "✅ Connected: <b>${esc(names.distinct().joinToString(", "))}</b>.\nYour fee receipts, reminders and academy updates will come here." + welcomeLinks(), done)
+    }
+
+    /** The group link and syllabus, if the owner has added them in Settings. Sent once a student has started the bot. */
+    fun welcomeLinks(): String {
+        val parts = listOfNotNull(
+            AppSettings.groupLink.takeIf { it.isNotBlank() }?.let { "👥 Academy group: ${esc(it)}" },
+            AppSettings.syllabusLink.takeIf { it.isNotBlank() }?.let { "📘 Syllabus: ${esc(it)}" })
+        return if (parts.isEmpty()) "" else "\n\n" + parts.joinToString("\n")
     }
 
     /** The one link for everyone: students press Start and share their phone number to be connected. */
