@@ -197,7 +197,6 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                             style = MaterialTheme.typography.labelSmall, color = Brand.Slate600)
                     }
                 }
-                }
             }
         }
     }
