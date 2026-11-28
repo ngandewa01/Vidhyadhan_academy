@@ -274,6 +274,11 @@ private fun MessagesPage() {
         var en by remember { mutableStateOf(`in`.vidyadhan.academy.Templates.text(t.key, false)) }
         FormCard(t.title, Icons.Rounded.Sms, Brand.WhatsAppDark) {
             Text("Can use: ${t.fields}", style = MaterialTheme.typography.labelMedium, color = Brand.Teal700)
+            // live preview with a sample student, so the owner sees the final message while typing
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp)).padding(10.dp)) {
+                Text("Preview · sample student", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
+                Text(`in`.vidyadhan.academy.Templates.bot(t.key, `in`.vidyadhan.academy.Templates.sample), style = MaterialTheme.typography.bodySmall, color = Brand.Ink)
+            }
             Field(mr, { mr = it; AppSettings.setTemplate(t.key, true, it) }, "मराठी", singleLine = false, minLines = 3)
             Field(en, { en = it; AppSettings.setTemplate(t.key, false, it) }, "English", singleLine = false, minLines = 3)
             SoftButton("Reset to original", { mr = t.mr; en = t.en; AppSettings.setTemplate(t.key, true, ""); AppSettings.setTemplate(t.key, false, "") },
@@ -287,12 +292,10 @@ private fun MessagesPage() {
 @Composable
 private fun CoursesPage() {
     FormCard("Courses", Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600) {
-        Field(AppSettings.courses, { AppSettings.courses = it }, "Course names, separated by commas", singleLine = false, minLines = 2)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { AppSettings.courseList.forEach { SmallTag(it, Brand.Saffron700) } }
+        ChipListEditor("Add a course (e.g. UPSC Prelims)", AppSettings.courseList, Brand.Saffron700) { AppSettings.courses = it.joinToString(", ") }
     }
     FormCard("Batches", Icons.Rounded.Schedule, Brand.Teal700) {
-        Field(AppSettings.batches, { AppSettings.batches = it }, "Batch names, separated by commas", singleLine = false, minLines = 2)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { AppSettings.batchList.forEach { SmallTag(it, Brand.Teal700) } }
+        ChipListEditor("Add a batch (e.g. Crash Course)", AppSettings.batchList, Brand.Teal700) { AppSettings.batches = it.joinToString(", ") }
     }
     FormCard("Installments", Icons.Rounded.Timeline, Brand.Violet700) {
         Stepper("Usual number of installments", AppSettings.defaultInstallments, 1..12) { AppSettings.defaultInstallments = it }
@@ -763,3 +766,31 @@ private val SETTING_INDEX = listOf(
     Triple("Backup & restore", "backup restore drive excel export start fresh", Page.Backup),
     Triple("Updates", "version update app", Page.Updates),
 )
+
+
+/** Tap-to-add and tap-to-remove chips (no comma-separated text to edit by hand). */
+@Composable
+private fun ChipListEditor(placeholder: String, items: List<String>, color: Color, onChange: (List<String>) -> Unit) {
+    var newItem by remember { mutableStateOf("") }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { item ->
+            Row(Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.10f)).padding(start = 12.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(item, style = MaterialTheme.typography.labelLarge, color = color)
+                Spacer(Modifier.width(4.dp))
+                Box(Modifier.size(22.dp).clip(RoundedCornerShape(50)).clickable { onChange(items - item) }, Alignment.Center) {
+                    Icon(Icons.Rounded.Close, "Remove $item", tint = color, modifier = Modifier.size(14.dp))
+                }
+            }
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(newItem, { newItem = it }, Modifier.weight(1f), singleLine = true, placeholder = { Text(placeholder) })
+        SoftButton("Add", {
+            val v = newItem.trim()
+            if (v.isNotEmpty() && items.none { it.equals(v, true) }) onChange(items + v)
+            newItem = ""
+        }, Modifier.width(96.dp), color = color, icon = Icons.Rounded.Add)
+    }
+}
+
