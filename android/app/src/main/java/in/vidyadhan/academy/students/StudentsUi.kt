@@ -159,7 +159,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
                     Text(initials(s.name), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Blue700)
                 }
                 // red dot: this student came from the old book
-                if (s.khataKey.isNotBlank() && s.dueNow > 0) Box(Modifier.align(Alignment.TopEnd).size(12.dp).clip(CircleShape).background(Brand.Red600).border(2.dp, Color.White, CircleShape))
+                if (s.khataKey.isNotBlank()) Box(Modifier.align(Alignment.TopEnd).size(12.dp).clip(CircleShape).background(Brand.Red600).border(2.dp, Color.White, CircleShape))
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {

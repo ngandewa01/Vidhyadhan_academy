@@ -106,6 +106,28 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
     val t = today()
     val open = all.filter(::isOpen)
     var leadFilter by rememberSaveable { mutableStateOf("all") }
+    var snooze by remember { mutableStateOf<Enquiry?>(null) }
+    var quickNote by remember { mutableStateOf<Enquiry?>(null) }
+    snooze?.let { e ->
+        ModalBottomSheet({ snooze = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+            Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SheetTitle("Follow-up for ${e.name}", "Pick the day to call again")
+                listOf("Today" to 0L, "Tomorrow" to 1L, "In 3 days" to 3L).forEach { (label, days) ->
+                    SoftButton(label, { vm.save(e.copy(followUpOn = t + days)); snooze = null }, Modifier.fillMaxWidth(), color = Brand.Blue700)
+                }
+            }
+        }
+    }
+    quickNote?.let { e ->
+        ModalBottomSheet({ quickNote = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+            Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SheetTitle("Quick remark", e.name)
+                listOf("Needs morning batch", "Requested fee discount", "Demo attended", "Parent will visit", "Needs Abhyasika seat").forEach { chip ->
+                    SoftButton(chip, { vm.save(e.copy(details = listOf(e.details, chip).filter { it.isNotBlank() }.joinToString(" · "))); quickNote = null }, Modifier.fillMaxWidth(), color = Brand.Slate600)
+                }
+            }
+        }
+    }
     HeroPage("Enquiries & Admissions", "Convert walk-ins into Academy, Abhyasika or Combo", header = {
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.25f)).border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)).padding(3.dp)) {
@@ -159,21 +181,30 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.Top) {
                         Column(Modifier.weight(1f)) {
-                            Text(e.name, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
+                            Text(e.name.split(" ").filter { it.isNotBlank() }.joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } },
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
                             if (e.course.isNotBlank()) Text(e.course, style = MaterialTheme.typography.labelMedium, color = Brand.Blue700)
                         }
                         Text(label, Modifier.clip(RoundedCornerShape(50)).background(bg).border(1.dp, fg.copy(alpha = 0.25f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = fg)
                     }
-                    Text("“${latestNote[e.id] ?: e.details.ifBlank { "No note yet" }}”", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp))
-                        .padding(8.dp), style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
+                    // tap the note to add a quick remark (chips) instead of typing
+                    Text("“${latestNote[e.id] ?: e.details.ifBlank { "Add a quick note" }}”", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp))
+                        .clickable { quickNote = e }.padding(8.dp), style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
                     Row {
                         Text("Source: ", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
                         Text(e.source.ifBlank { "—" }, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Slate600)
                         Text("Follow-up: ", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
-                        Text(if (e.followUpOn <= t) "Today" else relativeDay(e.followUpOn), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Saffron500)
+                        Text(if (e.followUpOn <= t) "Today" else relativeDay(e.followUpOn), Modifier.clip(RoundedCornerShape(6.dp)).clickable { snooze = e }.padding(horizontal = 4.dp),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Saffron500)
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Brand.Blue100).clickable { Contact.call(ctx, e.mobile) }, Alignment.Center) {
+                            Icon(Icons.Rounded.Phone, "Call", tint = Brand.Blue700, modifier = Modifier.size(18.dp))
+                        }
+                        Box(Modifier.size(38.dp).clip(RoundedCornerShape(12.dp)).background(Brand.Green50).clickable { Contact.whatsapp(ctx, e.mobile) }, Alignment.Center) {
+                            Icon(Icons.AutoMirrored.Rounded.Chat, "WhatsApp", tint = Brand.WhatsAppDark, modifier = Modifier.size(18.dp))
+                        }
                         Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Color(0xFFF0F9FF)).border(1.dp, Color(0xFFBAE6FD), RoundedCornerShape(12.dp))
                             .clickable { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, "e${e.id}", e.mobile, `in`.vidyadhan.academy.telegram.TelegramBot.esc(`in`.vidyadhan.academy.Templates.fill("enquiry", false, mapOf("name" to e.name)))) }.padding(vertical = 9.dp),
                             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
