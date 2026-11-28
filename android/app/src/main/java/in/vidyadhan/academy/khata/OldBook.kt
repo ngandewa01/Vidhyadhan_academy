@@ -39,7 +39,7 @@ object OldBook {
         val inst = when {
             charges.isNotEmpty() -> charges.mapIndexed { i, c ->
                 Installment(studentId = studentId, number = i + 1, amount = c.debit, dueOn = c.date,
-                    label = if (charges.size == 1) "Fee (old book)" else "Fee ${i + 1} (old book)")
+                    label = if (charges.size == 1) "Fee" else "Fee ${i + 1}")
             }
             // the book has payments but no charge written: the fee is what was paid, so nothing shows as advance
             pays.isNotEmpty() -> listOf(Installment(studentId = studentId, number = 1, amount = pays.sumOf { it.amount }, dueOn = pays.first().paidOn,

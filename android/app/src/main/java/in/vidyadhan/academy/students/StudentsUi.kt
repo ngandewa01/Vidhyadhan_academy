@@ -480,9 +480,10 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val held = m != null && m.depositPaid && m.depositReturnedOn == null && m.deposit > 0
                 // the deposit is for an Abhyasika seat only: shown when the student has one (Combo)
-                if (m != null) MoneyBox("REFUNDABLE DEPOSIT", rupees(m?.deposit ?: 0) + " (" + when { m == null || m.deposit == 0L -> "None"; held -> "Held"; m.depositReturnedOn != null -> "Refunded"; else -> "Not paid" } + ")",
+                if (m != null && m.deposit > 0) MoneyBox("REFUNDABLE DEPOSIT", rupees(m?.deposit ?: 0) + " (" + when { m == null || m.deposit == 0L -> "None"; held -> "Held"; m.depositReturnedOn != null -> "Refunded"; else -> "Not paid" } + ")",
                     Brand.Green700, Brand.Green50, if (held) "Refund deposit" else null, Modifier.weight(1f).fillMaxHeight()) { refund = true }
-                MoneyBox("ADVANCE CREDIT", rupees(advanceOf(paid, plan, t)), Brand.Amber700, Brand.Amber50, if (balance > 0) "+ Add ${rupees(minOf(balance, 1000L))} advance" else null,
+                // the advance box only when there is an advance (no empty boxes)
+                if (advanceOf(paid, plan, t) > 0) MoneyBox("ADVANCE CREDIT", rupees(advanceOf(paid, plan, t)), Brand.Amber700, Brand.Amber50, if (balance > 0) "+ Add ${rupees(minOf(balance, 1000L))} advance" else null,
                     Modifier.weight(1f).fillMaxHeight()) { payFor = minOf(balance, 1000L) }
             }
 
