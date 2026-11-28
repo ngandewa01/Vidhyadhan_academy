@@ -1,5 +1,6 @@
 package `in`.vidyadhan.academy.home
 
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -147,7 +148,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
 
     val acadCard: @Composable () -> Unit = {
         val batches = students.map { it.batch }.filter { it.isNotBlank() }.distinct().size
-        SectionCard("Academy batches", AppSettings.courseList.joinToString(" · ").ifBlank { "Courses" }, Icons.Rounded.School, Brand.Blue700, "Students",
+        SectionCard("Academy batches", AppSettings.courseList.joinToString(" · ").ifBlank { "Courses" }.let { if (it.length > 28) "${AppSettings.courseList.size} courses" else it }, Icons.Rounded.School, Brand.Blue700, "Students",
             onLink = { onGo(Go.Students, 0) }) {
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                 Column3("${students.size}", "Enrolled", if (batches > 0) "$batches batch${if (batches == 1) "" else "es"}" else "${allStudents.size - students.size} former",
@@ -368,28 +369,37 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
             if (alerts == 0) Text("Nothing needs you today ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
             // the people behind the counts: each one can be reminded straight from here
             val dueStudents = students.filter { it.nextDue != null && it.nextDue <= t }.sortedBy { it.nextDue }
+            val dueMembers = active.filter { it.validTill <= t || it.balance > 0 }.sortedBy { it.validTill }
+            // academy first, then Abhyasika; each list shows 5 and opens in full with "Show all", so both stay reachable
+            var showAllAcad by remember { mutableStateOf(false) }
+            var showAllLib by remember { mutableStateOf(false) }
             if (dueStudents.isNotEmpty()) {
                 Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("ACADEMY · FEES DUE", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
-                    // the one place to record money: Quick collect (every row here only reminds)
+                    Text("ACADEMY · ${dueStudents.size} DUE", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
                     Text("Quick collect ›", Modifier.clickable { showReminders = false; showCollect = true }.padding(4.dp), style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
                 }
-                dueStudents.take(8).forEach { s ->
+                (if (showAllAcad) dueStudents else dueStudents.take(5)).forEach { s ->
                     val due = s.nextDue ?: t
+                    val tgKey = if (`in`.vidyadhan.academy.telegram.TelegramBot.isLinked("s${s.id}")) "s${s.id}" else null
                     ReminderPerson(s.name, "Instalment ${if (due < t) "overdue since" else "due"} ${shortDate(due)} · ${rupees(s.nextDueAmount)}", due < t,
                         onOpen = { showReminders = false; onGo(Go.Student, s.id) },
-                        onRemind = { Contact.whatsapp(ctx, s.mobile, feeMessage(true, s.name, s.nextDueAmount, due, AppSettings.academyName)) })
+                        onRemind = { Contact.whatsapp(ctx, s.mobile, feeMessage(true, s.name, s.nextDueAmount, due, AppSettings.academyName)) },
+                        telegramKey = tgKey,
+                        onTelegram = { tgSend(ctx, "s${s.id}", feeMessage(true, s.name, s.nextDueAmount, due, AppSettings.academyName)) })
                 }
-                if (dueStudents.size > 8) Text("+ ${dueStudents.size - 8} more · tap a fee row above to collect", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                if (dueStudents.size > 5) TextButton(onClick = { showAllAcad = !showAllAcad }) { Text(if (showAllAcad) "Show less" else "Show all ${dueStudents.size}") }
             }
-            val dueMembers = active.filter { it.validTill <= t || it.balance > 0 }.sortedBy { it.validTill }
             if (dueMembers.isNotEmpty()) {
-                Text("ABHYASIKA · DUES", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, modifier = Modifier.padding(top = 6.dp))
-                dueMembers.take(8).forEach { m ->
+                Text("ABHYASIKA · ${dueMembers.size} DUE", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, modifier = Modifier.padding(top = 10.dp))
+                (if (showAllLib) dueMembers else dueMembers.take(5)).forEach { m ->
+                    val tgKey = if (`in`.vidyadhan.academy.telegram.TelegramBot.isLinked("m${m.id}")) "m${m.id}" else null
                     ReminderPerson("${m.name} · Seat ${m.seatNo}", if (m.validTill < t) "Renewal overdue since ${shortDate(m.validTill)}" else if (m.validTill <= t) "Renewal due today" else "Balance ${rupees(m.balance)}", m.validTill < t,
                         onOpen = { showReminders = false; onGo(Go.Member, m.id) },
-                        onRemind = { Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) })
+                        onRemind = { Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) },
+                        telegramKey = tgKey,
+                        onTelegram = { tgSend(ctx, "m${m.id}", libraryReminder(m, t)) })
                 }
+                if (dueMembers.size > 5) TextButton(onClick = { showAllLib = !showAllLib }) { Text(if (showAllLib) "Show less" else "Show all ${dueMembers.size}") }
             }
         }
     }
@@ -733,7 +743,7 @@ private fun RecordAnySheet(students: List<StudentWithFees>, members: List<Librar
 
 /** A person in the reminders list: tap the name to open them, Remind sends the WhatsApp reminder. */
 @Composable
-private fun ReminderPerson(name: String, detail: String, late: Boolean, onOpen: () -> Unit, onRemind: () -> Unit) {
+private fun ReminderPerson(name: String, detail: String, late: Boolean, onOpen: () -> Unit, onRemind: () -> Unit, telegramKey: String? = null, onTelegram: (() -> Unit)? = null) {
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f).clickable(onClick = onOpen)) {
@@ -741,6 +751,22 @@ private fun ReminderPerson(name: String, detail: String, late: Boolean, onOpen: 
             Text(detail, style = MaterialTheme.typography.bodySmall, color = if (late) Brand.Red600 else Brand.Slate500, maxLines = 2)
         }
         Spacer(Modifier.width(8.dp))
-        SoftButton("Remind", onRemind, Modifier.width(118.dp), color = Brand.Blue700, icon = Icons.AutoMirrored.Rounded.Chat)
+        // Telegram only when the person is connected: the bot sends it, so there is no WhatsApp step
+        if (telegramKey != null && onTelegram != null) ChannelButton("Telegram", Color(0xFF229ED9), onTelegram) {
+            Icon(Icons.AutoMirrored.Rounded.Send, "Send on Telegram", tint = Color(0xFF229ED9), modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        ChannelButton("WhatsApp", Brand.WhatsAppDark, onRemind) { WhatsAppLogo(Modifier.size(26.dp)) }
+    }
+}
+
+
+/** Sends a reminder through the Telegram bot to a connected person (the bot delivers it; nothing opens). */
+private fun tgSend(ctx: Context, key: String, text: String) {
+    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+        val ok = `in`.vidyadhan.academy.telegram.TelegramBot.sendToKey(key, `in`.vidyadhan.academy.telegram.TelegramBot.esc(text))
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+            android.widget.Toast.makeText(ctx, if (ok) "Sent on Telegram ✓" else "Could not send on Telegram", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 }

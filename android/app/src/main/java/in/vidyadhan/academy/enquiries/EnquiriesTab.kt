@@ -1,5 +1,8 @@
 package `in`.vidyadhan.academy.enquiries
 
+import androidx.compose.runtime.rememberCoroutineScope
+import in.vidyadhan.academy.data.AppDb
+import in.vidyadhan.academy.data.Note
 import android.app.Application
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
@@ -110,6 +113,7 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
     var leadFilter by rememberSaveable { mutableStateOf("all") }
     var snooze by remember { mutableStateOf<Enquiry?>(null) }
     var quickNote by remember { mutableStateOf<Enquiry?>(null) }
+    val scope = rememberCoroutineScope()
     snooze?.let { e ->
         ModalBottomSheet({ snooze = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
             Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -121,11 +125,37 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
         }
     }
     quickNote?.let { e ->
+        val history = notes.filter { it.ownerId == e.id }
+        var writing by remember(e.id) { mutableStateOf(false) }
+        var draft by remember(e.id) { mutableStateOf("") }
         ModalBottomSheet({ quickNote = null }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
-            Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                SheetTitle("Quick remark", e.name)
+            Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SheetTitle("Remarks", e.name)
+                // one-tap quick remarks
                 listOf("Needs morning batch", "Requested fee discount", "Demo attended", "Parent will visit", "Needs Abhyasika seat").forEach { chip ->
-                    SoftButton(chip, { vm.save(e.copy(details = listOf(e.details, chip).filter { it.isNotBlank() }.joinToString(" · "))); quickNote = null }, Modifier.fillMaxWidth(), color = Brand.Slate600)
+                    SoftButton(chip, { scope.launch { AppDb.get(ctx).notes().insert(Note(kind = "ENQUIRY", ownerId = e.id, text = chip, createdAt = System.currentTimeMillis())) }; quickNote = null },
+                        Modifier.fillMaxWidth(), color = Brand.Slate600)
+                }
+                // write a new remark with the pencil
+                if (!writing) SoftButton("Write a new remark", { writing = true }, Modifier.fillMaxWidth(), color = Brand.Blue700, icon = Icons.Rounded.Edit)
+                else {
+                    OutlinedTextField(draft, { draft = it }, Modifier.fillMaxWidth(), minLines = 2, placeholder = { Text("Type the remark") })
+                    PrimaryButton("Save remark", {
+                        val text = draft.trim()
+                        if (text.isNotEmpty()) scope.launch { AppDb.get(ctx).notes().insert(Note(kind = "ENQUIRY", ownerId = e.id, text = text, createdAt = System.currentTimeMillis())) }
+                        quickNote = null
+                    }, Modifier.fillMaxWidth(), enabled = draft.isNotBlank())
+                }
+                // past remarks, newest first
+                if (history.isNotEmpty()) {
+                    Text("Earlier remarks", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, modifier = Modifier.padding(top = 6.dp))
+                    history.take(10).forEach { n ->
+                        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).padding(10.dp)) {
+                            Text(n.text, style = MaterialTheme.typography.bodyMedium, color = Brand.Ink)
+                            Text(java.text.SimpleDateFormat("d MMM, h:mm a", java.util.Locale.ENGLISH).format(java.util.Date(n.createdAt)),
+                                style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
+                        }
+                    }
                 }
             }
         }

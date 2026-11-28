@@ -862,3 +862,25 @@ fun DeletePersonDialog(title: String, text: String, onTelegram: Boolean, onConfi
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Brand.Slate500) } },
     )
 }
+
+
+/** The WhatsApp logo as a vector (speech bubble with a handset), for buttons. */
+@Composable
+fun WhatsAppLogo(modifier: Modifier = Modifier, tint: Color = Color(0xFF128C7E)) {
+    androidx.compose.foundation.Canvas(modifier) {
+        val w = size.width
+        drawCircle(tint, radius = w / 2, center = androidx.compose.ui.geometry.Offset(w / 2, w / 2))
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(w * 0.22f, w * 0.80f); lineTo(w * 0.27f, w * 0.64f)
+            arcTo(androidx.compose.ui.geometry.Rect(w * 0.12f, w * 0.12f, w * 0.88f, w * 0.88f), 150f, -270f, false)
+            close()
+        }
+        drawPath(path, Color.White, style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.09f))
+    }
+}
+
+/** A round icon button for the reminder rows: WhatsApp (logo) and Telegram (paper plane). */
+@Composable
+fun ChannelButton(label: String, color: Color, onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(Modifier.size(40.dp).clip(CircleShape).background(color.copy(alpha = 0.12f)).clickable(onClick = onClick), Alignment.Center) { content() }
+}

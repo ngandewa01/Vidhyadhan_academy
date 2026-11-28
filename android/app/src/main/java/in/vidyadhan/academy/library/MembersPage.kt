@@ -2,6 +2,7 @@ package `in`.vidyadhan.academy.library
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -57,6 +58,16 @@ internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: 
     val studs by remember { `in`.vidyadhan.academy.data.AppDb.get(ctx).students().students() }.collectAsStateWithLifecycle(emptyList())
     val courseOf = remember(studs) { studs.associate { it.id to it.course } }
     var sort by rememberSaveable { mutableStateOf("Seat number") }
+    var showSort by remember { mutableStateOf(false) }
+    if (showSort) ModalBottomSheet({ showSort = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SheetTitle("Sort members", "Choose the order of the list")
+            listOf("Seat number", "Name", "Valid till").forEach { o ->
+                SoftButton(o + if (sort == o) "  ✓" else "", { sort = o; showSort = false }, Modifier.fillMaxWidth(),
+                    color = if (sort == o) Brand.Blue700 else Brand.Slate600)
+            }
+        }
+    }
     var query by rememberSaveable { mutableStateOf("") }
     val t = today()
     val active = members.filter { it.active }
@@ -86,10 +97,14 @@ internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: 
                     }
                 }
             }
+            // one slim row: search (with clear) and a filter icon that opens sorting
             item {
-                Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 4.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SearchBox(query, { query = it }, "Search name, mobile, seat")
-                    Dropdown("Sort by", sort, listOf("Seat number", "Name", "Valid till"), Modifier.fillMaxWidth()) { sort = it }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SearchBox(query, { query = it }, "Search name, mobile, seat", Modifier.weight(1f))
+                    Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(if (sort != "Seat number") Brand.Blue700 else Color.White)
+                        .border(1.dp, Brand.Line, RoundedCornerShape(14.dp)).clickable { showSort = true }, Alignment.Center) {
+                        Icon(Icons.Rounded.FilterList, "Sort and filter", tint = if (sort != "Seat number") Color.White else Brand.Slate600, modifier = Modifier.size(20.dp))
+                    }
                 }
             }
             if (shown.isEmpty()) item {
