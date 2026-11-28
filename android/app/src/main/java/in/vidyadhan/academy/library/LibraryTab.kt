@@ -131,7 +131,7 @@ fun LibraryTab(
             else MembersPage(vm, memberFilter, { memberFilter = it }, onAdd = {
                 val taken = members.filter { it.active }.map { it.seatNo }.toSet()
                 screen = Screen.Form(allSeats(vm.rooms.value, AppSettings.seatCount).firstOrNull { it !in taken } ?: 0)
-            }, onOpen = { screen = Screen.Detail(it) }, onPlans = { screen = Screen.Plans }, switcher = switcher)
+            }, onOpen = { screen = Screen.Detail(it) }, onRenew = { screen = Screen.Detail(it, renew = true) }, onPlans = { screen = Screen.Plans }, switcher = switcher)
             Screen.Plans -> PlansPage(vm) { screen = Screen.Main }
             is Screen.Form -> MemberForm(vm, s.seat, s.id, onCancel = { screen = if (s.id == 0L) Screen.Main else Screen.Detail(s.id) }, onSaved = { screen = Screen.Detail(it) })
             is Screen.Detail -> MemberDetail(vm, s.id, startRenew = s.renew, onBack = { screen = Screen.Main }, onOpen = { screen = Screen.Detail(it) }, onEdit = { screen = Screen.Form(0, s.id) })

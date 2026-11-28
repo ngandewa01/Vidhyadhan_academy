@@ -186,15 +186,15 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
                                 style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink)
                             if (e.course.isNotBlank()) Text(e.course, style = MaterialTheme.typography.labelMedium, color = Brand.Blue700)
                         }
-                        Text(label, Modifier.clip(RoundedCornerShape(50)).background(bg).border(1.dp, fg.copy(alpha = 0.25f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
+                        // one status line: the state and where the lead came from
+                        Text(if (e.source.isNotBlank()) "$label · ${e.source}" else label, Modifier.clip(RoundedCornerShape(50)).background(bg).border(1.dp, fg.copy(alpha = 0.25f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = fg)
                     }
                     // tap the note to add a quick remark (chips) instead of typing
                     Text("“${latestNote[e.id] ?: e.details.ifBlank { "Add a quick note" }}”", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(12.dp))
                         .clickable { quickNote = e }.padding(8.dp), style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
                     Row {
-                        Text("Source: ", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
-                        Text(e.source.ifBlank { "—" }, Modifier.weight(1f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Slate600)
+                        Spacer(Modifier.weight(1f))
                         Text("Follow-up: ", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
                         Text(if (e.followUpOn <= t) "Today" else relativeDay(e.followUpOn), Modifier.clip(RoundedCornerShape(6.dp)).clickable { snooze = e }.padding(horizontal = 4.dp),
                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Saffron500)

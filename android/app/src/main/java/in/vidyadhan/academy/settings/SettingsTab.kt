@@ -311,6 +311,13 @@ private fun RemindersPage() {
     FormCard("Enquiry follow-up", Icons.Rounded.Forum, Brand.Saffron600) {
         Stepper("Remind me after", AppSettings.enquiryDays, 1..14, if (AppSettings.enquiryDays == 1) " day" else " days") { AppSettings.enquiryDays = it }
     }
+    // what the phone will show: a sample of the morning notification (the counts are for the day it fires)
+    FormCard("Lock-screen preview", Icons.Rounded.Notifications, Brand.Violet700) {
+        Text("Morning Action Digest", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+        Text("• 3 fee instalments due · 2 Abhyasika dues\n• 2 enquiries to follow up today", style = MaterialTheme.typography.bodySmall, color = Brand.Slate600)
+        Text("One notification lists enquiries to follow up, fees due and library renewals. Android may delay it by a few minutes to save battery.",
+            style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
+    }
     FormCard("Daily notification", Icons.Rounded.Alarm, Brand.Red600) {
         androidx.compose.foundation.layout.Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(18.dp))
             .clickable { timeDialog = true }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

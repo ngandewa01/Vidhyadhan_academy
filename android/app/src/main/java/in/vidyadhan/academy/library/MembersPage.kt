@@ -47,7 +47,7 @@ private fun matches(f: MemberFilter, m: LibraryMember, t: Long): Boolean = when 
 
 /** "Members": counts, search, filters and the member cards. */
 @Composable
-internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: (MemberFilter) -> Unit, onAdd: () -> Unit, onOpen: (Long) -> Unit, onPlans: () -> Unit,
+internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: (MemberFilter) -> Unit, onAdd: () -> Unit, onOpen: (Long) -> Unit, onRenew: (Long) -> Unit = onOpen, onPlans: () -> Unit,
                          switcher: @Composable () -> Unit = {}) {
     val ctx = LocalContext.current
     val members by vm.members.collectAsStateWithLifecycle()
@@ -95,7 +95,8 @@ internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: 
                 EmptyState(Icons.Rounded.SearchOff, if (members.isEmpty()) "No members yet" else "Nobody here",
                     if (members.isEmpty()) "Tap “Add member”, or tap a free seat on the Seats page." else "No member matches this search or filter.")
             }
-            items(shown, key = { it.id }) { m -> MemberCard(m, rooms, t, { onOpen(m.id) }, combo = m.studentId?.let { "Combo · ${courseOf[it] ?: "course"}" }) { `in`.vidyadhan.academy.ui.Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) } }
+            items(shown, key = { it.id }) { m -> MemberCard(m, rooms, t, { onOpen(m.id) }, combo = m.studentId?.let { "Combo · ${courseOf[it] ?: "course"}" },
+                onRenew = if (m.monthlyFee > 0) ({ onRenew(m.id) }) else null) { `in`.vidyadhan.academy.ui.Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) } }
         }
     }
 }
@@ -136,7 +137,7 @@ internal fun seatLine(m: LibraryMember, rooms: List<LibraryRoom>) =
     listOf("Seat ${m.seatNo}", roomOf(m.seatNo, rooms)?.name ?: "").filter { it.isNotBlank() }.joinToString(" · ")
 
 @Composable
-internal fun MemberCard(m: LibraryMember, rooms: List<LibraryRoom>, t: Long, onClick: () -> Unit, combo: String? = null, onRemind: () -> Unit) {
+internal fun MemberCard(m: LibraryMember, rooms: List<LibraryRoom>, t: Long, onClick: () -> Unit, combo: String? = null, onRenew: (() -> Unit)? = null, onRemind: () -> Unit) {
     val st = memberStatus(m, t)
     val edge = when { !m.active -> Color.Transparent; st == SeatStatus.Expired -> Brand.Red500; st == SeatStatus.Ending -> Brand.Saffron500; else -> Color.Transparent }
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 5.dp).clip(RoundedCornerShape(22.dp))
@@ -162,6 +163,11 @@ internal fun MemberCard(m: LibraryMember, rooms: List<LibraryRoom>, t: Long, onC
             SmallTag(seatLine(m, rooms), Brand.Blue700)
             if (m.hasLocker) SmallTag(lockerLabel(m), Brand.Violet700)
             Spacer(Modifier.weight(1f))
+            // the amount on the button: one tap opens the renewal sheet (with the confirm step)
+            if (m.active && st != SeatStatus.Active && onRenew != null) Text("Renew ${rupees(m.monthlyFee)}",
+                Modifier.clip(RoundedCornerShape(50)).background(Brand.Green600).clickable(onClick = onRenew).padding(horizontal = 12.dp, vertical = 7.dp),
+                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Color.White, maxLines = 1, softWrap = false)
+            if (m.active && st != SeatStatus.Active) Spacer(Modifier.width(8.dp))
             if (m.active && st != SeatStatus.Active) SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send reminder to ${m.name}", Brand.WhatsAppDark, onRemind)
         }
         HorizontalDivider(color = Brand.Line)
