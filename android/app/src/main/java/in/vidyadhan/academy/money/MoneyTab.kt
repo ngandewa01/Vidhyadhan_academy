@@ -286,13 +286,14 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}, onGo: (`in`.vi
     }
 }
 
-private data class PeriodLine(val label: String, val collected: Long, val spent: Long)
+private data class PeriodLine(val label: String, val collected: Long, val spent: Long, val academy: Long = 0L, val abhyasika: Long = 0L)
 
 /** Year: each month of the year. All time: each year. Shows money in, money out and profit. */
 @Composable
 private fun PeriodCard(period: String, pm: List<MonthMoney>, onShare: () -> Unit) {
-    val lines = if (period == "year") pm.map { PeriodLine(it.month.format(DateTimeFormatter.ofPattern("MMMM")), it.collected, it.expenses) }
-        else pm.groupBy { it.month.year }.toSortedMap().map { (y, l) -> PeriodLine("$y", l.sumOf { it.collected }, l.sumOf { it.expenses }) }
+    // academy and Abhyasika revenue are shown on their own lines; the total still adds both
+    val lines = if (period == "year") pm.map { PeriodLine(it.month.format(DateTimeFormatter.ofPattern("MMMM")), it.collected, it.expenses, it.studentFees + it.khataPayments, it.libraryFees + it.registration) }
+        else pm.groupBy { it.month.year }.toSortedMap().map { (y, l) -> PeriodLine("$y", l.sumOf { it.collected }, l.sumOf { it.expenses }, l.sumOf { it.studentFees + it.khataPayments }, l.sumOf { it.libraryFees + it.registration }) }
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp)) {
         Text(if (period == "year") "Month by month" else "Year by year", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
         lines.reversed().forEachIndexed { i, ln ->
@@ -302,6 +303,7 @@ private fun PeriodCard(period: String, pm: List<MonthMoney>, onShare: () -> Unit
                 Column(Modifier.weight(1f)) {
                     Text(ln.label, style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
                     Text("In ${rupees(ln.collected)} · Out ${rupees(ln.spent)}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                    Text("Academy ${rupees(ln.academy)} · Abhyasika ${rupees(ln.abhyasika)}", style = MaterialTheme.typography.labelSmall, color = Brand.Slate500)
                 }
                 Text(rupees(p), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = if (p >= 0) Brand.Green700 else Brand.Red600)
             }
