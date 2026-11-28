@@ -10,13 +10,12 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 /**
- * Groq (fast open models) through its OpenAI-compatible chat API, with the owner's key.
- * Groq has no web search, so it never finds news by itself. It is a backup that only writes answers from the text it is
- * given; its answers carry no sources, so the news check drops anything it cannot tie to a trusted page.
+ * Groq's compound model through its OpenAI-compatible chat API, with the owner's key. Compound has built-in web search
+ * with citations, so Groq does the search and the summary (the main AI). Its answers keep the pages it used as sources.
  */
 object Groq {
     private const val URL = "https://api.groq.com/openai/v1/chat/completions"
-    private const val MODEL = "llama-3.3-70b-versatile"
+    private const val MODEL = "groq/compound"
 
     private val http = OkHttpClient.Builder().callTimeout(90, TimeUnit.SECONDS).readTimeout(90, TimeUnit.SECONDS).build()
     private val json = Json { ignoreUnknownKeys = true }
@@ -41,6 +40,18 @@ object Groq {
         val answer = json.parseToJsonElement(text).jsonObject["choices"]?.jsonArray?.firstOrNull()?.jsonObject
             ?.get("message")?.jsonObject?.get("content")?.jsonPrimitive?.content
             ?: throw AiProblem("Groq gave no answer")
-        Grounded(answer, emptyList(), emptyList())
+        // the pages compound searched, when Groq returns them (search results per executed tool)
+        val sources = json.parseToJsonElement(text).jsonObject["choices"]?.jsonArray?.firstOrNull()?.jsonObject
+            ?.get("message")?.jsonObject?.get("executed_tools")?.jsonArray.orEmpty()
+            .flatMap { t -> t.jsonObject["search_results"]?.jsonObject?.get("results")?.jsonArray.orEmpty() }
+            .mapNotNull { r ->
+                val o = r.jsonObject
+                val url = o["url"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+                val title = o["title"]?.jsonPrimitive?.contentOrNull.orEmpty()
+                Source(title, runCatching { java.net.URI(url).host.orEmpty().removePrefix("www.") }.getOrDefault(title).lowercase(), url)
+            }
+            .distinctBy { it.uri }
+        // one support per answer: every sentence is backed by the pages the search used
+        Grounded(answer, sources, if (sources.isEmpty()) emptyList() else listOf(Support(answer, sources.indices.toList())))
     }
 }
