@@ -256,18 +256,17 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                         if (studentPending > 0) Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Top) {
                             Column(Modifier.weight(1f)) {
                                 Text("Academy", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
-                                Text("Due now ${rupees(studentDueNow)} · later ${rupees(later)}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                                Text("${rupees(studentDueNow)} due now", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(rupees(studentPending), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Color(0xFFFDE68A), maxLines = 1, softWrap = false)
                         }
                         if (libraryPending > 0) Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Top) {
                             Column(Modifier.weight(1f)) {
                                 Text("Abhyasika", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
-                                Text("${libDueMembers} member${if (libDueMembers == 1) "" else "s"} with fee due", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                                Text("$libDueMembers due", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
                             }
                             Text(rupees(libraryPending), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Color(0xFFFDE68A), maxLines = 1, softWrap = false)
                         }
-                        Text("To record a payment, open the student or member.", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
                     }
                 }
                 if (depositsHeld > 0) Text("Deposits held ${rupees(depositsHeld)} (to be returned)", Modifier.padding(top = 8.dp),
@@ -361,7 +360,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
         active.filter { it.validTill <= t + ENDING_DAYS || it.balance > 0 }.sortedBy { it.validTill }, t, onStudent = { onGo(Go.Student, it) }, onMember = { onGo(Go.Member, it) }) { showCollect = false }
 
     if (showReminders) ModalBottomSheet({ showReminders = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SheetTitle("Today's alerts & Telegram feed", if (`in`.vidyadhan.academy.telegram.TelegramBot.connected)
                 "Due reminders and birthday wishes go out by the bot at ${"%02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)}" else "Everything that needs you today")
             if (callsToday > 0) OptionRow(Icons.Rounded.Call, Brand.Saffron500, "$callsToday enquir${if (callsToday == 1) "y" else "ies"} to call") { showReminders = false; onGo(Go.Enquiries, 0) }

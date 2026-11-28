@@ -210,7 +210,7 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
                             .clickable { `in`.vidyadhan.academy.telegram.TelegramBot.sendOrExplain(ctx, "e${e.id}", e.mobile, `in`.vidyadhan.academy.telegram.TelegramBot.esc(`in`.vidyadhan.academy.Templates.fill("enquiry", false, mapOf("name" to e.name)))) }.padding(vertical = 9.dp),
                             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color(0xFF0369A1), modifier = Modifier.size(15.dp)); Spacer(Modifier.width(6.dp))
-                            Text("Telegram info", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color(0xFF0369A1))
+                            Text("Telegram", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color(0xFF0369A1), maxLines = 1, softWrap = false)
                         }
                         Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Brand.Blue700).clickable { onAdmit(e) }.padding(vertical = 9.dp),
                             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
