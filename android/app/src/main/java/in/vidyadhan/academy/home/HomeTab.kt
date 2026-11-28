@@ -148,7 +148,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
 
     val acadCard: @Composable () -> Unit = {
         val batches = students.map { it.batch }.filter { it.isNotBlank() }.distinct().size
-        SectionCard("Academy batches", AppSettings.courseList.joinToString(" · ").ifBlank { "Courses" }.let { if (it.length > 28) "${AppSettings.courseList.size} courses" else it }, Icons.Rounded.School, Brand.Blue700, "Students",
+        SectionCard("Academy batches", "", Icons.Rounded.School, Brand.Blue700, "Students",
             onLink = { onGo(Go.Students, 0) }) {
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                 Column3("${students.size}", "Enrolled", if (batches > 0) "$batches batch${if (batches == 1) "" else "es"}" else "${allStudents.size - students.size} former",
@@ -164,19 +164,13 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     }
     val libCard: @Composable () -> Unit = {
         val legroom = seats.count { typeForSeat(it, types)?.icon == "LEGROOM" }
-        SectionCard("Abhyasika (Library)", "${seats.size - legroom} Normal · $legroom Extra leg room", Icons.Rounded.EventSeat, Brand.Green600, "Floor plan",
+        SectionCard("Abhyasika (Library)", "", Icons.Rounded.EventSeat, Brand.Green600, "Floor plan",
             onLink = { onGo(Go.Seats, 0) }) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(14.dp)).padding(vertical = 8.dp)) {
                 Mini("${seats.size - occupied}", "Free seats", Brand.Green600, Modifier.weight(1f)) { onGo(Go.Seats, 0) }
                 Mini("$occupied/${seats.size}", "Occupied", Brand.Ink, Modifier.weight(1f)) { onGo(Go.Library, 0) }
                 Mini("${active.count { it.hasLocker }}/${AppSettings.lockerCount}", "Lockers", Brand.Violet700, Modifier.weight(1f)) { onGo(Go.Library, 0) }
                 Mini("$ending", "Expiring ${ENDING_DAYS}d", Brand.Saffron500, Modifier.weight(1f)) { onGo(Go.MemberEnding, 0) }
-            }
-            if (libraryPending > 0) Row(Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Saffron100)
-                .clickable { onGo(Go.MemberDues, 0) }.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${rupees(libraryPending)} due from Abhyasika members", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = Brand.Saffron600)
-                Text("Collect", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Saffron600)
-                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Brand.Saffron600, modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -607,7 +601,7 @@ private fun SectionCard(title: String, subtitle: String, icon: ImageVector, colo
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         content()
