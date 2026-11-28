@@ -118,7 +118,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     // course fees due up to today (not later installments), and who owes them
     val studentDueNow = students.sumOf { it.dueNow }
     val dueNowCount = students.count { it.dueNow > 0 }
-    val dueNowAll = studentDueNow + libraryPending
+    val libDueMembers = active.count { it.validTill < t || it.balance > 0 }
     val later = (studentPending - studentDueNow).coerceAtLeast(0)
     val depositsHeld = members.filter { it.depositPaid && it.depositReturnedOn == null }.sumOf { it.deposit }
 
@@ -152,7 +152,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                 Column3("${students.size}", "Enrolled", if (batches > 0) "$batches batch${if (batches == 1) "" else "es"}" else "${allStudents.size - students.size} former",
                     Brand.Ink, Brand.Green50, Brand.Green700, Modifier.weight(1f)) { onGo(Go.Students, 0) }
                 VerticalDivider(Modifier.padding(vertical = 6.dp), color = Brand.Line)
-                Column3(shortRupees(studentDueNow), "Fees due", "$dueNowCount student${if (dueNowCount == 1) "" else "s"}", Brand.Saffron500, Brand.Saffron100, Brand.Saffron600, Modifier.weight(1f)) {
+                Column3(rupees(studentDueNow), "Fees due", "$dueNowCount student${if (dueNowCount == 1) "" else "s"}", Brand.Saffron500, Brand.Saffron100, Brand.Saffron600, Modifier.weight(1f)) {
                     `in`.vidyadhan.academy.students.Handoff.studentFilter = "Fees due"; onGo(Go.Students, 0)
                 }
                 VerticalDivider(Modifier.padding(vertical = 6.dp), color = Brand.Line)
@@ -246,18 +246,28 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                         if (profit >= 0) Color(0xFF86EFAC) else Color(0xFFFCA5A5), Modifier.weight(1f))
                 }
                 Spacer(Modifier.height(10.dp))
-                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFDE68A).copy(alpha = 0.14f))
-                    .border(1.dp, Color(0xFFFDE68A).copy(alpha = 0.25f), RoundedCornerShape(14.dp))
-                    .clickable(enabled = pending > 0) { showCollect = true }.padding(start = 12.dp, end = 10.dp, top = 9.dp, bottom = 9.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(if (pending > 0) "Still to collect ${rupees(pending)}" else "Nothing to collect ✓",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color(0xFFFDE68A), maxLines = 1)
-                        if (pending > 0) Text("Due now ${rupees(dueNowAll)} · later installments ${rupees(later)}", style = MaterialTheme.typography.labelSmall,
-                            color = Color.White.copy(alpha = 0.8f), maxLines = 2)
+                // academy and Abhyasika are kept apart: they are different students and are never added into one figure
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFDE68A).copy(alpha = 0.14f))
+                    .border(1.dp, Color(0xFFFDE68A).copy(alpha = 0.25f), RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 9.dp)) {
+                    if (pending == 0L) Text("Nothing to collect ✓", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color(0xFFFDE68A))
+                    else {
+                        Text("STILL TO COLLECT", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color.White.copy(alpha = 0.75f))
+                        if (studentPending > 0) Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Top) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Academy", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                                Text("Due now ${rupees(studentDueNow)} · later ${rupees(later)}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                            }
+                            Text(rupees(studentPending), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Color(0xFFFDE68A), maxLines = 1, softWrap = false)
+                        }
+                        if (libraryPending > 0) Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Top) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Abhyasika", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                                Text("${libDueMembers} member${if (libDueMembers == 1) "" else "s"} with fee due", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                            }
+                            Text(rupees(libraryPending), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Color(0xFFFDE68A), maxLines = 1, softWrap = false)
+                        }
+                        Text("To record a payment, open the student or member.", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
                     }
-                    if (pending > 0) Text("Collect", Modifier.clip(RoundedCornerShape(50)).background(Brand.Saffron500).padding(horizontal = 12.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Color.White)
                 }
                 if (depositsHeld > 0) Text("Deposits held ${rupees(depositsHeld)} (to be returned)", Modifier.padding(top = 8.dp),
                     style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.85f))
