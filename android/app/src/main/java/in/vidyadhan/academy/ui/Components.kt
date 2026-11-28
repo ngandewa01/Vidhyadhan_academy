@@ -864,30 +864,11 @@ fun DeletePersonDialog(title: String, text: String, onTelegram: Boolean, onConfi
 }
 
 
-/** The WhatsApp logo as a vector: green disc, white speech bubble with the handset in green. */
+/** The WhatsApp logo, from the image the owner supplied (res/drawable-nodpi/whatsapp_logo.jpg). */
 @Composable
-fun WhatsAppLogo(modifier: Modifier = Modifier, tint: Color = Color(0xFF25D366)) {
-    androidx.compose.foundation.Canvas(modifier) {
-        val w = size.width
-        drawCircle(tint, radius = w / 2, center = androidx.compose.ui.geometry.Offset(w / 2, w / 2))
-        // bubble
-        val bubble = androidx.compose.ui.graphics.Path().apply {
-            addOval(androidx.compose.ui.geometry.Rect(w * 0.20f, w * 0.18f, w * 0.80f, w * 0.78f))
-        }
-        drawPath(bubble, Color.White)
-        val tail = androidx.compose.ui.graphics.Path().apply {
-            moveTo(w * 0.27f, w * 0.70f); lineTo(w * 0.20f, w * 0.86f); lineTo(w * 0.40f, w * 0.74f); close()
-        }
-        drawPath(tail, Color.White)
-        // handset
-        val handset = androidx.compose.ui.graphics.Path().apply {
-            moveTo(w * 0.40f, w * 0.36f); lineTo(w * 0.46f, w * 0.33f); lineTo(w * 0.54f, w * 0.43f)
-            lineTo(w * 0.50f, w * 0.48f); lineTo(w * 0.56f, w * 0.57f); lineTo(w * 0.62f, w * 0.53f)
-            lineTo(w * 0.67f, w * 0.60f); lineTo(w * 0.60f, w * 0.68f); lineTo(w * 0.44f, w * 0.60f)
-            lineTo(w * 0.34f, w * 0.44f); close()
-        }
-        drawPath(handset, tint)
-    }
+fun WhatsAppLogo(modifier: Modifier = Modifier) {
+    androidx.compose.foundation.Image(androidx.compose.ui.res.painterResource(`in`.vidyadhan.academy.R.drawable.whatsapp_logo),
+        contentDescription = "WhatsApp", modifier = modifier.clip(CircleShape))
 }
 
 /** A round icon button for the reminder rows: WhatsApp (logo) and Telegram (paper plane). */
