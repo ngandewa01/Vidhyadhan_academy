@@ -10,7 +10,7 @@ enum class AiProvider(val label: String, val note: String, val connected: Boolea
     GEMINI("Gemini", "Free key · Google Search", true, "AIza", "https://aistudio.google.com/app/apikey"),
     CLAUDE("Claude", "Needs API billing (not your subscription) · web search on trusted sites", true, "sk-ant-", "https://console.anthropic.com/settings/keys"),
     GPT("GPT (OpenAI)", "Needs API billing (not ChatGPT) · web search on trusted sites", true, "sk-", "https://platform.openai.com/api-keys"),
-    GROQ("Groq", "Not connected yet · free-plan search not confirmed", false, "gsk_", "https://console.groq.com/keys"),
+    GROQ("Groq", "Backup only · no web search, answers without sources", true, "gsk_", "https://console.groq.com/keys"),
 }
 
 /** Chooses the main AI and the backup, and asks them. */
@@ -43,7 +43,7 @@ object AiRouter {
         AiProvider.GEMINI -> Gemini.ask(prompt, key)
         AiProvider.CLAUDE -> Claude.ask(prompt, key)
         AiProvider.GPT -> Gpt.ask(prompt, key)
-        AiProvider.GROQ -> throw AiProblem("Groq is not connected yet")
+        AiProvider.GROQ -> Groq.ask(prompt, key)
     }
 
     /** Checks a key with a real search. Returns how many pages were found. */
