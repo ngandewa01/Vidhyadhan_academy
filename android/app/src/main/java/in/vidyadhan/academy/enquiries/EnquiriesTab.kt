@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -104,6 +105,7 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
     val latestNote = notes.groupBy { it.ownerId }.mapValues { (_, l) -> l.first().text }
     val t = today()
     val open = all.filter(::isOpen)
+    var leadFilter by rememberSaveable { mutableStateOf("all") }
     HeroPage("Enquiries & Admissions", "Convert walk-ins into Academy, Abhyasika or Combo", header = {
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.25f)).border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp)).padding(3.dp)) {
@@ -128,8 +130,26 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
                     }
                 }
             }
+            // live filter counts: one tap narrows the list to what needs doing today
+            item {
+                val dueToday = open.count { it.followUpOn <= t }
+                val overdue = open.count { it.followUpOn < t }
+                val newOnes = open.count { it.status == "NEW" }
+                val called = open.count { it.status == "CONTACTED" }
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("all" to "All ${open.size}", "today" to "Due today $dueToday", "overdue" to "Overdue $overdue", "new" to "New $newOnes", "called" to "Contacted $called").forEach { (k, l) ->
+                        val on = leadFilter == k
+                        Text(l, Modifier.clip(RoundedCornerShape(50)).background(if (on) Brand.Blue700 else Color.White).border(1.dp, if (on) Brand.Blue700 else Brand.Line, RoundedCornerShape(50))
+                            .clickable { leadFilter = k }.padding(horizontal = 12.dp, vertical = 7.dp), style = MaterialTheme.typography.labelMedium, color = if (on) Color.White else Brand.Slate600, maxLines = 1)
+                    }
+                }
+            }
+            val shownLeads = open.filter {
+                when (leadFilter) { "today" -> it.followUpOn <= t; "overdue" -> it.followUpOn < t; "new" -> it.status == "NEW"; "called" -> it.status == "CONTACTED"; else -> true }
+            }
             if (open.isEmpty()) item { EmptyState(Icons.Rounded.Forum, "No active leads", "Note every call or walk-in with “Add enquiry”. The app reminds you to follow up.") }
-            items(open.sortedBy { it.followUpOn }, key = { it.id }) { e ->
+            else if (shownLeads.isEmpty()) item { Text("Nothing in this filter", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500) }
+            items(shownLeads.sortedBy { it.followUpOn }, key = { it.id }) { e ->
                 val (label, fg, bg) = when {
                     e.followUpOn <= t -> Triple("Follow-up Today", Brand.Amber700, Brand.Amber50)
                     e.status == "CONTACTED" -> Triple("Visited", Brand.Amber700, Brand.Amber50)
