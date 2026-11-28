@@ -466,11 +466,11 @@ private fun BackupPage() {
                     Text("All students, fees, enquiries, Abhyasika members, rooms, payments, expenses and photos are deleted from this phone" +
                         (if (cloudOn) " and from your cloud (and so from your other phones)." else ".") +
                         " Your settings, courses, fees, seat types, PIN and Telegram bot stay. Make a backup first if you may need them.")
-                    Field(typed, { typed = it }, "Type DELETE to confirm")
+                    Field(typed, { typed = it }, "Type RESET to confirm")
                 }
             },
             confirmButton = {
-                TextButton(enabled = typed.trim().equals("DELETE", true), onClick = {
+                TextButton(enabled = typed.trim().equals("RESET", true), onClick = {
                     fresh = false
                     scope.launch { status = runCatching { eraseAll(ctx) }.fold({ "All records deleted. You can start fresh ✓" }, { "Could not delete: ${it.message}" }) }
                 }) { Text("Delete everything", color = Brand.Red600, fontWeight = FontWeight.Bold) }

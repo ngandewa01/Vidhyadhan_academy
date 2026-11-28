@@ -146,19 +146,22 @@ fun BroadcastScreen(onClose: () -> Unit) {
                 MessageBubble(text.replace("{name}", chosen.firstOrNull()?.name?.substringBefore(' ') ?: "Name"), marathi)
             }
             FormCard("3. Send", Icons.AutoMirrored.Rounded.Send, Brand.Green600) {
+                // every send asks first: who, how many, and which channel. Nothing goes out on a single tap.
+                var askSend by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
+                fun confirmed(question: String, action: () -> Unit) { askSend = question to action }
                 if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) {
                     val withTg = chosen.filter { `in`.vidyadhan.academy.telegram.TelegramBot.isLinked(it.key) }
                     OptionRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Send with our Telegram bot", "${withTg.size} of ${chosen.size} are connected on Telegram · each gets their own message") {
-                        tgScope.launch {
+                        confirmed("Send this message to ${withTg.size} people on Telegram? Each gets it with their own name.") { tgScope.launch {
                             var sent = 0
                             withTg.forEach { p -> if (`in`.vidyadhan.academy.telegram.TelegramBot.sendToKey(p.key, `in`.vidyadhan.academy.telegram.TelegramBot.esc(text.replace("{name}", p.name.substringBefore(' '))))) sent++ }
                             android.widget.Toast.makeText(ctx, "Sent to $sent on Telegram" + if (sent < withTg.size) " · ${withTg.size - sent} could not be sent" else " ✓", android.widget.Toast.LENGTH_LONG).show()
-                        }
+                        } }
                     }
-                    fun post(chat: Long, where: String) = tgScope.launch {
+                    fun post(chat: Long, where: String) = confirmed("Post this message in the $where?") { tgScope.launch {
                         val ok = `in`.vidyadhan.academy.telegram.TelegramBot.send(chat, `in`.vidyadhan.academy.telegram.TelegramBot.esc(forEveryone(text, marathi)))
                         android.widget.Toast.makeText(ctx, if (ok) "Posted in the $where ✓" else "Could not post. Is the bot still in the $where?", android.widget.Toast.LENGTH_LONG).show()
-                    }
+                    } }
                     if (AppSettings.botStudentsChat != 0L) OptionRow(Icons.Rounded.Groups, Color(0xFF229ED9), "Post in the students' group", "The bot posts it once in your students' Telegram group") { post(AppSettings.botStudentsChat, "students' group") }
                     else OptionRow(Icons.Rounded.Groups, Brand.Slate400, "Students' group not linked", "Add the bot to the group and send /students there once") {}
                     if (AppSettings.botStaffChat != 0L) OptionRow(Icons.Rounded.Groups, Color(0xFF0369A1), "Post in the staff group", "The bot posts it in your staff Telegram group") { post(AppSettings.botStaffChat, "staff group") }
@@ -169,10 +172,15 @@ fun BroadcastScreen(onClose: () -> Unit) {
                     runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AppSettings.telegramLink))) }
                 }, Modifier.fillMaxWidth(), color = Color(0xFF229ED9), icon = Icons.Rounded.Groups)
                 OptionRow(Icons.AutoMirrored.Rounded.Chat, Brand.WhatsAppDark, "WhatsApp, one by one", "${chosen.size} people · each message has their name") {
-                    if (chosen.isNotEmpty()) queue = 0
+                    confirmed("Open WhatsApp for ${chosen.size} people, one message at a time?") { if (chosen.isNotEmpty()) queue = 0 }
                 }
                 OptionRow(Icons.Rounded.Sms, Brand.Blue600, "One SMS to all", "${chosen.size} numbers in your SMS app") {
-                    runCatching { ctx.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + chosen.joinToString(";") { it.mobile })).putExtra("sms_body", forEveryone(text, marathi))) }
+                    confirmed("Open the SMS app with ${chosen.size} numbers and this message?") {
+                        runCatching { ctx.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + chosen.joinToString(";") { it.mobile })).putExtra("sms_body", forEveryone(text, marathi))) }
+                    }
+                }
+                askSend?.let { (question, action) ->
+                    ConfirmDialog("Are you sure?", question, "Send", onConfirm = { askSend = null; action() }, onDismiss = { askSend = null })
                 }
             }
             Spacer(Modifier.height(16.dp))
