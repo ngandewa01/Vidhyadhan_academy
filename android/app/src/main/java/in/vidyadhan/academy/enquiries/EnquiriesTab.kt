@@ -241,7 +241,7 @@ private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) ->
                                     }
                                 }, Alignment.Center) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (label == "WhatsApp") WhatsAppLogo(Modifier.size(18.dp), fg)
+                                    if (label == "WhatsApp") `in`.vidyadhan.academy.ui.WhatsAppLogo(Modifier.size(20.dp))
                                     else Icon(if (label == "Call") Icons.Rounded.Phone else Icons.AutoMirrored.Rounded.Message, label, tint = fg, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
                                     Text(label, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = fg, maxLines = 1, softWrap = false)
@@ -387,20 +387,4 @@ private fun EnquiryDetail(vm: EnquiriesViewModel, id: Long, onBack: () -> Unit, 
     }
     if (confirm) ConfirmDialog("Delete this enquiry?", "${en.name}'s enquiry will be removed.", "Delete", danger = true,
         onConfirm = { vm.delete(en); confirm = false; onBack() }, onDismiss = { confirm = false })
-}
-
-
-/** The WhatsApp logo (speech bubble with a phone handset), drawn as a vector so no image file is needed. */
-@Composable
-private fun WhatsAppLogo(modifier: Modifier, tint: Color) {
-    androidx.compose.foundation.Canvas(modifier) {
-        val w = size.width
-        drawCircle(tint, radius = w / 2, center = androidx.compose.ui.geometry.Offset(w / 2, w / 2))
-        val path = androidx.compose.ui.graphics.Path().apply {
-            moveTo(w * 0.22f, w * 0.80f); lineTo(w * 0.27f, w * 0.64f)
-            arcTo(androidx.compose.ui.geometry.Rect(w * 0.12f, w * 0.12f, w * 0.88f, w * 0.88f), 150f, -270f, false)
-            close()
-        }
-        drawPath(path, androidx.compose.ui.graphics.Color.White, style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.09f))
-    }
 }
