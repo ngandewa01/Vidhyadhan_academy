@@ -53,6 +53,7 @@ object Cloud {
         if (AppSettings.cloudAcademy.isBlank()) { state = State.SignedOut; return } // the first-time choice was never finished
         Ids.device = AppSettings.cloudDevice
         Sync.start(ctx, AppSettings.cloudAcademy)
+        Devices.start(ctx, AppSettings.cloudAcademy)
         state = State.On
     }
 
@@ -146,6 +147,7 @@ object Cloud {
             AppSettings.cloudAcademy = uid
             Ids.device = device
             Sync.start(ctx, uid)
+            Devices.start(ctx, uid)
             if (!keepCloud) Sync.uploadSettings()
             state = State.On; message = ""
         } catch (e: Exception) {
@@ -155,7 +157,14 @@ object Cloud {
         pending = null
     }
 
-    suspend fun signOut(ctx: Context) {
+    /** Set when the main device disconnected this phone, so the app can say why it was signed out. */
+    var kickedOut by mutableStateOf(false)
+
+    suspend fun signOut(ctx: Context, kicked: Boolean = false) {
+        if (state == State.SignedOut) return
+        Devices.leave()
+        Devices.stop()
+        kickedOut = kicked
         Sync.stop()
         FirebaseAuth.getInstance().signOut()
         runCatching { CredentialManager.create(ctx).clearCredentialState(ClearCredentialStateRequest()) }
@@ -164,8 +173,13 @@ object Cloud {
         state = State.SignedOut; email = ""
     }
 
+    /** Screenshot tests only: shows the signed-in look without a real account. */
+    fun previewSignedIn(mail: String) { state = State.On; email = mail }
+    fun previewSignedOut() { state = State.SignedOut; email = "" }
+
     internal fun synced(sent: Int) = ui {
         lastSync = System.currentTimeMillis(); AppSettings.cloudLast = lastSync
+        Devices.beat()
         if (state == State.Error) { state = State.On; message = "" }
     }
 

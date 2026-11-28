@@ -99,10 +99,30 @@ private fun AppShell(lock: LockStore) {
     var settings by rememberSaveable { mutableStateOf(false) }
     var search by rememberSaveable { mutableStateOf(false) }
     var broadcast by rememberSaveable { mutableStateOf(false) }
+    var khata by rememberSaveable { mutableStateOf(false) }
     var pending by remember { mutableStateOf<Go?>(null) }
     var pendingId by remember { mutableLongStateOf(0L) }
     val hider = remember { mutableIntStateOf(0) }
     val activity = LocalContext.current as FragmentActivity
+    // students confirmed from the old book become normal students (fee, installments, payments), once
+    LaunchedEffect(Unit) {
+        val d = `in`.vidyadhan.academy.data.AppDb.get(activity)
+        runCatching { `in`.vidyadhan.academy.khata.OldBook.convertAll(d) }
+        runCatching { `in`.vidyadhan.academy.khata.OldBook.repairOnce(d) }
+        // once: members renewed a few days late keep their monthly date (joined 21st: due on the 21st)
+        if (!AppSettings.cycleRepaired) runCatching {
+            val lib = d.library()
+            val plans = lib.plansNow()
+            val since = java.time.LocalDate.now().minusDays(62).toEpochDay()
+            lib.allMembers().filter { it.active }.forEach { m ->
+                val last = lib.paymentsNow(m.id).filter { it.kind == "FEE" }.maxByOrNull { it.paidOn } ?: return@forEach
+                if (last.paidOn < since) return@forEach
+                val months = plans.firstOrNull { it.name == m.planName }?.months ?: m.planName.substringBefore(" ").toIntOrNull() ?: 1
+                `in`.vidyadhan.academy.library.cycleFix(m.joinedOn, m.validTill, last.paidOn, months)?.let { lib.updateMember(m.copy(validTill = it)) }
+            }
+            AppSettings.cycleRepaired = true
+        }
+    }
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
             runCatching { ActivityCompat.requestPermissions(activity, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 100) }
@@ -112,6 +132,7 @@ private fun AppShell(lock: LockStore) {
             Go.Settings, Go.Backup -> tab = Tab.More
             Go.Search -> search = true
             Go.Broadcast -> broadcast = true
+            Go.Khata -> khata = true
             Go.Students, Go.Student -> tab = Tab.Students
             Go.NewStudent -> tab = Tab.Enquiries
             Go.Enquiries, Go.NewEnquiry, Go.Enquiry -> tab = Tab.Enquiries
@@ -143,7 +164,7 @@ private fun AppShell(lock: LockStore) {
                             Tab.Library -> LibraryTab(openSeats = pending == Go.Seats, openNew = pending == Go.NewMember, openId = if (pending == Go.Member) pendingId else 0,
                                 startFilter = when (pending) { Go.MemberDues -> MemberFilter.Expired; Go.MemberEnding -> MemberFilter.Ending; else -> MemberFilter.All }, onOpened = done)
                             Tab.More -> SettingsTab(lock, openBackup = pending == Go.Backup, onOpened = done, asTab = true, onGo = ::go)
-                            Tab.Money -> MoneyTab(openNew = pending == Go.NewExpense, onOpened = done)
+                            Tab.Money -> MoneyTab(openNew = pending == Go.NewExpense, onOpened = done, onGo = ::go)
                         }
                     }
                 }
@@ -153,6 +174,9 @@ private fun AppShell(lock: LockStore) {
             }
             AnimatedVisibility(settings, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
                 SettingsTab(lock, openBackup = pending == Go.Backup, onOpened = done, onClose = { settings = false })
+            }
+            AnimatedVisibility(khata, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
+                `in`.vidyadhan.academy.khata.KhataScreen(onClose = { khata = false })
             }
             AnimatedVisibility(broadcast, enter = slideInHorizontally { it } + fadeIn(), exit = slideOutHorizontally { it } + fadeOut()) {
                 `in`.vidyadhan.academy.home.BroadcastScreen(onClose = { broadcast = false })

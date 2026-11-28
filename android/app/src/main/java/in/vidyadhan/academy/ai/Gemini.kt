@@ -28,7 +28,7 @@ object Gemini {
     private val http = OkHttpClient.Builder().callTimeout(120, TimeUnit.SECONDS).readTimeout(120, TimeUnit.SECONDS).build()
     private val json = Json { ignoreUnknownKeys = true }
 
-    class Problem(msg: String) : Exception(msg)
+    class Problem(msg: String) : AiProblem(msg)
 
     private fun get(path: String, key: String): JsonObject {
         val r = http.newCall(Request.Builder().url("$BASE/$path").header("x-goog-api-key", key).build()).execute()
@@ -83,8 +83,7 @@ object Gemini {
      * Asks Gemini with Google Search turned on. If a model has no free quota (or no Search grounding) it moves on
      * to the next Flash model and remembers the one that worked.
      */
-    suspend fun ask(prompt: String): Grounded = withContext(Dispatchers.IO) {
-        val key = AppSettings.geminiKey
+    suspend fun ask(prompt: String, key: String = AppSettings.geminiKey): Grounded = withContext(Dispatchers.IO) {
         if (key.isBlank()) throw Problem("Add your Gemini key in Settings → MPSC News")
         fun body(think: Boolean) = buildJsonObject {
             putJsonArray("contents") { addJsonObject { put("role", "user"); putJsonArray("parts") { addJsonObject { put("text", prompt) } } } }

@@ -17,11 +17,12 @@ interface StudentDao {
     @Query("SELECT * FROM StudentPayment WHERE studentId = :id ORDER BY paidOn DESC, id DESC") fun payments(id: Long): Flow<List<StudentPayment>>
 
     @Query("SELECT * FROM Student ORDER BY name COLLATE NOCASE") suspend fun allStudents(): List<Student>
+    @Query("UPDATE Student SET mobile = :mobile WHERE khataKey = :key AND mobile = ''") suspend fun fillKhataMobile(key: String, mobile: String)
     @Query("SELECT * FROM Installment") suspend fun installmentList(): List<Installment>
     @Query("SELECT * FROM StudentPayment") suspend fun paymentList(): List<StudentPayment>
 
     @Query("SELECT COALESCE(SUM(amount), 0) FROM StudentPayment WHERE paidOn BETWEEN :from AND :to") fun paidBetween(from: Long, to: Long): Flow<Long>
-    @Query("SELECT s.name AS name, p.amount AS amount, p.paidOn AS paidOn, 'STUDENT_FEE' AS kind, p.mode AS mode, s.course || CASE WHEN s.batch != '' THEN ' ' || s.batch ELSE '' END || CASE WHEN p.note != '' THEN ' · ' || p.note ELSE '' END AS detail FROM StudentPayment p JOIN Student s ON s.id = p.studentId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
+    @Query("SELECT s.name AS name, p.amount AS amount, p.paidOn AS paidOn, 'STUDENT_FEE' AS kind, p.mode AS mode, s.course || CASE WHEN s.batch != '' THEN ' ' || s.batch ELSE '' END || CASE WHEN p.note != '' THEN ' · ' || p.note ELSE '' END AS detail, p.studentId AS ownerId FROM StudentPayment p JOIN Student s ON s.id = p.studentId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
     fun recentPaid(): Flow<List<PaymentRow>>
 
     @Insert suspend fun insertRow(s: Student): Long
@@ -34,6 +35,7 @@ interface StudentDao {
     @Insert suspend fun insertPaymentRow(p: StudentPayment): Long
     suspend fun insertPayment(p: StudentPayment): Long = insertPaymentRow(if (p.id == 0L) p.copy(id = Ids.next("StudentPayment")) else p)
     @Delete suspend fun deletePayment(p: StudentPayment)
+    @Update suspend fun updatePayment(p: StudentPayment)
 
     @Transaction
     suspend fun create(s: Student, plan: List<Installment>, firstPayment: StudentPayment? = null): Long {
@@ -79,6 +81,8 @@ interface LibraryDao {
     @Delete suspend fun deleteRoom(r: LibraryRoom)
 
     @Query("SELECT * FROM MemberPlan ORDER BY months, price") fun plans(): Flow<List<MemberPlan>>
+    @Query("SELECT * FROM MemberPlan") suspend fun plansNow(): List<MemberPlan>
+    @Query("SELECT * FROM LibraryPayment WHERE memberId = :id") suspend fun paymentsNow(id: Long): List<LibraryPayment>
     @Insert suspend fun insertPlanRow(p: MemberPlan): Long
     suspend fun insertPlan(p: MemberPlan): Long = insertPlanRow(if (p.id == 0L) p.copy(id = Ids.next("MemberPlan")) else p)
     @Update suspend fun updatePlan(p: MemberPlan)
@@ -95,7 +99,7 @@ interface LibraryDao {
     /** The Abhyasika seat of an academy student (Combo), if any. */
     @Query("SELECT * FROM LibraryMember WHERE studentId = :id AND active = 1 ORDER BY joinedOn DESC LIMIT 1") fun memberFor(id: Long): Flow<LibraryMember?>
     @Query("SELECT COALESCE(SUM(amount), 0) FROM LibraryPayment WHERE kind IN ('FEE','REGISTRATION') AND paidOn BETWEEN :from AND :to") fun collectedBetween(from: Long, to: Long): Flow<Long>
-    @Query("SELECT m.name AS name, p.amount AS amount, p.paidOn AS paidOn, p.kind AS kind, p.mode AS mode, 'Seat ' || m.seatNo || CASE WHEN m.seatType != '' THEN ' ' || m.seatType ELSE '' END || CASE WHEN m.lockerNo != '' THEN ' + Locker' || CASE WHEN m.lockerNo != '-' THEN ' ' || m.lockerNo ELSE '' END ELSE '' END AS detail FROM LibraryPayment p JOIN LibraryMember m ON m.id = p.memberId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
+    @Query("SELECT m.name AS name, p.amount AS amount, p.paidOn AS paidOn, p.kind AS kind, p.mode AS mode, 'Seat ' || m.seatNo || CASE WHEN m.seatType != '' THEN ' ' || m.seatType ELSE '' END || CASE WHEN m.lockerNo != '' THEN ' + Locker' || CASE WHEN m.lockerNo != '-' THEN ' ' || m.lockerNo ELSE '' END ELSE '' END AS detail, p.memberId AS ownerId FROM LibraryPayment p JOIN LibraryMember m ON m.id = p.memberId ORDER BY p.paidOn DESC, p.id DESC LIMIT 8")
     fun recentPayments(): Flow<List<PaymentRow>>
 
     @Insert suspend fun insertMemberRow(m: LibraryMember): Long
@@ -114,6 +118,24 @@ interface LibraryDao {
     }
     @Transaction
     suspend fun pay(m: LibraryMember, p: LibraryPayment): Long { updateMember(m); return insertPayment(p) }
+}
+
+@Dao
+interface KhataDao {
+    @Query("SELECT * FROM KhataEntry ORDER BY date, id") fun all(): Flow<List<KhataEntry>>
+    @Query("SELECT COUNT(*) FROM KhataEntry") suspend fun countNow(): Int
+    @Insert suspend fun insertAll(list: List<KhataEntry>)
+    @Query("DELETE FROM KhataEntry") suspend fun clear()
+    @Query("UPDATE KhataEntry SET mobile = :mobile WHERE key = :key") suspend fun setMobile(key: String, mobile: String)
+    @Query("UPDATE KhataEntry SET type = :type WHERE key = :key") suspend fun setType(key: String, type: String)
+    @Query("UPDATE KhataEntry SET review = :review WHERE key = :key") suspend fun setReview(key: String, review: String)
+    @Query("SELECT * FROM KhataEntry WHERE kind = 'LEDGER'") suspend fun ledgerList(): List<KhataEntry>
+    @Query("DELETE FROM KhataEntry WHERE kind = 'LEDGER'") suspend fun clearLedger()
+    @Query("SELECT * FROM KhataEntry WHERE key = :key ORDER BY date, id") suspend fun forKey(key: String): List<KhataEntry>
+    /** Payments recorded against the old book that now live on the student: no longer counted as old-book money. */
+    @Query("UPDATE KhataEntry SET kind = 'PAYMENT_MOVED' WHERE key = :key AND kind = 'PAYMENT'") suspend fun movePayments(key: String)
+    @Insert suspend fun add(e: KhataEntry)
+    @Query("SELECT * FROM KhataEntry WHERE kind = 'PAYMENT' ORDER BY date, id") fun payments(): Flow<List<KhataEntry>>
 }
 
 @Dao
@@ -159,9 +181,9 @@ class V2toV3 : AutoMigrationSpec {
 }
 
 @Database(
-    entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class, LibraryRoom::class, MemberPlan::class],
-    version = 8, exportSchema = true,
-    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = V6toV7::class), AutoMigration(from = 7, to = 8)],
+    entities = [Student::class, Installment::class, StudentPayment::class, Enquiry::class, SeatType::class, LibraryMember::class, LibraryPayment::class, Note::class, Expense::class, LibraryRoom::class, MemberPlan::class, KhataEntry::class],
+    version = 13, exportSchema = true,
+    autoMigrations = [AutoMigration(from = 2, to = 3, spec = V2toV3::class), AutoMigration(from = 3, to = 4, spec = V3toV4::class), AutoMigration(from = 4, to = 5), AutoMigration(from = 5, to = 6), AutoMigration(from = 6, to = 7, spec = V6toV7::class), AutoMigration(from = 7, to = 8), AutoMigration(from = 8, to = 9), AutoMigration(from = 9, to = 10), AutoMigration(from = 10, to = 11), AutoMigration(from = 11, to = 12), AutoMigration(from = 12, to = 13)],
 )
 abstract class AppDb : RoomDatabase() {
     init { Ids.db = this; Ids.forget() }
@@ -170,6 +192,7 @@ abstract class AppDb : RoomDatabase() {
     abstract fun library(): LibraryDao
     abstract fun notes(): NoteDao
     abstract fun expenses(): ExpenseDao
+    abstract fun khata(): KhataDao
 
     companion object {
         @Volatile private var inst: AppDb? = null

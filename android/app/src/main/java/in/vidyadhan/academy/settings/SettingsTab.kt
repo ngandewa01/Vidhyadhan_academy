@@ -54,7 +54,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message wording"), Reminders("Reminders"), Library("Abhyasika seats & lockers"), Backup("Backup & export"), Updates("App updates"), Cloud("Cloud sync"), Telegram("Telegram & WhatsApp"), News("MPSC News & AI") }
+private enum class Page(val title: String) { Main(""), Academy("Academy details"), Courses("Courses & fees"), Messages("Message templates"), Reminders("Reminders"), Library("Seats & lockers"), Backup("Backup & restore"), Updates("Updates"), Cloud("Cloud sync"), Devices("Devices"), Telegram("Telegram bot"), News("News & current affairs") }
 
 @Composable
 fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Unit = {}, onClose: () -> Unit = {}, asTab: Boolean = false,
@@ -83,6 +83,7 @@ fun SettingsTab(lock: LockStore, openBackup: Boolean = false, onOpened: () -> Un
                         Page.Backup -> BackupPage()
                         Page.Updates -> UpdatesPage()
                         Page.Cloud -> CloudPage()
+                        Page.Devices -> DevicesPage { page = Page.Main }
                         Page.Main, Page.Telegram, Page.News -> {}
                     }
                     Spacer(Modifier.height(20.dp))
@@ -146,29 +147,30 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
         }
     }) {
         Column(Modifier.verticalScroll(rememberScrollState()).navigationBarsPadding().padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(14.dp)) // keeps the first group name clear of the header card
+            AccountCard(open)
             Group("Academy") {
-                SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses, batches & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
+                SettingRow(Icons.AutoMirrored.Rounded.MenuBook, Brand.Saffron600, "Courses & fees", "${AppSettings.courseList.size} course${if (AppSettings.courseList.size == 1) "" else "s"} · ${AppSettings.batchList.size} batches · ${AppSettings.defaultInstallments} installments" +
                     if (AppSettings.lateFeeOn) " · late fee on" else "") { open(Page.Courses) }
-                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Abhyasika seats & lockers", "Rooms, plans · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
+                SettingRow(Icons.Rounded.EventSeat, Brand.Teal700, "Seats & lockers", "Rooms · plans · ${types.size} seat type${if (types.size == 1) "" else "s"} · ${AppSettings.lockerCount} lockers", divider = false) { open(Page.Library) }
             }
-            Group("Telegram & WhatsApp") {
+            Group("Messages") {
                 SettingRow(Icons.AutoMirrored.Rounded.Send, Color(0xFF229ED9), "Telegram bot",
                     if (`in`.vidyadhan.academy.telegram.TelegramBot.connected) "@${AppSettings.botName} · ${`in`.vidyadhan.academy.telegram.TelegramBot.linkedCount()} connected" else "Not connected") { open(Page.Telegram) }
-                SettingRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message wording", "Fee, Abhyasika, enquiry and birthday messages · tests") { open(Page.Messages) }
+                SettingRow(Icons.Rounded.Sms, Brand.WhatsAppDark, "Message templates", "Fee, Abhyasika, enquiry, birthday") { open(Page.Messages) }
                 SettingRow(Icons.Rounded.NotificationsActive, Brand.Red600, "Reminders", "Follow up after ${AppSettings.enquiryDays} days · daily at %02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)) { open(Page.Reminders) }
-                SettingRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Send a message to many", "Telegram, students' group, WhatsApp or SMS", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Broadcast, 0) }
+                SettingRow(Icons.Rounded.Campaign, Color(0xFFE11D48), "Broadcast", "Telegram, group, WhatsApp or SMS", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Broadcast, 0) }
             }
-            Group("MPSC News & AI") {
-                SettingRow(Icons.Rounded.AutoAwesome, Brand.Violet700, "MPSC News & current affairs",
-                    if (AppSettings.geminiKey.isBlank()) "Add the Gemini key" else "Key locked · checks twice a day", divider = false) { open(Page.News) }
+            Group("MPSC News") {
+                SettingRow(Icons.Rounded.AutoAwesome, Brand.Violet700, "News & current affairs",
+                    if (!`in`.vidyadhan.academy.ai.AiRouter.ready()) "Add an API key" else "Checks twice a day", divider = false) { open(Page.News) }
             }
             Group("Reports") {
-                SettingRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Monthly reports", "Income, expenses, profit · PDF report", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Money, 0) }
+                SettingRow(Icons.Rounded.AccountBalanceWallet, Brand.Green600, "Reports", "Month, year, all time · PDF", divider = false) { onGo(`in`.vidyadhan.academy.home.Go.Money, 0) }
             }
             Group("Security") {
-                SettingRow(Icons.Rounded.Password, Brand.Violet700, "Change PIN", "4-digit PIN to open the app") { pinDialog = true }
-                SettingRow(Icons.Rounded.Fingerprint, Brand.Green600, "Fingerprint unlock", if (bio) "On" else "Off", divider = false,
+                SettingRow(Icons.Rounded.Password, Brand.Violet700, "PIN", "4-digit PIN to open the app") { pinDialog = true }
+                SettingRow(Icons.Rounded.Fingerprint, Brand.Green600, "Fingerprint", if (bio) "On" else "Off", divider = false,
                     trailing = { Switch(bio, { bio = it; lock.biometricOn = it }, colors = SwitchDefaults.colors(checkedTrackColor = Brand.Blue600)) }) { bio = !bio; lock.biometricOn = bio }
             }
             Group("Data") {
@@ -179,10 +181,10 @@ private fun MainPage(lock: LockStore, onClose: (() -> Unit)?, onGo: (`in`.vidyad
                     `in`.vidyadhan.academy.cloud.Cloud.State.NotSetUp -> "Not set up in this version"
                     else -> "Off · sign in with Google to use on more phones"
                 }) { open(Page.Cloud) }
-                SettingRow(Icons.Rounded.CloudUpload, Brand.Blue600, "Backup & export", "Save a copy to Google Drive, restore, Excel export", divider = false) { open(Page.Backup) }
+                SettingRow(Icons.Rounded.CloudUpload, Brand.Blue600, "Backup & restore", "Google Drive copy · Excel export", divider = false) { open(Page.Backup) }
             }
             Group("App") {
-                SettingRow(Icons.Rounded.SystemUpdate, Brand.Saffron700, "App updates", "Version $version") { open(Page.Updates) }
+                SettingRow(Icons.Rounded.SystemUpdate, Brand.Saffron700, "Updates", "Version $version") { open(Page.Updates) }
                 SettingRow(Icons.Rounded.Info, Brand.Slate600, "About", "Vidyadhan Academy · build $code", divider = false)
             }
             Text("Made for ${AppSettings.academyName}\n" + if (`in`.vidyadhan.academy.cloud.Cloud.state == `in`.vidyadhan.academy.cloud.Cloud.State.On) "Records are kept on this phone and in your cloud" else "All data is stored only on this phone", Modifier.fillMaxWidth(),
@@ -419,7 +421,7 @@ private fun CloudPage() {
         Text("This phone and your cloud both have records. Which should be kept?", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
         OptionRow(Icons.Rounded.CloudDownload, Brand.Blue600, "Use the cloud's records", "This phone's records are replaced by the ones in the cloud") { scope.launch { c.finish(ctx, keepCloud = true) } }
         OptionRow(Icons.Rounded.CloudUpload, Brand.Saffron700, "Keep this phone's records", "The cloud is replaced by this phone's records. Other phones then take them.") { scope.launch { c.finish(ctx, keepCloud = false) } }
-        Text("Tip: make a backup first (Settings → Backup & export).", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        Text("Tip: make a backup first (Settings → Backup & restore).", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
     }
     if (on) {
         OptionRow(Icons.AutoMirrored.Rounded.Logout, Brand.Red600, "Sign out", "Stops syncing on this phone. Records stay here.") { signOut = true }
@@ -594,3 +596,133 @@ private suspend fun exportCsv(ctx: Context, dest: Uri) = withContext(Dispatchers
     db.students().allStudents().forEach { sb.append("${q(it.name)},${it.mobile},${it.aadhaar},${q(it.course)},${it.totalFee},${it.joinedOn.asDate()}\n") }
     ctx.contentResolver.openOutputStream(dest)!!.use { it.write(sb.toString().toByteArray()) }
 }
+
+
+// ───────────────────────── account and devices ─────────────────────────
+
+private val Violet50 = Color(0xFFF3E8FF)
+
+@Composable
+private fun Tag(text: String, bg: Color, fg: Color, dot: Color? = null) {
+    androidx.compose.foundation.layout.Row(Modifier.clip(RoundedCornerShape(50)).background(bg).padding(horizontal = 9.dp, vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (dot != null) { Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(dot)); Spacer(Modifier.width(5.dp)) }
+        Text(text, style = MaterialTheme.typography.labelMedium, color = fg, maxLines = 1)
+    }
+}
+
+/** Top of Settings: who is signed in, with Devices and Sign out one tap away. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun AccountCard(open: (Page) -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val c = `in`.vidyadhan.academy.cloud.Cloud
+    val d = `in`.vidyadhan.academy.cloud.Devices
+    if (c.state == `in`.vidyadhan.academy.cloud.Cloud.State.NotSetUp) return
+    var signOut by remember { mutableStateOf(false) }
+    val signedIn = c.state != `in`.vidyadhan.academy.cloud.Cloud.State.SignedOut
+    Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).clip(RoundedCornerShape(24.dp)).background(Color.White).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(48.dp).clip(RoundedCornerShape(50)).background(if (signedIn) Brand.Saffron600 else Brand.Slate300), Alignment.Center) {
+                if (signedIn) Text(c.email.take(1).uppercase().ifBlank { "G" }, style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold), color = Color.White)
+                else Icon(Icons.Rounded.CloudOff, null, tint = Color.White)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(if (signedIn) "Signed in" else "Not signed in", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
+                Text(if (signedIn) c.email else if (c.kickedOut) "The main device disconnected this phone. Records are still here." else "Records are only on this phone",
+                    style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 2)
+                if (signedIn) FlowRow(Modifier.padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    when (c.state) {
+                        `in`.vidyadhan.academy.cloud.Cloud.State.On -> Tag("Sync on", Brand.Green50, Brand.Green700, Brand.Green600)
+                        `in`.vidyadhan.academy.cloud.Cloud.State.Error -> Tag("Sync problem", Color(0xFFFEF2F2), Brand.Red600, Brand.Red600)
+                        else -> Tag("Setting up…", Brand.Blue100, Brand.Blue700)
+                    }
+                    if (d.isMain) Tag("★ Main device", Violet50, Brand.Violet700)
+                }
+            }
+        }
+        if (signedIn) androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SoftButton("Devices" + if (d.list.isNotEmpty()) " · ${d.list.size}" else "", { open(Page.Devices) }, Modifier.weight(1f), icon = Icons.Rounded.Smartphone)
+            SoftButton("Sign out", { signOut = true }, Modifier.weight(1f), color = Brand.Red600, icon = Icons.AutoMirrored.Rounded.Logout)
+        } else PrimaryButton("Sign in with Google", { open(Page.Cloud) }, Modifier.fillMaxWidth(), icon = Icons.AutoMirrored.Rounded.Login)
+    }
+    if (signOut) ConfirmDialog("Sign out of this phone?", "This phone stops syncing. Its records stay here and the app keeps working. Sign in again anytime from Settings.", "Sign out", danger = true,
+        onConfirm = { scope.launch { c.signOut(ctx) }; signOut = false }, onDismiss = { signOut = false })
+}
+
+private fun ago(t: Long): String {
+    if (t == 0L) return "just now"
+    val m = (System.currentTimeMillis() - t) / 60_000
+    return when {
+        m < 2 -> "active now"
+        m < 60 -> "active $m min ago"
+        m < 60 * 24 -> "active ${m / 60} h ago"
+        m < 60 * 48 -> "last seen yesterday"
+        else -> "last seen ${m / (60 * 24)} days ago"
+    }
+}
+
+/** Every phone signed in to the academy's account; the main device can disconnect the others or hand over "main". */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun DevicesPage(onSignedOut: () -> Unit) {
+    val ctx = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val c = `in`.vidyadhan.academy.cloud.Cloud
+    val d = `in`.vidyadhan.academy.cloud.Devices
+    var kick by remember { mutableStateOf<`in`.vidyadhan.academy.cloud.Devices.Device?>(null) }
+    var main by remember { mutableStateOf<`in`.vidyadhan.academy.cloud.Devices.Device?>(null) }
+    var signOut by remember { mutableStateOf(false) }
+    val list = d.list
+    val mainName = list.firstOrNull { it.id == d.mainId }?.model
+    Text("${list.size} phone${if (list.size == 1) "" else "s"} signed in to ${c.email}", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+    Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).clip(RoundedCornerShape(24.dp)).background(Color.White).padding(horizontal = 14.dp)) {
+        if (list.isEmpty()) Text("Loading…", Modifier.padding(vertical = 16.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
+        list.forEachIndexed { i, dev ->
+            if (i > 0) HorizontalDivider(color = Brand.Line)
+            val isMain = dev.id == d.mainId
+            val me = dev.id == d.me
+            Column(Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+                androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(if (isMain) Violet50 else Brand.Blue100), Alignment.Center) {
+                        Icon(if (isMain) Icons.Rounded.Star else Icons.Rounded.Smartphone, null, tint = if (isMain) Brand.Violet700 else Brand.Blue700)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(dev.model + if (me) " · this phone" else "", style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 2)
+                        if (isMain) Tag("Main device", Violet50, Brand.Violet700)
+                        Text(when {
+                            dev.kicked -> "Disconnecting: signs out when it next goes online"
+                            else -> (if (me) "active now" else ago(dev.lastSeen)).replaceFirstChar { it.uppercase() } + if (dev.version.isNotBlank()) " · ${dev.version}" else ""
+                        }, style = MaterialTheme.typography.bodySmall, color = if (dev.kicked) Brand.Red600 else Brand.Slate500)
+                    }
+                }
+                if (d.isMain && !me) FlowRow(Modifier.padding(start = 54.dp, top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (dev.kicked) PillButton("Remove from list", Brand.Slate600) { d.remove(dev.id) }
+                    else {
+                        PillButton("★ Make main", Brand.Violet700) { main = dev }
+                        PillButton("Disconnect", Brand.Red600) { kick = dev }
+                    }
+                }
+            }
+        }
+    }
+    Text(if (d.isMain) "Only the main device can disconnect other phones. A disconnected phone is signed out the next time it opens or goes online. Its records stay on it, but it stops syncing until someone signs in there again."
+        else "Only the main device${mainName?.let { " ($it)" } ?: ""} can disconnect phones or change the main device.",
+        style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+    SoftButton("Sign out of this phone", { signOut = true }, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.AutoMirrored.Rounded.Logout)
+
+    kick?.let { k -> ConfirmDialog("Disconnect ${k.model}?", "It is signed out the next time it opens or goes online, and stops getting the academy's records.", "Disconnect", danger = true,
+        onConfirm = { d.disconnect(k.id); kick = null }, onDismiss = { kick = null }) }
+    main?.let { m -> ConfirmDialog("Make ${m.model} the main device?", "Then only that phone can disconnect phones. This phone becomes a normal device.", "Make main",
+        onConfirm = { d.makeMain(m.id); main = null }, onDismiss = { main = null }) }
+    if (signOut) ConfirmDialog("Sign out of this phone?", "This phone stops syncing. Its records stay here and the app keeps working. Sign in again anytime from Settings.", "Sign out", danger = true,
+        onConfirm = { scope.launch { c.signOut(ctx); onSignedOut() }; signOut = false }, onDismiss = { signOut = false })
+}
+
+@Composable
+private fun PillButton(text: String, color: Color, onClick: () -> Unit) =
+    Text(text, Modifier.clip(RoundedCornerShape(50)).border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(50)).clickable(onClick = onClick)
+        .padding(horizontal = 12.dp, vertical = 7.dp), style = MaterialTheme.typography.labelLarge, color = color, maxLines = 1, softWrap = false)

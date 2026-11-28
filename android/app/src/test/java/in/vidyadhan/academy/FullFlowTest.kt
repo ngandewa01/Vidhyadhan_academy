@@ -66,7 +66,7 @@ class PickersTest {
         rule.onAllNodesWithText("Settings").onLast().performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
-        rule.onNodeWithText("Backup & export").performScrollTo().performClick()
+        rule.onNodeWithText("Backup & restore").performScrollTo().performClick()
         rule.waitForIdle(); Thread.sleep(300); rule.mainClock.advanceTimeBy(800); rule.waitForIdle()
         listOf("Back up now", "Restore from a backup", "Export students to Excel").forEach {
             rule.onNodeWithText(it).performScrollTo().performClick(); rule.waitForIdle()

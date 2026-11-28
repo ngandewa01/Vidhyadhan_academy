@@ -170,7 +170,9 @@ fun GlassStat(label: String, value: String, modifier: Modifier = Modifier, value
             .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(18.dp)).padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = Brand.Blue200, maxLines = 1)
-        Text(value, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = valueColor, maxLines = 1)
+        // with large phone text, long amounts step down a size so they are not cut off
+        val big = androidx.compose.ui.platform.LocalDensity.current.fontScale > 1.1f && value.length >= 7
+        Text(value, style = (if (big) MaterialTheme.typography.titleSmall else MaterialTheme.typography.titleMedium).copy(fontWeight = FontWeight.ExtraBold), color = valueColor, maxLines = 1, softWrap = false)
     }
 }
 
@@ -816,7 +818,7 @@ fun NotesSection(kind: String, ownerId: Long) {
     SectionHeader("Notes", action = if (notes.isNotEmpty()) "${notes.size}" else null)
     Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Field(text, { text = it }, "Add a note, e.g. promised to pay on 5th", modifier = Modifier.weight(1f), singleLine = false)
+            Field(text, { text = it }, "Add note", modifier = Modifier.weight(1f), singleLine = false)
             Spacer(Modifier.width(8.dp))
             Box(Modifier.size(48.dp).clip(CircleShape).background(if (text.isBlank()) Brush.linearGradient(listOf(Brand.Slate300, Brand.Slate300)) else PrimaryBrush)
                 .clickable(enabled = text.isNotBlank()) {
@@ -836,4 +838,27 @@ fun NotesSection(kind: String, ownerId: Long) {
             }
         }
     }
+}
+
+/** Delete confirmation that also offers to disconnect the person from Telegram (ticked by default) when they are connected. */
+@Composable
+fun DeletePersonDialog(title: String, text: String, onTelegram: Boolean, onConfirm: (disconnectTelegram: Boolean) -> Unit, onDismiss: () -> Unit) {
+    var alsoTg by remember { mutableStateOf(true) }
+    AlertDialog(
+        onDismissRequest = onDismiss, containerColor = Color.White, shape = RoundedCornerShape(28.dp),
+        icon = { IconTile(Icons.Rounded.DeleteOutline, Brand.Red600, 52.dp) },
+        title = { Text(title, style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(text, style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+                if (onTelegram) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brand.Slate50).clickable { alsoTg = !alsoTg }.padding(end = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(alsoTg, { alsoTg = it })
+                    Text("Also disconnect from Telegram (stops all bot messages to them)", style = MaterialTheme.typography.bodyMedium, color = Brand.Ink)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(onTelegram && alsoTg) }) { Text("Delete", color = Brand.Red600, fontWeight = FontWeight.Bold) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = Brand.Slate500) } },
+    )
 }

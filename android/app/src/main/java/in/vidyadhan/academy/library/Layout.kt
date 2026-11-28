@@ -230,9 +230,31 @@ fun renewOptions(monthlyFee: Long, plans: List<MemberPlan>, hasLocker: Boolean):
         plans.filter { it.active }.sortedWith(compareBy({ it.withLocker != hasLocker }, { it.months }, { it.price }))
             .map { RenewOption(it.name, it.months, it.price, it) }
 
-/** New "paid up to" day: [months] added to the old end, or to today if it had already ended. */
-fun renewedTill(validTill: Long, today: Long, months: Int): Long =
-    LocalDate.ofEpochDay(maxOf(validTill, today)).plusMonths(months.toLong()).toEpochDay()
+/**
+ * New "paid up to" day. The member keeps their monthly date: [months] are added to the old end, also when they pay a few
+ * days late (joined 21 Oct, due 21 Nov, paid 23 Nov: valid till 21 Dec). Only after a gap of more than a month does the
+ * new period start from today.
+ */
+fun renewedTill(validTill: Long, today: Long, months: Int): Long {
+    val end = LocalDate.ofEpochDay(validTill)
+    val start = if (validTill >= today || !end.plusMonths(1).isBefore(LocalDate.ofEpochDay(today))) end else LocalDate.ofEpochDay(today)
+    return start.plusMonths(months.toLong()).toEpochDay()
+}
+
+/**
+ * Members renewed late by older versions had their monthly date moved to the payment day. Puts it back on the
+ * joining-day cycle when the last fee was paid within a month after the missed due date. Returns the corrected end, or null.
+ */
+fun cycleFix(joinedOn: Long, validTill: Long, lastFeePaidOn: Long, months: Int): Long? {
+    val paid = LocalDate.ofEpochDay(lastFeePaidOn)
+    if (LocalDate.ofEpochDay(validTill) != paid.plusMonths(months.toLong())) return null
+    val day = LocalDate.ofEpochDay(joinedOn).dayOfMonth
+    var due = paid.withDayOfMonth(minOf(day, paid.lengthOfMonth()))
+    if (due.isAfter(paid)) { val pm = paid.minusMonths(1); due = pm.withDayOfMonth(minOf(day, pm.lengthOfMonth())) }
+    val late = paid.toEpochDay() - due.toEpochDay()
+    if (late !in 1..31 || due.toEpochDay() <= joinedOn) return null
+    return due.plusMonths(months.toLong()).toEpochDay()
+}
 
 /** What is still owed after receiving [received] for a period costing [price], on top of an old [balance]. */
 fun balanceAfter(balance: Long, price: Long, received: Long): Long = (balance + price - received).coerceAtLeast(0)

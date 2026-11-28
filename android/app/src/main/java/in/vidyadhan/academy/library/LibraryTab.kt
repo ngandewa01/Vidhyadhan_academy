@@ -78,7 +78,7 @@ class LibraryViewModel(app: Application) : AndroidViewModel(app) {
 private sealed interface Screen {
     data object Main : Screen
     data class Form(val seat: Int, val id: Long = 0) : Screen
-    data class Detail(val id: Long) : Screen
+    data class Detail(val id: Long, val renew: Boolean = false) : Screen
     data object Plans : Screen
 }
 
@@ -102,12 +102,12 @@ fun LibraryTab(
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.Main) }
     var memberFilter by rememberSaveable { mutableStateOf(MemberFilter.All) }
-    var seats by rememberSaveable { mutableStateOf(true) } // the room plan opens first, like the prototype
+    var seats by rememberSaveable { mutableStateOf(false) } // the list of names opens first; the room plan is one tap away
     LaunchedEffect(openSeats) { if (openSeats) { seats = true; screen = Screen.Main; onOpened() } }
     LaunchedEffect(openNew, openId, startFilter) { if (openNew || openId > 0 || startFilter != MemberFilter.All) seats = false }
     val switcher: @Composable () -> Unit = {
         Spacer(Modifier.height(14.dp))
-        Text("← Room plan", Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.15f)).clickable { seats = true }
+        Text("Room plan →", Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.15f)).clickable { seats = true }
             .padding(horizontal = 12.dp, vertical = 6.dp), style = MaterialTheme.typography.labelLarge, color = Color.White)
     }
     LaunchedEffect(startFilter) { if (startFilter != MemberFilter.All) memberFilter = startFilter }
@@ -127,14 +127,14 @@ fun LibraryTab(
         else (slideInHorizontally { it / 5 } + fadeIn()) togetherWith (slideOutHorizontally { -it / 5 } + fadeOut())
     }, label = "lib") { s ->
         when (s) {
-            Screen.Main -> if (seats) RoomPlanPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) }, onMembers = { seats = false })
+            Screen.Main -> if (seats) RoomPlanPage(vm, { screen = Screen.Form(it) }, { screen = Screen.Detail(it) }, onMembers = { seats = false }, onRenew = { screen = Screen.Detail(it, renew = true) })
             else MembersPage(vm, memberFilter, { memberFilter = it }, onAdd = {
                 val taken = members.filter { it.active }.map { it.seatNo }.toSet()
                 screen = Screen.Form(allSeats(vm.rooms.value, AppSettings.seatCount).firstOrNull { it !in taken } ?: 0)
             }, onOpen = { screen = Screen.Detail(it) }, onPlans = { screen = Screen.Plans }, switcher = switcher)
             Screen.Plans -> PlansPage(vm) { screen = Screen.Main }
             is Screen.Form -> MemberForm(vm, s.seat, s.id, onCancel = { screen = if (s.id == 0L) Screen.Main else Screen.Detail(s.id) }, onSaved = { screen = Screen.Detail(it) })
-            is Screen.Detail -> MemberDetail(vm, s.id, onBack = { screen = Screen.Main }, onOpen = { screen = Screen.Detail(it) }, onEdit = { screen = Screen.Form(0, s.id) })
+            is Screen.Detail -> MemberDetail(vm, s.id, startRenew = s.renew, onBack = { screen = Screen.Main }, onOpen = { screen = Screen.Detail(it) }, onEdit = { screen = Screen.Form(0, s.id) })
         }
     }
 }
@@ -300,21 +300,19 @@ private fun MemberForm(vm: LibraryViewModel, startSeat: Int, id: Long, onCancel:
     viewPhoto?.let { PhotoViewer(it) { viewPhoto = null } }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onOpen: (Long) -> Unit, onEdit: () -> Unit) {
+private fun MemberDetail(vm: LibraryViewModel, id: Long, startRenew: Boolean = false, onBack: () -> Unit, onOpen: (Long) -> Unit, onEdit: () -> Unit) {
     val ctx = LocalContext.current
     val mm by remember(id) { vm.member(id) }.collectAsStateWithLifecycle(null)
     val pays by remember(id) { vm.payments(id) }.collectAsStateWithLifecycle(emptyList())
     var deletePay by remember { mutableStateOf<`in`.vidyadhan.academy.data.LibraryPayment?>(null) }
-    deletePay?.let { p -> ConfirmDialog("Delete this payment?", "${rupees(p.amount)} on ${p.paidOn.asDate()} will be removed from the records. The paid-till date does not change; edit the member if needed.",
-        "Delete", danger = true, onConfirm = { vm.deletePayment(p); deletePay = null }, onDismiss = { deletePay = null }) }
     val types by vm.types.collectAsStateWithLifecycle()
     val rooms by vm.rooms.collectAsStateWithLifecycle()
     val plans by vm.plans.collectAsStateWithLifecycle()
     var confirm by remember { mutableStateOf(false) }
     var vacate by remember { mutableStateOf(false) }
-    var collect by remember { mutableStateOf<String?>(null) } // FEE, BALANCE, DEPOSIT or DEPOSIT_RETURN
+    var collect by remember { mutableStateOf<String?>(if (startRenew) "FEE" else null) } // FEE, BALANCE, DEPOSIT or DEPOSIT_RETURN
     var saved by remember { mutableStateOf<LibraryPayment?>(null) }
     var viewPhoto by remember { mutableStateOf<String?>(null) }
     val m = mm ?: return
@@ -322,6 +320,28 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     val t = today()
     val due = m.validTill < t
     val icon = types.firstOrNull { it.name == m.seatType }?.icon ?: "CHAIR"
+    // a member saved without a monthly fee renews at the seat type's fee (plus the locker), which is then kept on the member
+    val seatTypeFee = (types.firstOrNull { it.name == m.seatType } ?: typeForSeat(m.seatNo, types))?.fee ?: 0L
+    val lockerPart = if (m.hasLocker) m.lockerFee.takeIf { it > 0 } ?: AppSettings.lockerFee.toLong() else 0L
+    val fee = m.monthlyFee.takeIf { it > 0 } ?: (seatTypeFee + lockerPart)
+    val feeMissing = m.monthlyFee == 0L && fee > 0
+    // deleting the latest monthly fee also undoes that renewal: the paid-till date goes back by its plan's months
+    deletePay?.let { p ->
+        val latestFee = p.kind == "FEE" && pays.filter { it.kind == "FEE" }.maxWithOrNull(compareBy({ it.paidOn }, { it.id }))?.id == p.id
+        val opt = renewOptions(fee, plans, m.hasLocker).firstOrNull { it.name == m.planName }
+        val months = opt?.months ?: m.planName.substringBefore(" ").toIntOrNull() ?: 1
+        val back = LocalDate.ofEpochDay(m.validTill).minusMonths(months.toLong()).toEpochDay()
+        val undo = latestFee && pays.count { it.kind == "FEE" } > 1 && back >= m.joinedOn
+        ConfirmDialog(if (undo) "Undo this renewal?" else "Delete this payment?",
+            if (undo) "${rupees(p.amount)} on ${p.paidOn.asDate()} is removed, and fee paid up to goes back from ${m.validTill.asDate()} to ${back.asDate()}."
+            else "${rupees(p.amount)} on ${p.paidOn.asDate()} will be removed from the records. The paid-till date does not change.",
+            if (undo) "Undo renewal" else "Delete", danger = true,
+            onConfirm = {
+                vm.deletePayment(p)
+                if (undo) vm.update(m.copy(validTill = back, balance = (m.balance - ((opt?.price ?: p.amount) - p.amount).coerceAtLeast(0)).coerceAtLeast(0)))
+                deletePay = null
+            }, onDismiss = { deletePay = null })
+    }
     HideBottomNav()
     val remindText = libraryReminder(m, t)
 
@@ -329,10 +349,11 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     fun receipt(p: LibraryPayment) { receiptFor = p }
     fun receiptOf(p: LibraryPayment) = (ReceiptData(
         "${AppSettings.receiptPrefix}-L${p.id.toString().padStart(5, '0')}", p.paidOn,
-        if (p.kind == "DEPOSIT_RETURN") "DEPOSIT REFUND  /  अनामत परत" else "LIBRARY RECEIPT  /  लायब्ररी पावती", m.name,
+        if (p.kind == "DEPOSIT_RETURN") "DEPOSIT REFUND" else "ABHYASIKA RECEIPT", m.name,
         listOf("Mobile" to "+91 ${m.mobile}", "Seat" to listOfNotNull("${m.seatNo}", roomOf(m.seatNo, rooms)?.name, m.seatType.ifBlank { null }).joinToString(" · "), "For" to kindLabel(p.kind), "Payment mode" to p.mode.ifBlank { "—" }),
         p.amount, if (p.kind == "FEE") listOfNotNull("Valid up to" to m.validTill.asDate(), m.planName.takeIf { it.isNotBlank() }?.let { "Plan" to it },
-            m.balance.takeIf { it > 0 }?.let { "Balance left" to rupees(it) }) else emptyList()))
+            m.balance.takeIf { it > 0 }?.let { "Balance left" to rupees(it) }) else emptyList(),
+        forText = "${kindLabel(p.kind)} · seat ${m.seatNo}" + (roomOf(m.seatNo, rooms)?.name?.let { " · $it" } ?: ""), forSub = p.mode))
     receiptFor?.let { p -> ReceiptActions(receiptOf(p), m.mobile, m.studentId?.takeIf { !`in`.vidyadhan.academy.telegram.TelegramBot.isLinked("m${m.id}") }?.let { "s$it" } ?: "m${m.id}",
         onDelete = { deletePay = p }, onDismiss = { receiptFor = null }) }
 
@@ -386,10 +407,10 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                             }
                             PillButton("Collect", { collect = "BALANCE" }, Brand.Violet700, Icons.Rounded.Payments)
                         }
-                        PrimaryButton("Renew · from ${rupees(m.monthlyFee)}", { collect = "FEE" }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Autorenew)
+                        PrimaryButton(if (fee > 0) "Renew · from ${rupees(fee)}" else "Renew", { collect = "FEE" }, Modifier.fillMaxWidth(), accent = true, icon = Icons.Rounded.Autorenew)
                     }
                 }
-                Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (m.deposit > 0 || m.depositPaid) Row(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconTile(Icons.Rounded.Savings, Brand.Violet700, 46.dp, filled = true)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
@@ -410,7 +431,7 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                     HorizontalDivider(color = Brand.Line)
                     InfoRow(Icons.Rounded.Loyalty, "Plan", m.planName.ifBlank { "Monthly" } + if (m.balance > 0) " · ${rupees(m.balance)} balance" else "")
                     HorizontalDivider(color = Brand.Line)
-                    InfoRow(Icons.Rounded.CurrencyRupee, "Monthly fee", rupees(m.monthlyFee) + if (m.hasLocker && m.lockerFee > 0) " (seat ${rupees(m.monthlyFee - m.lockerFee)} + locker ${rupees(m.lockerFee)})" else "")
+                    InfoRow(Icons.Rounded.CurrencyRupee, "Monthly fee", if (feeMissing) "${rupees(fee)} (seat type fee: none was saved)" else rupees(m.monthlyFee) + if (m.hasLocker && m.lockerFee > 0) " (seat ${rupees(m.monthlyFee - m.lockerFee)} + locker ${rupees(m.lockerFee)})" else "")
                     if (m.hasLocker) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.Rounded.Lock, "Locker", if (m.lockerNo == "-") "Yes (number not noted)" else "Locker no. ${m.lockerNo}") }
                 }
                 SectionHeader("Payment history")
@@ -419,31 +440,37 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                     pays.forEachIndexed { i, p ->
                         if (i > 0) HorizontalDivider(Modifier.padding(start = 70.dp, end = 16.dp), color = Brand.Line)
                         val out = p.kind == "DEPOSIT_RETURN"
-                        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                            IconTile(when (p.kind) { "FEE" -> Icons.Rounded.CalendarMonth; "DEPOSIT", "DEPOSIT_RETURN" -> Icons.Rounded.Savings; else -> Icons.Rounded.HowToReg },
-                                if (out) Brand.Red600 else Brand.Green600, 40.dp)
-                            Spacer(Modifier.width(14.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(kindLabel(p.kind), style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
-                                Text(p.paidOn.asDate() + if (p.mode.isNotBlank()) " · ${p.mode}" else "", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 14.dp, top = 12.dp, bottom = 12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconTile(when (p.kind) { "FEE" -> Icons.Rounded.CalendarMonth; "DEPOSIT", "DEPOSIT_RETURN" -> Icons.Rounded.Savings; else -> Icons.Rounded.HowToReg },
+                                    if (out) Brand.Red600 else Brand.Green600, 40.dp)
+                                Spacer(Modifier.width(14.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(kindLabel(p.kind), style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                                    Text(p.paidOn.asDate() + if (p.mode.isNotBlank()) " · ${p.mode}" else "", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Text((if (out) "− " else "+ ") + rupees(p.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
+                                    color = if (out) Brand.Red600 else Brand.Green700, maxLines = 1, softWrap = false)
                             }
-                            Text((if (out) "− " else "+ ") + rupees(p.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold),
-                                color = if (out) Brand.Red600 else Brand.Green700)
-                            Spacer(Modifier.width(6.dp))
-                            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send receipt on WhatsApp", Brand.WhatsAppDark) { whatsappReceipt(ctx, receiptOf(p), m.mobile) }
-                            Spacer(Modifier.width(6.dp))
-                            SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receiptFor = p }
-                            Spacer(Modifier.width(6.dp))
-                            SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
+                            Row(Modifier.padding(start = 54.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    PayAction("WhatsApp", Icons.AutoMirrored.Rounded.Chat, Brand.WhatsAppDark, Color(0xFFE7F6F3)) { whatsappReceipt(ctx, receiptOf(p), m.mobile) }
+                                    PayAction("Receipt", Icons.Rounded.ReceiptLong, Brand.Blue600, Color(0xFFEFF6FF)) { receiptFor = p }
+                                }
+                                Spacer(Modifier.width(6.dp))
+                                SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
+                            }
                         }
                     }
                 }
                 NotesSection("MEMBER", m.id)
                 SoftButton("Admission form (PDF)", {
-                    shareAdmissionForm(ctx, "LIBRARY ADMISSION  /  लायब्ररी प्रवेश", "${AppSettings.receiptPrefix}-LA${m.id.toString().padStart(4, '0')}", m.name, m.photo,
-                        listOf("Mobile" to "+91 ${m.mobile}", "Aadhaar" to m.aadhaar.chunked(4).joinToString(" ").ifBlank { "—" }, "Date of birth" to (m.dob?.asDate() ?: "—"),
-                            "Seat" to "${m.seatNo} · ${m.seatType}", "Locker" to (if (m.hasLocker) lockerLabel(m) else "No"), "Joining date" to m.joinedOn.asDate(),
-                            "Monthly fee" to rupees(m.monthlyFee), "Deposit" to rupees(m.deposit)))
+                    shareAdmissionForm(ctx, AdmissionDoc("ABHYASIKA ADMISSION", "${AppSettings.receiptPrefix}-LA${m.id.toString().padStart(4, '0')}", m.joinedOn,
+                        m.name, m.mobile, m.photo, listOfNotNull("Seat ${m.seatNo}", m.seatType.ifBlank { null }, if (m.hasLocker) lockerLabel(m) else null, "Joined ${m.joinedOn.asDate()}"),
+                        m.dob, m.aadhaar, "", "", "", "FEES",
+                        listOf(Triple("Monthly fee", rupees(fee), ""),
+                            Triple("Refundable deposit", rupees(m.deposit), if (m.depositPaid && m.depositReturnedOn == null && m.deposit > 0) "HELD" else ""))))
                 }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Description)
                 SeatHistory(history, onOpen, excludeId = m.id)
                 if (m.active) SoftButton("Member left · free seat ${m.seatNo}", { vacate = true }, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.AutoMirrored.Rounded.Logout)
@@ -453,7 +480,7 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     }
     collect?.let { kind ->
         var mode by remember { mutableStateOf("Cash") }
-        val options = renewOptions(m.monthlyFee, plans, m.hasLocker)
+        val options = renewOptions(fee, plans, m.hasLocker)
         var optName by remember { mutableStateOf(options.firstOrNull { it.name == m.planName }?.name ?: options.first().name) }
         val chosen = options.firstOrNull { it.name == optName } ?: options.first()
         val full = when (kind) { "FEE" -> chosen.price; "BALANCE" -> m.balance; else -> m.deposit }
@@ -477,7 +504,8 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
                 ModeChoice(mode) { mode = it }
                 PrimaryButton("Confirm ${rupees(amount)}", {
                     val updated = when (kind) {
-                        "FEE" -> m.copy(validTill = till, planName = chosen.name, balance = m.balance + balanceAfter(0, chosen.price, amount))
+                        "FEE" -> m.copy(validTill = till, planName = chosen.name, balance = m.balance + balanceAfter(0, chosen.price, amount),
+                            monthlyFee = if (feeMissing) fee else m.monthlyFee, lockerFee = if (feeMissing) lockerPart else m.lockerFee)
                         "BALANCE" -> m.copy(balance = (m.balance - amount).coerceAtLeast(0))
                         "DEPOSIT" -> m.copy(depositPaid = true)
                         else -> m.copy(depositReturnedOn = t)
@@ -499,7 +527,19 @@ private fun MemberDetail(vm: LibraryViewModel, id: Long, onBack: () -> Unit, onO
     if (vacate) ConfirmDialog("Free seat ${m.seatNo}?",
         if (m.depositPaid && m.depositReturnedOn == null) "The deposit of ${rupees(m.deposit)} has not been returned yet. Return it first if needed." else "${m.name} moves to Past members. Their records are kept.",
         "Free seat", onConfirm = { vm.update(m.copy(active = false, leftOn = t)); vacate = false; onBack() }, onDismiss = { vacate = false })
-    if (confirm) ConfirmDialog("Delete ${m.name}?", "All their payment records are deleted too. To keep records, use “Member left” instead.", "Delete", danger = true,
-        onConfirm = { Photos.delete(ctx, m.photo); Photos.delete(ctx, m.aadhaarPhoto); vm.delete(m); confirm = false; onBack() }, onDismiss = { confirm = false })
+    if (confirm) DeletePersonDialog("Delete ${m.name}?", "All their payment records are deleted too. To keep records, use “Member left” instead.",
+        `in`.vidyadhan.academy.telegram.TelegramBot.isLinked("m${m.id}"),
+        onConfirm = { tg -> if (tg) `in`.vidyadhan.academy.telegram.TelegramBot.unlink("m${m.id}")
+            Photos.delete(ctx, m.photo); Photos.delete(ctx, m.aadhaarPhoto); vm.delete(m); confirm = false; onBack() }, onDismiss = { confirm = false })
     viewPhoto?.let { PhotoViewer(it) { viewPhoto = null } }
+}
+
+
+@Composable
+private fun PayAction(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, fg: Color, bg: Color, onClick: () -> Unit) {
+    Row(Modifier.clip(RoundedCornerShape(50)).background(bg).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = fg, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1, softWrap = false)
+    }
 }

@@ -19,6 +19,10 @@ data class Student(
     val leftOn: Long? = null, // set when the student finished or left: a "former student"
     @ColumnInfo(defaultValue = "") val leftReason: String = "",
     @ColumnInfo(defaultValue = "") val telegram: String = "", // Telegram username, without @
+    @ColumnInfo(defaultValue = "") val khataKey: String = "", // the old khata person this student came from
+    @ColumnInfo(defaultValue = "") val guardianName: String = "",
+    @ColumnInfo(defaultValue = "") val guardianMobile: String = "",
+    @ColumnInfo(defaultValue = "") val address: String = "",
 )
 
 /** The planned schedule. What has actually been paid lives in [StudentPayment]. */
@@ -175,9 +179,27 @@ data class StudentWithFees(
     val telegram: String = "",
     val joinedOn: Long = 0,
     val advance: Long = 0, // paid ahead of the schedule
+    val khataKey: String = "",
+    val dueNow: Long = 0, // installments due up to today that are not paid yet
 ) {
     val current: Boolean get() = leftOn == null
 }
 
 /** One received payment, for "Recent payments" (not stored as its own table). */
-data class PaymentRow(val name: String, val amount: Long, val paidOn: Long, val kind: String, val mode: String = "", val detail: String = "")
+data class PaymentRow(val name: String, val amount: Long, val paidOn: Long, val kind: String, val mode: String = "", val detail: String = "", val ownerId: Long = 0)
+
+/** One line of the old Khatabook ledger, imported from the CSV file. Debit = charged, credit = paid. */
+@Entity(indices = [Index("key")])
+data class KhataEntry(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val key: String, // normalised name, used to group one person's lines
+    val name: String, // name as written in the old book
+    val date: Long, // epoch day
+    val debit: Long = 0,
+    val credit: Long = 0,
+    val details: String = "",
+    val mobile: String = "", // typed in by the owner, used for reminders
+    @ColumnInfo(defaultValue = "OTHER") val type: String = "OTHER", // COURSE, LIBRARY, ENQUIRY or OTHER
+    @ColumnInfo(defaultValue = "LEDGER") val kind: String = "LEDGER", // LEDGER = from the old book, PAYMENT = recorded in the app
+    @ColumnInfo(defaultValue = "") val review: String = "", // "" = not confirmed yet, DONE, or SKIP
+)

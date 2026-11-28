@@ -23,8 +23,15 @@ data class ReceiptData(
     val rows: List<Pair<String, String>>, // label to value
     val amount: Long,
     val summary: List<Pair<String, String>> = emptyList(),
-    /** One line under the fee boxes, e.g. "Next installment ₹4,000 on 10 Dec 2026". */
+    /** One line under the fee table, when there is no next installment to show. */
     val footnote: String = "",
+    /** The main line of the particulars table, e.g. "MPSC course fee · Evening batch". */
+    val forText: String = "",
+    /** The small line under it: installment, payment mode, reference. */
+    val forSub: String = "",
+    /** The next installment, printed with a calendar badge. */
+    val nextAmount: Long = 0,
+    val nextDue: Long? = null,
 )
 
 /** 15000 → "Fifteen Thousand"; Indian system (lakh, crore). */
@@ -62,81 +69,123 @@ fun receiptPdf(ctx: Context, r: ReceiptData): File {
     return f
 }
 
-/** Draws the receipt on a 420 × 595 canvas (the PDF page, or a picture in tests). */
+/** Draws the receipt on a 420 × 595 canvas (the PDF page, or a picture in tests): letterhead, big amount card, particulars, fee position, next installment. */
 fun drawReceipt(ctx: Context, c: android.graphics.Canvas, r: ReceiptData) {
     val W = 420f; val H = 595f
-    val teal = Color.parseColor("#0F4C5C"); val tealLight = Color.parseColor("#E0F2F5"); val marigold = Color.parseColor("#E07A2B")
+    val teal = Color.parseColor("#0F4C5C"); val marigold = Color.parseColor("#E07A2B"); val mari1 = Color.parseColor("#FDF0E4")
     val ink = Color.parseColor("#0F172A"); val grey = Color.parseColor("#64748B"); val light = Color.parseColor("#94A3B8"); val line = Color.parseColor("#E2E8F0")
-    val green = Color.parseColor("#16A34A"); val greenLight = Color.parseColor("#DCFCE7"); val soft = Color.parseColor("#F1F5F9")
+    val green = Color.parseColor("#15803D"); val orange = Color.parseColor("#C2410C"); val soft = Color.parseColor("#F8FAFC")
     fun paint(size: Float, bold: Boolean = false, color: Int = ink, align: Paint.Align = Paint.Align.LEFT) =
         Paint(Paint.ANTI_ALIAS_FLAG).apply { textSize = size; this.color = color; typeface = if (bold) Typeface.DEFAULT_BOLD else Typeface.DEFAULT; textAlign = align }
     val fill = { col: Int -> Paint(Paint.ANTI_ALIAS_FLAG).apply { color = col } }
-    fun fit(p: Paint, text: String, max: Float): Paint { while (p.measureText(text) > max && p.textSize > 7f) p.textSize -= 0.5f; return p }
-    val cx = W / 2
+    fun fit(p: Paint, text: String, max: Float): Paint { while (p.measureText(text) > max && p.textSize > 6f) p.textSize -= 0.5f; return p }
+    fun grad(rect: RectF) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = android.graphics.LinearGradient(rect.left, rect.top, rect.right, rect.bottom, Color.parseColor("#093541"), Color.parseColor("#145E70"), android.graphics.Shader.TileMode.CLAMP)
+    }
+    val refund = r.title.contains("REFUND", true)
     val mobile = r.rows.firstOrNull { it.first == "Mobile" }?.second.orEmpty()
-    val details = listOf("Date" to r.date.asDate()) + r.rows.filter { it.first != "Mobile" }
+    val pale = Color.parseColor("#CCE7EE")
 
-    // academy: logo + name
-    val nameP = fit(paint(15f, true, teal), AppSettings.academyName, 300f)
-    val nameW = nameP.measureText(AppSettings.academyName)
-    val left = cx - (nameW + 44f) / 2
-    runCatching { BitmapFactory.decodeResource(ctx.resources, R.drawable.logo) }.getOrNull()?.let { c.drawBitmap(it, null, RectF(left, 22f, left + 34f, 56f), null) }
-    c.drawText(AppSettings.academyName, left + 44f, 44f, nameP)
+    // letterhead
+    c.drawRect(0f, 0f, W, 84f, grad(RectF(0f, 0f, W, 84f)))
+    c.drawRect(0f, 84f, W, 88f, fill(marigold))
+    c.drawCircle(44f, 42f, 25f, fill(Color.WHITE))
+    runCatching { BitmapFactory.decodeResource(ctx.resources, R.drawable.logo) }.getOrNull()?.let { c.drawBitmap(it, null, RectF(22f, 20f, 66f, 64f), Paint(Paint.FILTER_BITMAP_FLAG)) }
+    c.drawText(AppSettings.academyName, 80f, 36f, fit(paint(16f, true, Color.WHITE), AppSettings.academyName, W - 96f))
+    val tag = (AppSettings.courseList + "Abhyasika Kendra").filter { it.isNotBlank() }.joinToString(" · ")
+    c.drawText(tag, 80f, 52f, fit(paint(8.5f, false, pale), tag, W - 96f))
+    val contact = listOf(AppSettings.academyAddress, AppSettings.academyPhone).filter { it.isNotBlank() }.joinToString(" · ")
+    if (contact.isNotBlank()) c.drawText(contact, 80f, 66f, fit(paint(8.5f, false, pale), contact, W - 96f))
 
-    // tick and amount
-    c.drawCircle(cx, 104f, 30f, fill(greenLight))
-    c.drawPath(android.graphics.Path().apply { moveTo(cx - 13f, 104f); lineTo(cx - 4f, 114f); lineTo(cx + 14f, 93f) },
-        Paint(Paint.ANTI_ALIAS_FLAG).apply { color = green; style = Paint.Style.STROKE; strokeWidth = 6f; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND })
-    c.drawText(rupees(r.amount), cx, 172f, paint(34f, true, ink, Paint.Align.CENTER))
+    // title, number and date
+    val title = r.title.substringBefore(" / ").trim()
+    c.drawText(title, 24f, 117f, paint(12.5f, true, teal).apply { letterSpacing = 0.08f })
+    c.drawText("No. ${r.number}", W - 24f, 108f, paint(9f, true, ink, Paint.Align.RIGHT))
+    c.drawText("Date ${r.date.asDate()}", W - 24f, 122f, paint(9f, false, grey, Paint.Align.RIGHT))
+
+    // the big amount card
+    val card = RectF(24f, 134f, W - 24f, 224f)
+    c.save()
+    c.clipPath(android.graphics.Path().apply { addRoundRect(card, 14f, 14f, android.graphics.Path.Direction.CW) })
+    c.drawRect(card, grad(card))
+    c.drawCircle(card.right - 18f, card.top + 4f, 64f, fill(Color.argb(18, 255, 255, 255)))
+    c.restore()
+    val white80 = Color.argb(210, 255, 255, 255)
+    c.drawText(if (refund) "AMOUNT RETURNED" else "AMOUNT RECEIVED", 40f, 155f, paint(8f, true, white80).apply { letterSpacing = 0.08f })
+    c.drawText(rupees(r.amount), 40f, 185f, paint(27f, true, Color.WHITE))
     val words = "Rupees ${amountInWords(r.amount)} only"
-    c.drawText(words, cx, 190f, fit(paint(10f, false, grey, Paint.Align.CENTER), words, 360f))
-    val from = "Received from " ; val who = r.name; val tail = if (mobile.isNotBlank()) "  ·  $mobile" else ""
-    val pf = paint(11.5f, false, Color.parseColor("#475569")); val pb = paint(11.5f, true, teal)
-    val total = pf.measureText(from) + pb.measureText(who) + pf.measureText(tail)
-    var x = cx - total / 2
-    c.drawText(from, x, 212f, pf); x += pf.measureText(from)
-    c.drawText(who, x, 212f, pb); x += pb.measureText(who)
-    c.drawText(tail, x, 212f, pf)
-    val chip = "${r.title.replace("  /  ", " · ")}  ·  No. ${r.number}"
-    val chipP = fit(paint(9.5f, true, teal, Paint.Align.CENTER), chip, 340f)
-    val cw = chipP.measureText(chip) + 22f
-    c.drawRoundRect(RectF(cx - cw / 2, 222f, cx + cw / 2, 240f), 9f, 9f, fill(tealLight))
-    c.drawText(chip, cx, 234.5f, chipP)
+    c.drawText(words, 40f, 199f, fit(paint(8.5f, false, white80), words, card.width() - 32f))
+    val pre = if (refund) "Paid to " else "Received from "
+    val pf = paint(9.5f, false, white80)
+    val tail = if (mobile.isNotBlank()) "  ·  $mobile" else ""
+    var x = 40f
+    c.drawText(pre, x, 215f, pf); x += pf.measureText(pre)
+    val pb = fit(paint(10.5f, true, Color.WHITE), r.name, (card.right - 16f - x - pf.measureText(tail)).coerceAtLeast(60f))
+    c.drawText(r.name, x, 215f, pb); x += pb.measureText(r.name)
+    c.drawText(tail, x, 215f, pf)
 
-    // a torn-ticket edge
-    fun perforation(y: Float) { var px = 6f; while (px < W) { c.drawCircle(px, y, 4.5f, fill(Color.parseColor("#E5EAF0"))); px += 13f } }
-    perforation(258f)
+    // particulars
+    var y = 240f
+    c.drawRect(24f, y, W - 24f, y + 18f, fill(soft))
+    c.drawText("PARTICULARS", 32f, y + 12.5f, paint(7.5f, true, grey).apply { letterSpacing = 0.06f })
+    c.drawText("AMOUNT", W - 32f, y + 12.5f, paint(7.5f, true, grey, Paint.Align.RIGHT).apply { letterSpacing = 0.06f })
+    y += 18f
+    val main = r.forText.ifBlank { r.rows.firstOrNull { it.first == "Course" || it.first == "For" }?.second ?: title.lowercase().replaceFirstChar { it.uppercase() } }
+    val sub = r.forSub.ifBlank { r.rows.firstOrNull { it.first == "Payment mode" }?.second?.let { "Paid by $it" }.orEmpty() }
+    c.drawText(main, 32f, y + 17f, fit(paint(10f, true, ink), main, W - 150f))
+    if (sub.isNotBlank()) c.drawText(sub, 32f, y + 30f, fit(paint(8.5f, false, grey), sub, W - 150f))
+    c.drawText(rupees(r.amount), W - 32f, y + 17f, paint(10f, true, ink, Paint.Align.RIGHT))
+    y += 40f
+    c.drawLine(24f, y, W - 24f, y, paint(1f, false, line))
+    c.drawText(if (refund) "Total returned" else "Total received", 32f, y + 17f, paint(10.5f, true, ink))
+    c.drawText(rupees(r.amount), W - 32f, y + 17f, paint(11f, true, ink, Paint.Align.RIGHT))
+    y += 25f
+    c.drawRect(24f, y, W - 24f, y + 1.6f, fill(teal))
+    y += 14f
 
-    // details
-    var y = 284f
-    details.take(7).forEach { (k, v) ->
-        c.drawText(k, 30f, y, paint(10.5f, false, grey))
-        c.drawText(v, W - 30f, y, fit(paint(11f, true, ink, Paint.Align.RIGHT), v, 250f))
-        c.drawLine(30f, y + 8f, W - 30f, y + 8f, paint(1f, false, line))
-        y += 25f
-    }
-
-    // fee position: up to three boxes
+    // fee position
     if (r.summary.isNotEmpty()) {
-        y += 4f
         val n = r.summary.size.coerceAtMost(3)
-        val bw = (W - 60f - (n - 1) * 8f) / n
+        val cw = (W - 48f) / n
+        c.drawRect(24f, y, W - 24f, y + 18f, fill(soft))
         r.summary.take(3).forEachIndexed { i, (k, v) ->
-            val bx = 30f + i * (bw + 8f)
-            c.drawRoundRect(RectF(bx, y, bx + bw, y + 44f), 10f, 10f, fill(soft))
-            c.drawText(k.uppercase(), bx + bw / 2, y + 16f, fit(paint(8f, true, grey, Paint.Align.CENTER), k.uppercase(), bw - 8f))
-            val col = when { k.contains("Balance", true) -> marigold; k.contains("Paid", true) -> green; else -> ink }
-            c.drawText(v, bx + bw / 2, y + 34f, fit(paint(12.5f, true, col, Paint.Align.CENTER), v, bw - 8f))
+            val last = i == n - 1 && n > 1
+            val xx = if (last) 24f + cw * (i + 1) - 8f else 24f + cw * i + 8f
+            val al = if (last) Paint.Align.RIGHT else Paint.Align.LEFT
+            c.drawText(k, xx, y + 12.5f, fit(paint(8f, true, grey, al), k, cw - 12f))
+            val col = when { k.contains("Balance", true) -> orange; k.contains("Paid", true) -> green; else -> ink }
+            c.drawText(v, xx, y + 34f, fit(paint(10.5f, true, col, al), v, cw - 12f))
         }
-        y += 58f
+        y += 42f
+        c.drawLine(24f, y, W - 24f, y, paint(1f, false, line))
+        y += 12f
     }
-    if (r.footnote.isNotBlank()) { c.drawText(r.footnote, cx, y, fit(paint(10.5f, false, Color.parseColor("#475569"), Paint.Align.CENTER), r.footnote, 360f)); y += 14f }
 
-    // footer
-    perforation(H - 62f)
-    c.drawText("Thank you!  धन्यवाद!  ·  Computer-generated, no signature needed", cx, H - 38f, paint(9.5f, false, grey, Paint.Align.CENTER))
-    val contact = listOf(AppSettings.academyAddress, AppSettings.academyPhone).filter { it.isNotBlank() }.joinToString("  ·  ")
-    if (contact.isNotBlank()) c.drawText(contact, cx, H - 24f, fit(paint(8.5f, false, light, Paint.Align.CENTER), contact, 380f))
+    // next installment with a calendar badge
+    val nd = r.nextDue
+    if (nd != null && r.nextAmount > 0) {
+        c.drawRoundRect(RectF(24f, y, W - 24f, y + 44f), 11f, 11f, fill(mari1))
+        val cal = RectF(34f, y + 6f, 66f, y + 38f)
+        c.drawRoundRect(cal, 8f, 8f, fill(Color.WHITE))
+        c.drawRoundRect(cal, 8f, 8f, Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; color = Color.parseColor("#F6C9A2"); strokeWidth = 1f })
+        val d = java.time.LocalDate.ofEpochDay(nd)
+        c.drawText(d.month.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.ENGLISH).uppercase(), cal.centerX(), y + 17f, paint(7f, true, marigold, Paint.Align.CENTER))
+        c.drawText("${d.dayOfMonth}", cal.centerX(), y + 32f, paint(12.5f, true, ink, Paint.Align.CENTER))
+        c.drawText("Next installment ${rupees(r.nextAmount)}", 76f, y + 20f, paint(10.5f, true, ink))
+        c.drawText("due on ${nd.asDate()}", 76f, y + 34f, paint(8.5f, false, grey))
+        y += 56f
+    } else if (r.footnote.isNotBlank()) {
+        c.drawText(r.footnote, 24f, y + 10f, fit(paint(9.5f, false, grey), r.footnote, W - 48f)); y += 24f
+    }
+
+    // terms and signature
+    val fy = maxOf(y + 30f, H - 60f)
+    if (!refund) {
+        c.drawText("Fees once paid are not refundable", 24f, fy + 6f, paint(8f, false, grey))
+        c.drawText("or transferable.", 24f, fy + 17f, paint(8f, false, grey))
+    }
+    c.drawLine(W - 150f, fy + 4f, W - 24f, fy + 4f, paint(1f, false, light))
+    c.drawText("Authorised signature", W - 87f, fy + 17f, paint(8.5f, false, grey, Paint.Align.CENTER))
 }
 
 /** Shares the receipt PDF (WhatsApp, Drive, print…). */

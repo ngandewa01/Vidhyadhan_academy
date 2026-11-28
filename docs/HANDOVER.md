@@ -7,7 +7,7 @@ Code: `android/`. Work branch: **`app-redesign`** (not yet merged into `main`).
 - GitHub Actions (`.github/workflows/android.yml`) runs the unit tests (Robolectric, including screenshot tests
   that write PNGs to the `screenshots` artifact), builds the signed release APK and uploads it to the release
   `app-v0.6.0` (file `Vidhyadhan-0.6.0.apk`) and `app-latest` (file `Vidhyadhan.apk`).
-- Bump `versionCode` in `android/app/build.gradle.kts` for every build; `versionName` stays `0.6.0`.
+- Bump `versionCode` in `android/app/build.gradle.kts` for every build and set `versionName` to `0.7.<versionCode>` (e.g. code 71 → "0.7.71"); the release tag and APK name follow it.
 - Put `[skip ci]` in a commit message to push without building.
 - Secrets in the repo: `SIGNING_KEYSTORE_B64`, `SIGNING_PASSWORD` (release key). `FIREBASE_SERVICE_ACCOUNT` is no
   longer used and should be deleted (also delete its key in Firebase → Service accounts).

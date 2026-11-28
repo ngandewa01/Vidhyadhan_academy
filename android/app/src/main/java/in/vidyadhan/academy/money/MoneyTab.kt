@@ -49,21 +49,24 @@ import java.time.format.DateTimeFormatter
 data class MonthMoney(
     val month: YearMonth, val studentFees: Long, val libraryFees: Long, val registration: Long,
     val depositsIn: Long, val depositsOut: Long, val expenses: Long, val byCategory: List<Pair<String, Long>>,
+    /** Payments recorded in the app against the old khata (not the imported book). */
+    val khataPayments: Long = 0,
 ) {
-    val collected get() = studentFees + libraryFees + registration
+    val collected get() = studentFees + libraryFees + registration + khataPayments
     val profit get() = collected - expenses
 }
 
 private fun YearMonth.range() = atDay(1).toEpochDay()..atEndOfMonth().toEpochDay()
 
-fun monthMoney(m: YearMonth, sp: List<StudentPayment>, lp: List<LibraryPayment>, ex: List<Expense>): MonthMoney {
+fun monthMoney(m: YearMonth, sp: List<StudentPayment>, lp: List<LibraryPayment>, ex: List<Expense>, kh: List<KhataEntry> = emptyList()): MonthMoney {
     val r = m.range()
     val l = lp.filter { it.paidOn in r }
     val e = ex.filter { it.spentOn in r }
     return MonthMoney(m, sp.filter { it.paidOn in r }.sumOf { it.amount }, l.filter { it.kind == "FEE" }.sumOf { it.amount },
         l.filter { it.kind == "REGISTRATION" }.sumOf { it.amount }, l.filter { it.kind == "DEPOSIT" }.sumOf { it.amount },
         l.filter { it.kind == "DEPOSIT_RETURN" }.sumOf { it.amount }, e.sumOf { it.amount },
-        e.groupBy { it.category }.map { (k, v) -> k to v.sumOf { it.amount } }.sortedByDescending { it.second })
+        e.groupBy { it.category }.map { (k, v) -> k to v.sumOf { it.amount } }.sortedByDescending { it.second },
+        kh.filter { it.kind == "PAYMENT" && it.date in r }.sumOf { it.credit })
 }
 
 fun categoryIcon(c: String): Pair<ImageVector, Color> = when (c) {
@@ -79,7 +82,7 @@ fun categoryIcon(c: String): Pair<ImageVector, Color> = when (c) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
+fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}, onGo: (`in`.vidyadhan.academy.home.Go, Long) -> Unit = { _, _ -> }) {
     val ctx = LocalContext.current
     val db = remember { AppDb.get(ctx) }
     val scope = rememberCoroutineScope()
@@ -92,8 +95,26 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
     var view by rememberSaveable { mutableStateOf("overview") }
     var edit by remember { mutableStateOf<Expense?>(null) }
     LaunchedEffect(openNew) { if (openNew) { view = "expenses"; edit = Expense(category = "", amount = 0, spentOn = today()); onOpened() } }
-    val cur = monthMoney(month, sp, lp, ex)
-    val last6 = (5 downTo 0).map { monthMoney(month.minusMonths(it.toLong()), sp, lp, ex) }
+    val kh by db.khata().payments().collectAsStateWithLifecycle(emptyList())
+    val students by db.students().students().collectAsStateWithLifecycle(emptyList())
+    val members by db.library().members().collectAsStateWithLifecycle(emptyList())
+    var period by rememberSaveable { mutableStateOf("month") }
+    val cur = monthMoney(month, sp, lp, ex, kh)
+    // the months in the chosen period: one month, the months of a year, or every month since the first record
+    val periodMonths: List<YearMonth> = when (period) {
+        "year" -> (1..12).map { YearMonth.of(month.year, it) }.filter { it <= YearMonth.now() }
+        "all" -> {
+            val first = listOfNotNull(sp.minOfOrNull { it.paidOn }, lp.minOfOrNull { it.paidOn }, ex.minOfOrNull { it.spentOn }, kh.minOfOrNull { it.date }).minOrNull()
+            val start = first?.let { YearMonth.from(java.time.LocalDate.ofEpochDay(it)) } ?: YearMonth.now()
+            generateSequence(start) { it.plusMonths(1) }.takeWhile { it <= YearMonth.now() }.toList()
+        }
+        else -> listOf(month)
+    }
+    val pm = periodMonths.map { monthMoney(it, sp, lp, ex, kh) }
+    val pCollected = pm.sumOf { it.collected }
+    val pSpent = pm.sumOf { it.expenses }
+    val pProfit = pCollected - pSpent
+    val last6 = (5 downTo 0).map { monthMoney(month.minusMonths(it.toLong()), sp, lp, ex, kh) }
     val monthLabel = month.format(DateTimeFormatter.ofPattern("MMMM yyyy"))
 
     val reportScope = rememberCoroutineScope()
@@ -101,31 +122,66 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.11f)).border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(50)),
             verticalAlignment = Alignment.CenterVertically) {
-            IconButton({ monthText = month.minusMonths(1).toString() }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Previous month", tint = Color.White) }
-            Text(monthLabel, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = Color.White, textAlign = TextAlign.Center)
-            IconButton({ if (month < YearMonth.now()) monthText = month.plusMonths(1).toString() }) {
-                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Next month", tint = if (month < YearMonth.now()) Color.White else Color.White.copy(alpha = 0.3f))
+            if (period == "all") Text("All time", Modifier.weight(1f).padding(vertical = 12.dp), style = MaterialTheme.typography.titleMedium, color = Color.White, textAlign = TextAlign.Center)
+            else {
+                IconButton({ monthText = (if (period == "year") month.minusYears(1) else month.minusMonths(1)).toString() }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Previous", tint = Color.White) }
+                Text(if (period == "year") "${month.year}" else monthLabel, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, color = Color.White, textAlign = TextAlign.Center)
+                val canNext = if (period == "year") month.year < YearMonth.now().year else month < YearMonth.now()
+                IconButton({ if (canNext) monthText = (if (period == "year") month.plusYears(1) else month.plusMonths(1)).toString() }) {
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Next", tint = if (canNext) Color.White else Color.White.copy(alpha = 0.3f))
+                }
             }
         }
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            GlassStat("Collected", rupees(cur.collected), Modifier.weight(1f))
-            GlassStat("Spent", rupees(cur.expenses), Modifier.weight(1f), valueColor = Brand.Saffron200)
-            GlassStat(if (cur.profit >= 0) "Profit" else "Loss", rupees(kotlin.math.abs(cur.profit)), Modifier.weight(1f), valueColor = if (cur.profit >= 0) Color(0xFF86EFAC) else Color(0xFFFCA5A5))
+            GlassStat(if (period == "all") "Collected*" else "Collected", rupees(pCollected), Modifier.weight(1f))
+            GlassStat("Spent", rupees(pSpent), Modifier.weight(1f), valueColor = Brand.Saffron200)
+            GlassStat(if (pProfit >= 0) "Profit" else "Loss", rupees(kotlin.math.abs(pProfit)), Modifier.weight(1f), valueColor = if (pProfit >= 0) Color(0xFF86EFAC) else Color(0xFFFCA5A5))
         }
     }) {
         Box(Modifier.fillMaxSize()) {
             Column {
-                Segmented(listOf("overview" to "Report", "expenses" to "Expenses (${ex.count { it.spentOn in month.range() }})"), view, { view = it },
+                Segmented(listOf("month" to "Month", "year" to "Year", "all" to "All time"), period, { period = it; view = "overview" },
+                    Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
+                if (period == "month") Segmented(listOf("overview" to "Report", "expenses" to "Expenses (${ex.count { it.spentOn in month.range() }})"), view, { view = it },
                     Modifier.padding(start = 16.dp, end = 16.dp, top = 18.dp, bottom = 6.dp))
                 Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 110.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    if (view == "overview") {
+                    if (period != "month") {
+                        // year: the 12 months; all time: one bar per year. Tap a bar to open it.
+                        val now = YearMonth.now()
+                        val bars = if (period == "year") (1..12).map { mo ->
+                            val ym = YearMonth.of(month.year, mo)
+                            val mm = if (ym <= now) monthMoney(ym, sp, lp, ex, kh) else null
+                            BarPoint(ym.format(DateTimeFormatter.ofPattern("MMM")).take(1), mm?.collected ?: 0L, mm?.expenses ?: 0L)
+                        } else pm.groupBy { it.month.year }.toSortedMap().map { (y, l) -> BarPoint("$y", l.sumOf { it.collected }, l.sumOf { it.expenses }) }
+                        Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp)) {
+                            Text(if (period == "year") "${month.year} · month by month" else "Year by year", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
+                            Row(Modifier.padding(top = 4.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Dot(Brand.Blue600, "Collected"); Dot(Brand.Saffron500, "Spent")
+                            }
+                            BarChart(bars, -1) { i ->
+                                if (period == "year") {
+                                    val ym = YearMonth.of(month.year, i + 1)
+                                    if (ym <= now) { monthText = ym.toString(); period = "month" }
+                                } else {
+                                    val y = bars[i].label.toInt()
+                                    monthText = (if (y == now.year) now else YearMonth.of(y, 12)).toString(); period = "year"
+                                }
+                            }
+                            Text(if (period == "year") "Tap a month to open its report." else "Tap a year to open it.", Modifier.padding(top = 8.dp),
+                                style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                        }
+                        PeriodCard(period, pm) { reportScope.launch { runCatching { sharePeriodReport(ctx, period, month.year) } } }
+                    }
+                    else if (view == "overview") {
                         Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp)) {
                             Text("Last 6 months", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
                             Row(Modifier.padding(top = 4.dp, bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 Dot(Brand.Blue600, "Collected"); Dot(Brand.Saffron500, "Spent")
                             }
-                            BarChart(last6, month)
+                            BarChart(last6.map { BarPoint(it.month.format(DateTimeFormatter.ofPattern("MMM")), it.collected, it.expenses) },
+                                last6.indexOfFirst { it.month == month }) { monthText = last6[it].month.toString() }
+                            Text("Tap a month to open its report.", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
                         }
                         Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(18.dp)) {
                             Text("Money in · $monthLabel", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
@@ -133,10 +189,12 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                             LegendLine(Brand.Blue600, "Course fees", rupees(cur.studentFees))
                             LegendLine(Brand.Teal500, "Library fees", rupees(cur.libraryFees))
                             LegendLine(Brand.Violet500, "Registration", rupees(cur.registration))
+                            LegendLine(Brand.Saffron500, "Old khata payments", rupees(cur.khataPayments))
                             HorizontalDivider(Modifier.padding(vertical = 8.dp), color = Brand.Line)
                             LegendLine(Brand.Green500, "Total collected", rupees(cur.collected))
                             if (cur.depositsIn + cur.depositsOut > 0) Text("Deposits are kept aside, not counted as income: ${rupees(cur.depositsIn)} received, ${rupees(cur.depositsOut)} returned.",
                                 style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, modifier = Modifier.padding(top = 6.dp))
+                            WhoPaid(month, sp, lp, kh, students, members, onGo)
                         }
                         Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Text("Money out · ${rupees(cur.expenses)}", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
@@ -151,6 +209,18 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                                         ProgressBar(a.toFloat() / cur.expenses, color = col, track = Brand.Line, height = 5.dp)
                                     }
                                 }
+                            }
+                            val mEx = ex.filter { it.spentOn in month.range() }.sortedByDescending { it.spentOn }
+                            if (mEx.isNotEmpty()) {
+                                Column {
+                                SubHead("Where it went · ${mEx.size} expense${if (mEx.size == 1) "" else "s"}")
+                                mEx.forEachIndexed { i, e ->
+                                    if (i > 0) HorizontalDivider(color = Brand.Line)
+                                    val (ic, col) = categoryIcon(e.category)
+                                    LineItem(ic, col, e.note.ifBlank { e.category }, listOfNotNull(e.category.takeIf { e.note.isNotBlank() }, e.spentOn.shortDay()).joinToString(" · "),
+                                        rupees(e.amount), Brand.Saffron700) { edit = e }
+                                }
+                            }
                             }
                         }
                         val mEnq = enq.filter { it.createdOn in month.range() }
@@ -169,8 +239,7 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
                         PrimaryButton("Share $monthLabel report (PDF)", { reportScope.launch { runCatching { shareMonthlyReport(ctx, month) } } }, Modifier.fillMaxWidth(), icon = Icons.Rounded.PictureAsPdf)
                     } else {
                         val list = ex.filter { it.spentOn in month.range() }
-                        if (list.isEmpty()) EmptyState(Icons.Rounded.ReceiptLong, "No expenses in $monthLabel", "Note rent, electricity, salaries and more to see your profit.",
-                            action = "Add expense", onAction = { edit = Expense(category = "", amount = 0, spentOn = if (month == YearMonth.now()) today() else month.atDay(1).toEpochDay()) })
+                        if (list.isEmpty()) EmptyState(Icons.Rounded.ReceiptLong, "No expenses in $monthLabel", "Note rent, electricity, salaries and more to see your profit.")
                         else Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 6.dp).padding(vertical = 6.dp)) {
                             list.forEachIndexed { i, e ->
                                 if (i > 0) HorizontalDivider(Modifier.padding(start = 70.dp, end = 16.dp), color = Brand.Line)
@@ -217,6 +286,34 @@ fun MoneyTab(openNew: Boolean = false, onOpened: () -> Unit = {}) {
     }
 }
 
+private data class PeriodLine(val label: String, val collected: Long, val spent: Long)
+
+/** Year: each month of the year. All time: each year. Shows money in, money out and profit. */
+@Composable
+private fun PeriodCard(period: String, pm: List<MonthMoney>, onShare: () -> Unit) {
+    val lines = if (period == "year") pm.map { PeriodLine(it.month.format(DateTimeFormatter.ofPattern("MMMM")), it.collected, it.expenses) }
+        else pm.groupBy { it.month.year }.toSortedMap().map { (y, l) -> PeriodLine("$y", l.sumOf { it.collected }, l.sumOf { it.expenses }) }
+    Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(24.dp), 8.dp).padding(18.dp)) {
+        Text(if (period == "year") "Month by month" else "Year by year", style = MaterialTheme.typography.titleMedium, color = Brand.Ink)
+        lines.reversed().forEachIndexed { i, ln ->
+            if (i > 0) HorizontalDivider(color = Brand.Line)
+            val p = ln.collected - ln.spent
+            Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(ln.label, style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                    Text("In ${rupees(ln.collected)} · Out ${rupees(ln.spent)}", style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                }
+                Text(rupees(p), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = if (p >= 0) Brand.Green700 else Brand.Red600)
+            }
+        }
+        if (period == "all") Text("* Includes every payment received, in the month it was paid.", Modifier.padding(top = 6.dp),
+            style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+        Spacer(Modifier.height(8.dp))
+        PrimaryButton(if (period == "year") "Share ${pm.firstOrNull()?.month?.year ?: ""} report (PDF)" else "Share all-time report (PDF)", onShare,
+            Modifier.fillMaxWidth(), icon = Icons.Rounded.PictureAsPdf)
+    }
+}
+
 @Composable
 private fun Dot(c: Color, t: String) = Row(verticalAlignment = Alignment.CenterVertically) {
     Box(Modifier.size(10.dp).clip(CircleShape).background(c)); Spacer(Modifier.width(6.dp))
@@ -224,30 +321,37 @@ private fun Dot(c: Color, t: String) = Row(verticalAlignment = Alignment.CenterV
 }
 
 @Composable
-private fun BarChart(data: List<MonthMoney>, selected: YearMonth) {
-    val max = (data.maxOfOrNull { maxOf(it.collected, it.expenses) } ?: 0L).coerceAtLeast(1L)
+private fun BarChart(data: List<BarPoint>, selected: Int, onTap: (Int) -> Unit) {
+    val max = (data.maxOfOrNull { maxOf(it.collected, it.spent) } ?: 0L).coerceAtLeast(1L)
     Column {
-        Canvas(Modifier.fillMaxWidth().height(150.dp)) {
-            val slot = size.width / data.size
-            val bw = slot * 0.26f
-            for (k in 0..3) drawLine(Brand.Line, Offset(0f, size.height * k / 3f), Offset(size.width, size.height * k / 3f), 1f)
-            data.forEachIndexed { i, m ->
-                val x = slot * i + slot / 2
-                val alpha = if (m.month == selected) 1f else 0.45f
-                val h1 = size.height * m.collected / max
-                val h2 = size.height * m.expenses / max
-                drawRoundRect(Brand.Blue600.copy(alpha = alpha), Offset(x - bw - 2f, size.height - h1), Size(bw, h1), CornerRadius(bw / 2, bw / 2))
-                drawRoundRect(Brand.Saffron500.copy(alpha = alpha), Offset(x + 2f, size.height - h2), Size(bw, h2), CornerRadius(bw / 2, bw / 2))
+        Box(Modifier.fillMaxWidth().height(150.dp)) {
+            Canvas(Modifier.matchParentSize()) {
+                val slot = size.width / data.size
+                val bw = slot * 0.26f
+                for (k in 0..3) drawLine(Brand.Line, Offset(0f, size.height * k / 3f), Offset(size.width, size.height * k / 3f), 1f)
+                data.forEachIndexed { i, b ->
+                    val x = slot * i + slot / 2
+                    val alpha = if (selected < 0 || i == selected) 1f else 0.45f
+                    val h1 = size.height * b.collected / max
+                    val h2 = size.height * b.spent / max
+                    drawRoundRect(Brand.Blue600.copy(alpha = alpha), Offset(x - bw - 2f, size.height - h1), Size(bw, h1), CornerRadius(bw / 2, bw / 2))
+                    drawRoundRect(Brand.Saffron500.copy(alpha = alpha), Offset(x + 2f, size.height - h2), Size(bw, h2), CornerRadius(bw / 2, bw / 2))
+                }
             }
+            // one tap area per bar
+            Row(Modifier.matchParentSize()) { data.indices.forEach { i -> Box(Modifier.weight(1f).fillMaxHeight().clickable { onTap(i) }) } }
         }
         Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            data.forEach { m ->
-                Text(m.month.format(DateTimeFormatter.ofPattern("MMM")), Modifier.weight(1f), textAlign = TextAlign.Center,
-                    style = MaterialTheme.typography.labelMedium, color = if (m.month == selected) Brand.Ink else Brand.Slate400)
+            data.forEachIndexed { i, b ->
+                Text(b.label, Modifier.weight(1f).clickable { onTap(i) }, textAlign = TextAlign.Center, maxLines = 1,
+                    style = MaterialTheme.typography.labelMedium, color = if (i == selected) Brand.Ink else Brand.Slate400)
             }
         }
     }
 }
+
+/** One bar: money in and out, with its label (month or year). */
+private data class BarPoint(val label: String, val collected: Long, val spent: Long)
 
 /** A one-page monthly report to share or print. */
 fun shareReport(ctx: Context, m: MonthMoney, enquiries: List<Enquiry>) {
@@ -289,4 +393,79 @@ fun shareReport(ctx: Context, m: MonthMoney, enquiries: List<Enquiry>) {
     ctx.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply {
         type = "application/pdf"; putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }, "Share report").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+}
+
+
+private fun Long.shortDay(): String = java.time.LocalDate.ofEpochDay(this).format(DateTimeFormatter.ofPattern("d MMM"))
+
+@Composable
+private fun SubHead(text: String) =
+    Text(text.uppercase(), Modifier.padding(top = 14.dp, bottom = 4.dp), style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
+
+/** One line of the report: icon or initials, what, details, amount; tap to open. */
+@Composable
+private fun LineItem(icon: ImageVector?, color: Color, title: String, sub: String, amount: String, amountColor: Color, initials: String = "", onClick: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth().let { if (onClick != null) it.clickable(onClick = onClick) else it }.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(40.dp).clip(RoundedCornerShape(12.dp)).background(color.copy(alpha = 0.12f)), Alignment.Center) {
+            if (icon != null) Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+            else Text(initials, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.ExtraBold,
+                fontSize = with(androidx.compose.ui.platform.LocalDensity.current) { 14.dp.toSp() }), color = color, maxLines = 1, softWrap = false)
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            Text(sub, style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 2)
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(amount, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = amountColor, maxLines = 1, softWrap = false)
+    }
+}
+
+private data class Paid(val kind: String, val name: String, val what: String, val day: Long, val mode: String, val amount: Long, val go: `in`.vidyadhan.academy.home.Go?, val id: Long)
+
+/** Every payment counted in the month's "collected", newest first, with filters and Show all. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun WhoPaid(month: YearMonth, sp: List<StudentPayment>, lp: List<LibraryPayment>, kh: List<KhataEntry>,
+                    students: List<Student>, members: List<LibraryMember>, onGo: (`in`.vidyadhan.academy.home.Go, Long) -> Unit) {
+    val r = month.range()
+    val all = remember(month, sp, lp, kh, students, members) {
+        val sById = students.associateBy { it.id }; val mById = members.associateBy { it.id }
+        buildList {
+            sp.filter { it.paidOn in r }.forEach { p ->
+                val s = sById[p.studentId]
+                add(Paid("c", s?.name ?: "Student (removed)", "Course fee" + (s?.course?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""), p.paidOn, p.mode, p.amount, if (s != null) `in`.vidyadhan.academy.home.Go.Student else null, p.studentId))
+            }
+            lp.filter { it.paidOn in r && (it.kind == "FEE" || it.kind == "REGISTRATION") }.forEach { p ->
+                val m = mById[p.memberId]
+                add(Paid(if (p.kind == "FEE") "l" else "r", m?.name ?: "Member (removed)", if (p.kind == "FEE") "Abhyasika" + (m?.let { " · seat ${it.seatNo}" } ?: "") else "Registration",
+                    p.paidOn, p.mode, p.amount, if (m != null) `in`.vidyadhan.academy.home.Go.Member else null, p.memberId))
+            }
+            kh.filter { it.kind == "PAYMENT" && it.date in r }.forEach { k -> add(Paid("c", k.name, "Old book payment", k.date, "", k.credit, null, 0)) }
+        }.sortedByDescending { it.day }
+    }
+    if (all.isEmpty()) return
+    var filter by rememberSaveable(month.toString()) { mutableStateOf("all") }
+    var showAll by rememberSaveable(month.toString()) { mutableStateOf(false) }
+    val shown = all.filter { filter == "all" || it.kind == filter }
+    SubHead("Who paid · ${all.size} payment${if (all.size == 1) "" else "s"}")
+    FlowRow(Modifier.padding(bottom = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        listOf("all" to "All", "c" to "Course", "l" to "Abhyasika", "r" to "Registration").filter { (k, _) -> k == "all" || all.any { it.kind == k } }.forEach { (k, l) ->
+            val on = filter == k
+            Text(l, Modifier.clip(RoundedCornerShape(50)).background(if (on) Brand.Blue100 else Color.White).border(1.dp, if (on) Brand.Blue700.copy(alpha = 0.4f) else Brand.Line, RoundedCornerShape(50))
+                .clickable { filter = k }.padding(horizontal = 11.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, color = if (on) Brand.Blue700 else Brand.Slate600, maxLines = 1)
+        }
+    }
+    (if (showAll) shown else shown.take(5)).forEachIndexed { i, p ->
+        if (i > 0) HorizontalDivider(color = Brand.Line)
+        val color = when (p.kind) { "l" -> Brand.Green700; "r" -> Brand.Violet700; else -> Brand.Blue700 }
+        LineItem(null, color, p.name, listOf(p.what, p.day.shortDay()).plus(listOfNotNull(p.mode.ifBlank { null })).joinToString(" · "), rupees(p.amount), Brand.Ink,
+            initials = p.name.split(" ").filter { it.firstOrNull()?.isLetter() == true }.take(2).joinToString("") { it.take(1).uppercase() }.ifBlank { "?" },
+            onClick = p.go?.let { g -> { onGo(g, p.id) } })
+    }
+    if (shown.size > 5) {
+        HorizontalDivider(color = Brand.Line)
+        Text(if (showAll) "Show less" else "Show all ${shown.size} ›", Modifier.fillMaxWidth().clickable { showAll = !showAll }.padding(top = 10.dp, bottom = 2.dp),
+            style = MaterialTheme.typography.labelLarge, color = Brand.Blue700, textAlign = TextAlign.Center)
+    }
 }

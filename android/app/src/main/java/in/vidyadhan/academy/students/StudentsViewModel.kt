@@ -11,6 +11,10 @@ class StudentsViewModel(app: Application) : AndroidViewModel(app) {
     private val dao = AppDb.get(app).students()
     val list = studentsWithFees(dao).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    private val khata = AppDb.get(app).khata()
+    /** Every old khata line, for the balance shown on a linked student. */
+    val khataEntries = khata.all().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private val lib = AppDb.get(app).library()
     /** Abhyasika members, to show a student's seat, locker and deposit (Combo). */
     val members = lib.members().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -32,6 +36,14 @@ class StudentsViewModel(app: Application) : AndroidViewModel(app) {
         val all = (done + partly + split).sortedWith(compareBy({ it.dueOn }, { it.number })).mapIndexed { i, x -> x.copy(id = 0, number = i + 1) }
         dao.replacePlan(s, all)
     }
+    /** Puts what is still to pay on new installments (equal or unequal), keeping what is paid. */
+    fun splitBalance(s: Student, plan: List<Installment>, paid: Long, rows: List<Pair<Long, Long>>) = viewModelScope.launch {
+        splitPlan(s.id, s.totalFee, plan, paid, rows)?.let { dao.replacePlan(s, it) }
+    }
+    /** The next installment as the owner corrected it before sending a receipt. */
+    fun changeNext(s: Student, plan: List<Installment>, paid: Long, amount: Long, due: Long) = viewModelScope.launch {
+        changeNextPlan(plan, paid, amount, due)?.let { dao.replacePlan(s, it) }
+    }
     fun student(id: Long) = dao.student(id)
     fun installments(id: Long) = dao.installments(id)
     fun payments(id: Long) = dao.payments(id)
@@ -46,4 +58,5 @@ class StudentsViewModel(app: Application) : AndroidViewModel(app) {
         `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(getApplication(), p.studentId, p.amount, p.mode, id)
     }
     fun deletePayment(p: StudentPayment) = viewModelScope.launch { dao.deletePayment(p) }
+    fun updatePayment(p: StudentPayment) = viewModelScope.launch { dao.updatePayment(p) }
 }

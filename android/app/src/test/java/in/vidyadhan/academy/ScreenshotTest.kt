@@ -49,6 +49,7 @@ class ScreenshotTest {
         sd.insertPayment(StudentPayment(studentId = r, amount = 10000, paidOn = day(-60), mode = "Cash"))
         sd.insertPayment(StudentPayment(studentId = r, amount = 3000, paidOn = day(-8), mode = "UPI", note = "Rest next week"))
         val s3 = sd.create(Student(name = "Sneha Kulkarni", mobile = "9890011223", course = "MPSC", totalFee = 18000, joinedOn = day(-20), batch = "Weekend"), buildPlan(18000, 1, t.minusDays(20)))
+        sd.create(Student(name = "Abhijeet Tukaram Thorat", mobile = "7038263311", course = "MPSC", totalFee = 60000, joinedOn = day(-400), leftOn = day(-1), leftReason = "Completed the course"), buildPlan(60000, 1, t.minusDays(400)))
         sd.insertPayment(StudentPayment(studentId = s3, amount = 18000, paidOn = day(0), mode = "Cash"))
         sd.create(Student(name = "Vikas Jadhav", mobile = "9765432109", course = "MPSC", totalFee = 28000, joinedOn = day(-5), batch = "Morning"), buildPlan(28000, 4, t.plusDays(3)))
         val ed = db.enquiries()
@@ -100,9 +101,19 @@ class ScreenshotTest {
             val bmp = android.graphics.Bitmap.createBitmap(840, 1190, android.graphics.Bitmap.Config.ARGB_8888)
             val cv = android.graphics.Canvas(bmp); cv.drawColor(android.graphics.Color.WHITE); cv.scale(2f, 2f)
             `in`.vidyadhan.academy.ui.drawReceipt(ApplicationProvider.getApplicationContext(), cv, `in`.vidyadhan.academy.ui.ReceiptData("VA-S00042", LocalDate.now().toEpochDay(),
-                "FEE RECEIPT  /  फी पावती", "Rohan Deshmukh", listOf("Mobile" to "+91 98220 01122", "Course" to "MPSC · Evening", "Payment mode" to "UPI", "Note" to "Installment 2 of 3"),
-                8800, listOf("Total fee" to "₹25,000", "Paid so far" to "₹21,000", "Balance" to "₹4,000"), footnote = "Next installment ₹4,000 on 10 Dec 2026"))
+                "FEE RECEIPT", "Rohan Deshmukh", listOf("Mobile" to "+91 98220 01122"),
+                8800, listOf("Total fee" to "₹25,000", "Paid so far" to "₹21,000", "Balance" to "₹4,000"),
+                forText = "MPSC course fee · Evening batch", forSub = "Installment 2 of 3 · UPI · 4512 8890 1123",
+                nextAmount = 4000, nextDue = LocalDate.now().plusDays(17).toEpochDay()))
             File(out, "18-receipt.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            // the admission form, as a picture
+            val fb = android.graphics.Bitmap.createBitmap(1190, 1684, android.graphics.Bitmap.Config.ARGB_8888)
+            val fc = android.graphics.Canvas(fb); fc.drawColor(android.graphics.Color.WHITE); fc.scale(2f, 2f)
+            `in`.vidyadhan.academy.ui.drawAdmissionForm(ApplicationProvider.getApplicationContext(), fc, `in`.vidyadhan.academy.ui.AdmissionDoc(
+                "ADMISSION FORM", "VA-A0002", LocalDate.now().toEpochDay(), "Rohan Deshmukh", "9822001122", "", listOf("MPSC", "Evening", "Joined 12 Sep 2026"),
+                null, "", "Sunil Deshmukh", "", "Flat 4, Sai Residency, Malwadi, Hadapsar, Pune 411028", "FEES · TOTAL ₹25,000",
+                listOf(Triple("Installment 1 · 12 Sep 2026", "₹10,000", "PAID"), Triple("Installment 2 · 11 Nov 2026", "₹8,000", "PAID"), Triple("Installment 3 · 10 Dec 2026", "₹7,000", "₹4,000 DUE"))))
+            File(out, "18b-admission.png").outputStream().use { fb.compress(Bitmap.CompressFormat.PNG, 100, it) }
             // the monthly report, both pages
             val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
             val rep = runBlocking { `in`.vidyadhan.academy.money.loadReport(ctx, java.time.YearMonth.now()) }
@@ -114,9 +125,14 @@ class ScreenshotTest {
                 }
         }
         nav("Students")
-        rule.waitUntil(10_000) { rule.onAllNodesWithText("Rohan Deshmukh").fetchSemanticsNodes().isNotEmpty() } // the list loads from the database
+        rule.waitUntil(30_000) { rule.onAllNodesWithText("Rohan Deshmukh").fetchSemanticsNodes().isNotEmpty() } // the list loads from the database
         shot("04-students")
+        rule.onNodeWithText("Former", substring = true).performClick(); settle(); shot("04b-former")
+        rule.onNodeWithText("All").performClick(); settle()
         rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("05-student-detail")
+        rule.onNodeWithText("Split", substring = true).performScrollTo().performClick(); shot("05c-split")
+        rule.onNodeWithText("Unequal").performClick(); settle(); shot("05d-split-unequal"); back()
+        if (rule.onAllNodesWithText("Record a payment").fetchSemanticsNodes().isEmpty()) { rule.onNodeWithText("Rohan Deshmukh").performClick(); settle() }
         rule.onNodeWithText("Record a payment").performScrollTo().performClick(); shot("05b-payment-sheet"); back()
         backButton()
         rule.onNodeWithText("Admit").performClick(); shot("06-student-form")
@@ -127,7 +143,7 @@ class ScreenshotTest {
         nav("Enquiries"); shot("07b-enquiries")
 
         // Seats: no room yet → create one → edit → view
-        nav("Abhyasika"); shot("08-seats-start")
+        nav("Abhyasika"); rule.onNodeWithText("Room plan", substring = true).performClick(); settle(); shot("08-seats-start")
         rule.onNodeWithText("+ Create room").performClick(); shot("08b-room-edit")
         repeat(4) { rule.onNodeWithContentDescription("Top wall more").performScrollTo().performClick() }
         repeat(3) { rule.onNodeWithContentDescription("Bottom wall more").performScrollTo().performClick() }
@@ -135,12 +151,17 @@ class ScreenshotTest {
         rule.onNodeWithText("Apply layout", substring = true).performScrollTo().performClick(); settle()
         rule.onNodeWithContentDescription("Seat 1").performScrollTo(); shot("08b2-all-walls")
         rule.onNodeWithText("Live map").performClick(); shot("08c-room-plan")
+        rule.onNodeWithContentDescription("Seat 6").performScrollTo().performClick(); settle(); shot("08e-occupied-seat")
+        rule.onNodeWithText("Renew…").performClick(); settle(); shot("08f-renew-from-map"); back(); backButton(); settle()
         rule.onNodeWithContentDescription("Seat 7").performScrollTo().performClick(); shot("08d-seat-sheet"); back()
 
-        nav("Abhyasika"); rule.onNodeWithText("Members").performScrollTo().performClick(); shot("09-members")
+        nav("Abhyasika")
+        if (rule.onAllNodesWithText("Members").fetchSemanticsNodes().isNotEmpty()) { rule.onNodeWithText("Members").performScrollTo().performClick(); settle() }
+        shot("09-members")
         rule.onNode(hasSetTextAction()).performTextReplacement("Snehal"); settle()
         rule.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Snehal Mane"))
         rule.onNodeWithText("Snehal Mane").performClick(); shot("10-member-detail")
+        rule.onAllNodesWithText("Receipt")[0].performScrollTo(); shot("10a-member-payments")
         rule.onNodeWithContentDescription("Edit").performClick(); shot("10b-member-edit")
         rule.onNodeWithText("Seat and locker").performScrollTo(); shot("10c-member-locker")
         backButton()
@@ -153,28 +174,66 @@ class ScreenshotTest {
         rule.onNodeWithText("Renew", substring = true).performScrollTo().performClick(); shot("12-renew-sheet"); back()
         backButton()
 
-        nav("Settings"); rule.onNodeWithText("Monthly reports").performScrollTo().performClick(); shot("13-money")
+        nav("Settings"); rule.onNodeWithText("Reports").performScrollTo().performClick(); shot("13-money")
+        if (rule.onAllNodesWithText("Who paid", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()) { rule.onNodeWithText("Who paid", substring = true, ignoreCase = true).performScrollTo(); shot("13a-who-paid") }
+        if (rule.onAllNodesWithText("Where it went", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()) { rule.onNodeWithText("Enquiries ·", substring = true).performScrollTo(); shot("13c-where-went") }
         rule.onNodeWithText("Expenses (3)").performClick(); shot("13b-expenses")
-        nav("Settings"); rule.onNodeWithText("Send a message to many").performScrollTo().performClick(); shot("14-broadcast")
+        nav("Settings"); rule.onNodeWithText("Broadcast").performScrollTo().performClick(); shot("14-broadcast")
         backButton()
         nav("Dashboard"); shot("15-dashboard")
+        rule.onNodeWithContentDescription("Reminders").performClick(); settle(); shot("20a-reminders")
+        rule.onAllNodesWithText("fees due", substring = true)[0].performClick(); settle(); shot("20b-quick-collect")
+        rule.onAllNodes(hasText("Collect") and hasClickAction())[1].performClick(); settle(); shot("20c-confirm")
+        back(); back(); settle()
         rule.onNodeWithContentDescription("Search").performClick(); settle()
         rule.onNodeWithText("Name, mobile, seat or locker no.").performTextInput("sh"); shot("16-search")
         backButton()
         nav("Settings"); rule.onNodeWithText("Telegram bot").performScrollTo().performClick(); shot("17-settings")
         back()
+        // Telegram people: everyone listed, connected or not
+        AppSettings.botToken = "test"; AppSettings.botName = "TestBot"; AppSettings.setTelegramChat("k_s1", 11L)
+        nav("Dashboard"); nav("Settings"); rule.onNodeWithText("Telegram bot").performScrollTo().performClick(); settle()
+        rule.onNodeWithText("Telegram people", substring = true).performScrollTo().performClick(); settle(); shot("17b-tg-people")
+        rule.onAllNodesWithText("Not connected", substring = true)[0].performClick(); settle(); shot("17c-tg-not-connected")
+        rule.onAllNodesWithText("Connect")[0].performClick(); settle(); shot("17d-tg-connect")
+        back(); back(); back()
+        AppSettings.botToken = ""; AppSettings.botName = ""; AppSettings.clearTelegramChat("k_s1")
+        // account card and devices
+        val now = System.currentTimeMillis()
+        `in`.vidyadhan.academy.cloud.Cloud.previewSignedIn("vidyadhan.academy@gmail.com")
+        `in`.vidyadhan.academy.cloud.Devices.preview(listOf(
+            `in`.vidyadhan.academy.cloud.Devices.Device(AppSettings.installId, "Samsung Galaxy M34", "0.7.76", now, false),
+            `in`.vidyadhan.academy.cloud.Devices.Device("b", "Redmi Note 12", "0.7.76", now - 10 * 60_000, false),
+            `in`.vidyadhan.academy.cloud.Devices.Device("c", "Vivo Y21", "0.7.60", now - 12L * 86_400_000, false)), AppSettings.installId)
+        nav("Dashboard"); nav("Settings"); settle(); shot("17e-account-card")
+        rule.onNodeWithText("Devices", substring = true).performClick(); settle(); shot("17f-devices")
+        back()
+        `in`.vidyadhan.academy.cloud.Devices.preview(emptyList(), "")
+        `in`.vidyadhan.academy.cloud.Cloud.previewSignedOut()
 
         // the same main screens with large text, as on the owner's phone (catches cut-off and overflowing text)
         org.robolectric.RuntimeEnvironment.setFontScale(1.3f)
         rule.activityRule.scenario.recreate(); settle()
         nav("Dashboard"); shot("L1-dashboard")
         nav("Students"); shot("L2-students")
-        rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("L3-student-sheet"); back()
+        rule.onNodeWithText("Former", substring = true).performClick(); settle(); shot("L2b-former")
+        rule.onNodeWithText("All").performClick(); settle()
+        rule.onNodeWithText("Rohan Deshmukh").performClick(); shot("L3-student-sheet")
+        rule.onNodeWithText("Split", substring = true).performScrollTo().performClick(); rule.onNodeWithText("Unequal").performClick(); settle(); shot("L3b-split-unequal"); back(); back()
         nav("Enquiries"); shot("L4-enquiries")
         rule.onNodeWithText("+ New Admission").performClick(); settle()
         rule.onNodeWithText("Course fee").performTextInput("45000"); settle()
         rule.onNodeWithText("Unequal plan").performScrollTo(); shot("L5-admission-plan")
         nav("Abhyasika"); shot("L6-room")
+        nav("Settings"); rule.onNodeWithText("Reports").performScrollTo().performClick(); settle()
+        if (rule.onAllNodesWithText("Who paid", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()) { rule.onNodeWithText("Who paid", substring = true, ignoreCase = true).performScrollTo(); shot("L10-who-paid") }
+        if (rule.onAllNodesWithText("Where it went", substring = true, ignoreCase = true).fetchSemanticsNodes().isNotEmpty()) { rule.onNodeWithText("Where it went", substring = true, ignoreCase = true).performScrollTo(); shot("L11-where-went") }
         nav("Settings"); shot("L7-bot")
+        `in`.vidyadhan.academy.cloud.Cloud.previewSignedIn("vidyadhan.academy@gmail.com")
+        `in`.vidyadhan.academy.cloud.Devices.preview(listOf(
+            `in`.vidyadhan.academy.cloud.Devices.Device(AppSettings.installId, "Samsung Galaxy M34", "0.7.76", System.currentTimeMillis(), false),
+            `in`.vidyadhan.academy.cloud.Devices.Device("b", "Redmi Note 12", "0.7.76", System.currentTimeMillis() - 600_000, false)), AppSettings.installId)
+        settle(); shot("L8-account-card")
+        rule.onNodeWithText("Devices", substring = true).performClick(); settle(); shot("L9-devices")
     }
 }

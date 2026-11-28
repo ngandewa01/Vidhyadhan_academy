@@ -126,6 +126,10 @@ object TelegramBot {
 
     fun linkedCount() = AppSettings.telegramChats().keys.count { it.startsWith("k_") }
     fun isLinked(key: String) = AppSettings.telegramChat("k_$key") != null
+    /** Keys of everyone connected: s12 (student), m3 (Abhyasika member), e5 (enquiry). */
+    fun linkedKeys(): List<String> = AppSettings.telegramChats().keys.filter { it.startsWith("k_") }.map { it.removePrefix("k_") }
+    /** Stops messages to one person; they can connect again with the join link. */
+    fun unlink(key: String) = AppSettings.clearTelegramChat("k_$key")
     /** The personal link for a student (s12), Abhyasika member (m3) or enquiry (e5): tapping Start in it links them. */
     fun linkFor(key: String) = "$link?start=$key"
     fun invite(key: String) = "${AppSettings.academyName}: get your fee receipts and reminders on Telegram. Tap ${linkFor(key)} and press Start."
@@ -187,9 +191,11 @@ object TelegramBot {
             val text = receiptText(no, st.name, amount, mode, st.course + if (st.batch.isNotBlank()) " · ${st.batch}" else "",
                 pos.totalFee, pos.paid, pos.nextDue, pos.nextDueAmount)
             val pdf = runCatching {
-                `in`.vidyadhan.academy.ui.receiptPdf(ctx, `in`.vidyadhan.academy.ui.ReceiptData(no, `in`.vidyadhan.academy.students.today(), "FEE RECEIPT  /  फी पावती", st.name,
-                    listOf("Mobile" to "+91 ${st.mobile}", "Course" to (st.course + if (st.batch.isNotBlank()) " · ${st.batch}" else ""), "Payment mode" to mode.ifBlank { "—" }),
-                    amount, listOf("Total fee" to rupees(pos.totalFee), "Paid so far" to rupees(pos.paid), "Balance" to rupees((pos.totalFee - pos.paid).coerceAtLeast(0)))))
+                `in`.vidyadhan.academy.ui.receiptPdf(ctx, `in`.vidyadhan.academy.ui.ReceiptData(no, `in`.vidyadhan.academy.students.today(), "FEE RECEIPT", st.name,
+                    listOf("Mobile" to "+91 ${st.mobile}"),
+                    amount, listOf("Total fee" to rupees(pos.totalFee), "Paid so far" to rupees(pos.paid), "Balance" to rupees((pos.totalFee - pos.paid).coerceAtLeast(0))),
+                    forText = "${st.course} course fee" + if (st.batch.isNotBlank()) " · ${st.batch} batch" else "", forSub = mode,
+                    nextAmount = if (pos.nextDue != null) pos.nextDueAmount else 0L, nextDue = pos.nextDue))
             }.getOrNull()
             if (pdf == null || !sendDocument(chat, pdf, text)) send(chat, text)
         }

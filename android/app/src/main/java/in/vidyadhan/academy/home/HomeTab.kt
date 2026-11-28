@@ -14,6 +14,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -41,6 +42,7 @@ import `in`.vidyadhan.academy.data.StudentWithFees
 import `in`.vidyadhan.academy.library.ENDING_DAYS
 import `in`.vidyadhan.academy.library.allSeats
 import `in`.vidyadhan.academy.library.renewedTill
+import `in`.vidyadhan.academy.library.libraryReminder
 import `in`.vidyadhan.academy.library.typeForSeat
 import `in`.vidyadhan.academy.students.*
 import `in`.vidyadhan.academy.ui.*
@@ -51,7 +53,7 @@ import java.time.format.DateTimeFormatter
 /** Where a dashboard shortcut should take the owner. */
 enum class Go {
     Students, NewStudent, Student, Enquiries, NewEnquiry, Enquiry, Library, NewMember, Member, Money, NewExpense, Settings, Backup, Search, Broadcast,
-    Seats, MemberDues, MemberEnding,
+    Seats, MemberDues, MemberEnding, Khata,
 }
 
 fun isBirthday(dob: Long?, day: LocalDate): Boolean = dob != null && LocalDate.ofEpochDay(dob).let { it.month == day.month && it.dayOfMonth == day.dayOfMonth }
@@ -61,7 +63,7 @@ fun birthdayWish(name: String) = `in`.vidyadhan.academy.Templates.fill("birthday
 private data class Bday(val name: String, val mobile: String, val what: String, val photo: String, val key: String = "")
 
 /** One line of "Recent transactions": money in (payment) or out (expense, deposit returned). */
-private data class Txn(val title: String, val subtitle: String, val amount: Long, val income: Boolean, val day: Long, val mode: String)
+private data class Txn(val title: String, val subtitle: String, val amount: Long, val income: Boolean, val day: Long, val mode: String, val go: Go? = null, val id: Long = 0)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,6 +80,8 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val allStudents by remember { studentsWithFees(db.students()) }.collectAsStateWithLifecycle(emptyList())
     val students = allStudents.filter { it.current }
     val enquiries by db.enquiries().all().collectAsStateWithLifecycle(emptyList())
+    val khataEntries by db.khata().all().collectAsStateWithLifecycle(emptyList())
+    val khataPending = remember(khataEntries) { `in`.vidyadhan.academy.khata.Khata.people(khataEntries).filter { it.pending } }
     val members by db.library().members().collectAsStateWithLifecycle(emptyList())
     val rooms by db.library().rooms().collectAsStateWithLifecycle(emptyList())
     val types by db.library().seatTypes().collectAsStateWithLifecycle(emptyList())
@@ -90,6 +94,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val recentLib by db.library().recentPayments().collectAsStateWithLifecycle(emptyList())
     var period by rememberSaveable { mutableStateOf("today") }
     var showCollect by remember { mutableStateOf(false) }
+    var showRecord by remember { mutableStateOf(false) }
     var showReminders by remember { mutableStateOf(false) }
     var showBirthdays by remember { mutableStateOf(false) }
     var wishFor by remember { mutableStateOf<Bday?>(null) }
@@ -102,14 +107,20 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val callsToday = openEnq.count { it.followUpOn <= t }
 
     // ── money ──
-    val income = feesMonth + libMonth
+    val khataMonth = khataEntries.filter { it.kind == "PAYMENT" && it.date in monthStart..monthEnd }.sumOf { it.credit }
+    val income = feesMonth + libMonth + khataMonth
     val spent = expenses.filter { it.spentOn in monthStart..monthEnd }.sumOf { it.amount }
     val studentPending = students.sumOf { (it.totalFee - it.paid).coerceAtLeast(0) }
     val libraryPending = active.sumOf { it.balance + if (it.validTill < t) it.monthlyFee else 0L }
     val pending = studentPending + libraryPending
-    val billed = students.sumOf { it.totalFee }
-    val paidAll = students.sumOf { it.paid.coerceAtMost(it.totalFee) }
-    val billedPct = if (billed == 0L) 0 else (paidAll * 100 / billed).toInt()
+    val khataToday = khataEntries.filter { it.kind == "PAYMENT" && it.date == t }.sumOf { it.credit }
+    val collectedToday = feesToday + libToday + khataToday
+    val spentToday = expenses.filter { it.spentOn == t }.sumOf { it.amount }
+    // course fees due up to today (not later installments), and who owes them
+    val studentDueNow = students.sumOf { it.dueNow }
+    val dueNowCount = students.count { it.dueNow > 0 }
+    val libDueMembers = active.count { it.validTill < t || it.balance > 0 }
+    val later = (studentPending - studentDueNow).coerceAtLeast(0)
     val depositsHeld = members.filter { it.depositPaid && it.depositReturnedOn == null }.sumOf { it.deposit }
 
     // ── reminders (behind the bell) ──
@@ -120,14 +131,13 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     val birthdays = students.filter { isBirthday(it.dob, now) }.map { Bday(it.name, it.mobile, "Student · ${it.course}${if (it.batch.isNotBlank()) " ${it.batch}" else ""}", it.photo, "s${it.id}") } +
         active.filter { isBirthday(it.dob, now) && (it.studentId == null || students.none { s -> s.id == it.studentId && isBirthday(s.dob, now) }) }
             .map { Bday(it.name, it.mobile, "Abhyasika · seat ${it.seatNo}", it.photo, it.studentId?.let { id -> "s$id" } ?: "m${it.id}") }
-    val backupDays = if (AppSettings.lastBackup == 0L) null else t - AppSettings.lastBackup
-    val needsBackup = (students.isNotEmpty() || members.isNotEmpty()) && (backupDays == null || backupDays >= 7)
-    val alerts = feesDue + libDue + callsToday + birthdays.size + if (needsBackup) 1 else 0
+    val alerts = feesDue + libDue + callsToday + birthdays.size
 
     val txns = (recentFees + recentLib).map {
         val label = when (it.kind) { "STUDENT_FEE" -> "Course fee"; "FEE" -> "Abhyasika fee"; "DEPOSIT" -> "Deposit"; "REGISTRATION" -> "Registration"; else -> "Deposit returned" }
-        Txn(it.name, if (it.detail.isBlank()) label else "$label · ${it.detail}", it.amount, it.kind != "DEPOSIT_RETURN", it.paidOn, it.mode)
-    } + expenses.take(5).map { Txn(it.category, it.note.ifBlank { "Expense" }, it.amount, false, it.spentOn, "") }
+        Txn(it.name, if (it.detail.isBlank()) label else "$label · ${it.detail}", it.amount, it.kind != "DEPOSIT_RETURN", it.paidOn, it.mode,
+            if (it.kind == "STUDENT_FEE") Go.Student else Go.Member, it.ownerId)
+    } + expenses.take(5).map { Txn(it.category, it.note.ifBlank { "Expense" }, it.amount, false, it.spentOn, "", Go.Money) }
     val recent = txns.sortedByDescending { it.day }.take(4)
 
     // ── the cards below the quick actions (long-press to move or hide them) ──
@@ -143,7 +153,9 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                 Column3("${students.size}", "Enrolled", if (batches > 0) "$batches batch${if (batches == 1) "" else "es"}" else "${allStudents.size - students.size} former",
                     Brand.Ink, Brand.Green50, Brand.Green700, Modifier.weight(1f)) { onGo(Go.Students, 0) }
                 VerticalDivider(Modifier.padding(vertical = 6.dp), color = Brand.Line)
-                Column3(rupees(studentPending), "Installments", "Tap to collect", Brand.Saffron500, Brand.Saffron100, Brand.Saffron600, Modifier.weight(1f)) { showCollect = true }
+                Column3(rupees(studentDueNow), "Fees due", "$dueNowCount student${if (dueNowCount == 1) "" else "s"}", Brand.Saffron500, Brand.Saffron100, Brand.Saffron600, Modifier.weight(1f)) {
+                    `in`.vidyadhan.academy.students.Handoff.studentFilter = "Fees due"; onGo(Go.Students, 0)
+                }
                 VerticalDivider(Modifier.padding(vertical = 6.dp), color = Brand.Line)
                 Column3("${openEnq.size}", "Enquiries", "$callsToday due today", Brand.Blue700, Color(0xFFF0F9FF), Color(0xFF0369A1), Modifier.weight(1f)) { onGo(Go.Enquiries, 0) }
             }
@@ -159,6 +171,12 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                 Mini("${active.count { it.hasLocker }}/${AppSettings.lockerCount}", "Lockers", Brand.Violet700, Modifier.weight(1f)) { onGo(Go.Library, 0) }
                 Mini("$ending", "Expiring ${ENDING_DAYS}d", Brand.Saffron500, Modifier.weight(1f)) { onGo(Go.MemberEnding, 0) }
             }
+            if (libraryPending > 0) Row(Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Brand.Saffron100)
+                .clickable { onGo(Go.MemberDues, 0) }.padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${rupees(libraryPending)} due from Abhyasika members", Modifier.weight(1f), style = MaterialTheme.typography.labelLarge, color = Brand.Saffron600)
+                Text("Collect", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = Brand.Saffron600)
+                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Brand.Saffron600, modifier = Modifier.size(18.dp))
+            }
         }
     }
     val txnCard: @Composable () -> Unit = {
@@ -166,7 +184,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
             if (recent.isEmpty()) Text("No payments or expenses yet", Modifier.padding(vertical = 8.dp), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate500)
             recent.forEachIndexed { i, x ->
                 if (i > 0) HorizontalDivider(color = Brand.Line)
-                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().clickable(enabled = x.go != null) { x.go?.let { onGo(it, x.id) } }.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(34.dp).clip(CircleShape).background(if (x.income) Brand.Green50 else Brand.Red50), Alignment.Center) {
                         Text(x.title.take(1).uppercase(), style = MaterialTheme.typography.titleSmall, color = if (x.income) Brand.Green700 else Brand.Red600)
                     }
@@ -207,47 +225,68 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
             Spacer(Modifier.height(14.dp))
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White.copy(alpha = 0.10f))
                 .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(18.dp)).padding(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Row(Modifier.clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.25f)).padding(2.dp)) {
-                        PeriodChip("Today", period == "today") { period = "today" }
-                        PeriodChip(month, period == "month") { period = "month" }
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Text("Net profit: ${rupees(income - spent)}", Modifier.clip(RoundedCornerShape(50)).background(Brand.Green500.copy(alpha = 0.20f))
-                        .border(1.dp, Brand.Green500.copy(alpha = 0.3f), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 3.dp),
-                        style = MaterialTheme.typography.labelSmall, color = Color(0xFF86EFAC), maxLines = 1)
+                Row(Modifier.clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = 0.25f)).padding(2.dp)) {
+                    PeriodChip("Today", period == "today") { period = "today" }
+                    PeriodChip(month, period == "month") { period = "month" }
+                }
+                // everything in this card follows the switch: collected, spent and profit for today or for the month
+                val isToday = period == "today"
+                val per = if (isToday) "TODAY" else "IN ${month.uppercase()}"
+                val inAmt = if (isToday) collectedToday else income
+                val outAmt = if (isToday) spentToday else spent
+                val profit = inAmt - outAmt
+                Spacer(Modifier.height(10.dp))
+                Column(Modifier.fillMaxWidth().clickable { onGo(Go.Money, 0) }) {
+                    Text("COLLECTED $per", style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.8f))
+                    Text(rupees(inAmt), style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold), color = Color.White, maxLines = 1)
                 }
                 Spacer(Modifier.height(10.dp))
-                Row(Modifier.clickable { onGo(Go.Money, 0) }, verticalAlignment = Alignment.Bottom) {
-                    Column(Modifier.weight(1f)) {
-                        Text(if (period == "today") "COLLECTED TODAY" else "$month TOTAL COLLECTED".uppercase(), style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.8f))
-                        Text(rupees(if (period == "today") feesToday + libToday else income), style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.ExtraBold),
-                            color = Color.White, maxLines = 1)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    HeroBox("SPENT $per", rupees(outAmt), Color.White, Modifier.weight(1f))
+                    HeroBox(if (profit >= 0) "PROFIT $per" else "LOSS $per", rupees(kotlin.math.abs(profit)),
+                        if (profit >= 0) Color(0xFF86EFAC) else Color(0xFFFCA5A5), Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(10.dp))
+                // academy and Abhyasika are kept apart: they are different students and are never added into one figure
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color(0xFFFDE68A).copy(alpha = 0.14f))
+                    .border(1.dp, Color(0xFFFDE68A).copy(alpha = 0.25f), RoundedCornerShape(14.dp)).padding(horizontal = 12.dp, vertical = 9.dp)) {
+                    if (pending == 0L) Text("Nothing to collect ✓", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color(0xFFFDE68A))
+                    else {
+                        Text("STILL TO COLLECT", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold), color = Color.White.copy(alpha = 0.75f))
+                        if (studentPending > 0) Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.Top) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Academy", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                                Text("Due now ${rupees(studentDueNow)} · later ${rupees(later)}", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                            }
+                            Text(rupees(studentPending), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Color(0xFFFDE68A), maxLines = 1, softWrap = false)
+                        }
+                        if (libraryPending > 0) Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.Top) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Abhyasika", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Color.White)
+                                Text("${libDueMembers} member${if (libDueMembers == 1) "" else "s"} with fee due", style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                            }
+                            Text(rupees(libraryPending), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Color(0xFFFDE68A), maxLines = 1, softWrap = false)
+                        }
+                        Text("To record a payment, open the student or member.", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.6f))
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Pending: ${rupees(pending)}", style = MaterialTheme.typography.labelMedium, color = Color(0xFFFCD34D), maxLines = 1)
-                        Text("Deposits held: ${rupees(depositsHeld)}", style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.85f), maxLines = 1)
-                    }
                 }
-                HorizontalDivider(Modifier.padding(top = 10.dp, bottom = 8.dp), color = Color.White.copy(alpha = 0.10f))
-                Row {
-                    Text("$billedPct% of ${rupees(billed)} billed", Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, color = Brand.Blue50.copy(alpha = 0.9f), maxLines = 1)
-                    Text("${rupees(pending)} upcoming/due", style = MaterialTheme.typography.labelSmall, color = Color(0xFFFDE68A), maxLines = 1)
-                }
-                Spacer(Modifier.height(5.dp))
-                Row(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)).background(Color.Black.copy(alpha = 0.35f)).padding(1.dp)) {
-                    if (billedPct > 0) Box(Modifier.weight(billedPct.toFloat()).fillMaxHeight().clip(RoundedCornerShape(50)).background(Color(0xFF34D399)))
-                    if (billedPct < 100) Box(Modifier.weight((100 - billedPct).toFloat()).fillMaxHeight().clip(RoundedCornerShape(50)).background(Brand.Saffron500.copy(alpha = 0.6f)))
-                }
+                if (depositsHeld > 0) Text("Deposits held ${rupees(depositsHeld)} (to be returned)", Modifier.padding(top = 8.dp),
+                    style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.85f))
             }
         }
 
         Column(Modifier.offset(y = (-14).dp).padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (needsBackup) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Amber50).border(1.dp, Color(0xFFFDE68A), RoundedCornerShape(16.dp))
-                .clickable { onGo(Go.Backup, 0) }.padding(start = 12.dp, end = 8.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.WarningAmber, null, tint = Brand.Amber700); Spacer(Modifier.width(10.dp))
-                Text(if (backupDays == null) "No backup yet" else "Last backup $backupDays days ago", Modifier.weight(1f), style = MaterialTheme.typography.titleSmall, color = Brand.Amber700)
-                PillButton("Back up", { onGo(Go.Backup, 0) }, Brand.Amber700)
+            if (khataPending.isNotEmpty()) ListCard(onClick = { onGo(Go.Khata, 0) }) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconTile(Icons.Rounded.MenuBook, Brand.Saffron600, 44.dp, filled = true)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Old khata", style = MaterialTheme.typography.titleSmall, color = Brand.Ink)
+                        Text("${khataPending.size} people to confirm for Students",
+                            style = MaterialTheme.typography.bodySmall, color = Brand.Slate500)
+                    }
+                    Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = Brand.Slate300)
+                }
             }
 
             // birthday strip (× hides it for today)
@@ -273,7 +312,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
 
             // four quick actions (instead of a floating + button)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Quick("+ Fee", Icons.Rounded.CurrencyRupee, Brand.Green600, Brand.Green50, Modifier.weight(1f)) { showCollect = true }
+                Quick("+ Fee", Icons.Rounded.CurrencyRupee, Brand.Green600, Brand.Green50, Modifier.weight(1f)) { showRecord = true }
                 Quick("+ Admission", Icons.Rounded.PersonAdd, Brand.Blue700, Brand.Blue100, Modifier.weight(1f)) { onGo(Go.NewStudent, 0) }
                 Quick("+ Enquiry", Icons.Rounded.AddComment, Brand.Saffron500, Brand.Saffron100, Modifier.weight(1f)) { onGo(Go.NewEnquiry, 0) }
                 Quick("+ Expense", Icons.Rounded.ReceiptLong, Brand.Red600, Brand.Red50, Modifier.weight(1f)) { onGo(Go.NewExpense, 0) }
@@ -317,8 +356,9 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
     }
 
     wishFor?.let { WishSheet(it) { wishFor = null } }
+    if (showRecord) RecordAnySheet(students, active, t, onMember = { onGo(Go.Member, it) }) { showRecord = false }
     if (showCollect) QuickCollectSheet(students.filter { it.nextDue != null && it.totalFee > it.paid }.sortedBy { it.nextDue },
-        active.filter { it.validTill <= t + ENDING_DAYS || it.balance > 0 }.sortedBy { it.validTill }, t) { showCollect = false }
+        active.filter { it.validTill <= t + ENDING_DAYS || it.balance > 0 }.sortedBy { it.validTill }, t, onStudent = { onGo(Go.Student, it) }, onMember = { onGo(Go.Member, it) }) { showCollect = false }
 
     if (showReminders) ModalBottomSheet({ showReminders = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -328,9 +368,6 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
             if (callsToday > 0) OptionRow(Icons.Rounded.Call, Brand.Saffron500, "$callsToday enquir${if (callsToday == 1) "y" else "ies"} to call") { showReminders = false; onGo(Go.Enquiries, 0) }
             if (libDue > 0) OptionRow(Icons.Rounded.EventSeat, Brand.Teal700, "$libDue Abhyasika due${if (libDue == 1) "" else "s"}") { showReminders = false; onGo(Go.MemberDues, 0) }
             if (birthdays.isNotEmpty()) OptionRow(Icons.Rounded.Cake, Brand.Saffron500, "${birthdays.size} birthday${if (birthdays.size == 1) "" else "s"} today") { showReminders = false; showBirthdays = true }
-            if (needsBackup) OptionRow(Icons.Rounded.WarningAmber, Brand.Amber700, if (backupDays == null) "No backup yet" else "Backup is $backupDays days old", "Back up to Google Drive") {
-                showReminders = false; onGo(Go.Backup, 0)
-            }
             if (alerts == 0) Text("Nothing needs you today ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
         }
     }
@@ -397,15 +434,29 @@ private fun WishSheet(b: Bday, onClose: () -> Unit) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<LibraryMember>, t: Long, onClose: () -> Unit) {
+private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<LibraryMember>, t: Long, onStudent: (Long) -> Unit = {}, onMember: (Long) -> Unit = {}, onClose: () -> Unit) {
     val ctx = LocalContext.current
     val db = remember { AppDb.get(ctx) }
     val scope = rememberCoroutineScope()
     var mode by remember { mutableStateOf("Cash") }
+    var tab by rememberSaveable { mutableStateOf("acad") } // academy and Abhyasika are separate lists and totals
     val done = remember { mutableStateMapOf<String, Long>() }
+    // a payment is only recorded after the owner confirms the name, instalment, mode and amount
+    var confirm by remember { mutableStateOf<CollectItem?>(null) }
     ModalBottomSheet(onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
-        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SheetTitle("Quick collect", "Tap Collect when the money is in your hand")
+        val waiting = confirm
+        if (waiting != null) PaymentConfirm(waiting, mode, onBack = { confirm = null }) { amt ->
+            confirm = null
+            scope.launch { waiting.record(amt, mode); done[waiting.key] = amt }
+        } else Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SheetTitle("Quick collect", "Tap Collect only when the money is in your hand")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf("acad" to "Academy · ${students.size}", "lib" to "Abhyasika · ${members.size}").forEach { (k, l) ->
+                    Text(l, Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(if (tab == k) Brand.Blue700 else Brand.Slate50)
+                        .clickable { tab = k }.padding(vertical = 9.dp), style = MaterialTheme.typography.labelLarge,
+                        color = if (tab == k) Color.White else Brand.Slate600, textAlign = TextAlign.Center)
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("Cash", "UPI", "Bank").forEach { m ->
                     Text(m, Modifier.clip(RoundedCornerShape(50)).background(if (mode == m) Brand.Blue700 else Brand.Slate50)
@@ -413,31 +464,39 @@ private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<Lib
                         style = MaterialTheme.typography.labelLarge, color = if (mode == m) Color.White else Brand.Slate600)
                 }
             }
-            if (students.isEmpty() && members.isEmpty()) Text("Nobody owes anything right now ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
-            if (students.isNotEmpty()) Text("STUDENTS", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
-            students.forEach { s ->
-                val key = "s${s.id}"
-                val due = s.nextDue ?: t
-                CollectRow(s.name, "Instalment ${if (due < t) "overdue since" else "due"} ${shortDate(due)}", s.nextDueAmount, due < t, done[key]) {
-                    scope.launch {
-                        val pid = db.students().insertPayment(StudentPayment(studentId = s.id, amount = s.nextDueAmount, paidOn = t, mode = mode))
-                        `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(ctx, s.id, s.nextDueAmount, mode, pid)
-                        done[key] = s.nextDueAmount
+            if (tab == "acad") {
+                if (students.isEmpty()) Text("No academy fees due right now ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
+                students.forEach { s ->
+                    val key = "s${s.id}"
+                    val due = s.nextDue ?: t
+                    val late = due < t
+                    val remind = feeMessage(true, s.name, s.nextDueAmount, due, AppSettings.academyName)
+                    CollectRow(s.name, "Instalment ${if (late) "overdue since" else "due"} ${shortDate(due)}", s.nextDueAmount, late, done[key],
+                        onOpen = { onClose(); onStudent(s.id) },
+                        onRemind = { Contact.whatsapp(ctx, s.mobile, remind) }) {
+                        confirm = CollectItem(key, s.name, "Instalment ${if (late) "overdue since" else "due"} ${shortDate(due)}", s.nextDueAmount, s.mobile, false) { amt, md ->
+                            db.students().insertPayment(StudentPayment(studentId = s.id, amount = amt, paidOn = t, mode = md)).also { pid ->
+                                `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(ctx, s.id, amt, md, pid)
+                            }
+                        }
                     }
                 }
-            }
-            if (members.isNotEmpty()) Text("ABHYASIKA", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
-            members.forEach { m ->
-                val key = "m${m.id}"
-                val renew = m.validTill <= t + ENDING_DAYS
-                val amount = (if (renew) m.monthlyFee else 0L) + m.balance
-                CollectRow("${m.name} · Seat ${m.seatNo}",
-                    if (renew) "Renew 1 month" + (if (m.balance > 0) " + ${rupees(m.balance)} balance" else "") + " · ends ${shortDate(m.validTill)}" else "Balance to pay",
-                    amount, m.validTill < t, done[key]) {
-                    scope.launch {
-                        val updated = if (renew) m.copy(validTill = renewedTill(m.validTill, t, 1), planName = "1 month", balance = 0) else m.copy(balance = 0)
-                        db.library().pay(updated, LibraryPayment(memberId = m.id, kind = "FEE", amount = amount, paidOn = t, mode = mode))
-                        done[key] = amount
+            } else {
+                if (members.isEmpty()) Text("Nobody owes anything right now ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
+                members.forEach { m ->
+                    val key = "m${m.id}"
+                    val renew = m.validTill <= t + ENDING_DAYS
+                    val full = (if (renew) m.monthlyFee else 0L) + m.balance
+                    val detail = if (renew) "Renew 1 month" + (if (m.balance > 0) " + ${rupees(m.balance)} balance" else "") + " · ends ${shortDate(m.validTill)}" else "Balance to pay"
+                    CollectRow("${m.name} · Seat ${m.seatNo}", detail, full, m.validTill < t, done[key],
+                        onOpen = { onClose(); onMember(m.id) },
+                        onRemind = { Contact.whatsapp(ctx, m.mobile, libraryReminder(m, t)) }) {
+                        confirm = CollectItem(key, "${m.name} · Seat ${m.seatNo}", detail, full, m.mobile, true) { amt, md ->
+                            val updated = if (renew) m.copy(validTill = renewedTill(m.validTill, t, 1), planName = "1 month", balance = (full - amt).coerceAtLeast(0))
+                                else m.copy(balance = (full - amt).coerceAtLeast(0))
+                            db.library().pay(updated, LibraryPayment(memberId = m.id, kind = "FEE", amount = amt, paidOn = t, mode = md))
+                            0L
+                        }
                     }
                 }
             }
@@ -445,17 +504,48 @@ private fun QuickCollectSheet(students: List<StudentWithFees>, members: List<Lib
     }
 }
 
+/** Step 2 of Quick collect: the owner checks the name, instalment, mode and amount, then records it. */
 @Composable
-private fun CollectRow(name: String, detail: String, amount: Long, late: Boolean, collected: Long?, onCollect: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
+private fun PaymentConfirm(item: CollectItem, mode: String, onBack: () -> Unit, onRecord: (Long) -> Unit) {
+    var amountText by remember(item.key) { mutableStateOf(item.amount.toString()) }
+    val amt = amountText.toLongOrNull() ?: 0L
+    Column(Modifier.fillMaxWidth().padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SheetTitle("Confirm payment", item.name)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(item.detail, style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+            Text("Paid by $mode", style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+        }
+        DigitsField("Amount received", amountText, 7, { amountText = it }, prefix = "₹ ",
+            supporting = when { amt > item.amount -> "More than ${rupees(item.amount)}"; amt < item.amount -> "${rupees(item.amount - amt)} will stay due"; else -> "Full amount" },
+            isError = amt > item.amount)
+        PrimaryButton("Yes, record ${rupees(amt)} for ${item.name.substringBefore(" ·")}", { onRecord(amt) }, Modifier.fillMaxWidth(),
+            enabled = amt in 1..item.amount, icon = Icons.Rounded.Check,
+            custom = androidx.compose.ui.graphics.Brush.linearGradient(listOf(Brand.Green600, Brand.Green700)))
+        SoftButton("Cancel", onBack, Modifier.fillMaxWidth(), color = Brand.Slate600)
+    }
+}
+
+/** One Quick collect payment waiting for the owner's confirmation. */
+private class CollectItem(val key: String, val name: String, val detail: String, val amount: Long, val mobile: String, val isMember: Boolean,
+                          val record: suspend (Long, String) -> Long)
+
+@Composable
+private fun CollectRow(name: String, detail: String, amount: Long, late: Boolean, collected: Long?, onOpen: () -> Unit = {},
+                       onRemind: () -> Unit, onCollect: () -> Unit) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(12.dp)) {
+        // tap the name to open the student or member
+        Column(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
             Text(name, style = MaterialTheme.typography.titleSmall, color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(detail, style = MaterialTheme.typography.bodySmall, color = if (late) Brand.Red600 else Brand.Slate500, maxLines = 2)
             Text(rupees(amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Saffron600)
         }
-        Spacer(Modifier.width(8.dp))
-        if (collected != null) StatusChip("Collected ✓", Tone.Good)
-        else PillButton("Collect", onCollect, Brand.Green600)
+        Spacer(Modifier.height(10.dp))
+        if (collected != null) StatusChip("Recorded ✓ ${rupees(collected)}", Tone.Good)
+        else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SoftButton("Remind", onRemind, Modifier.weight(1f), color = Brand.Blue700, icon = Icons.AutoMirrored.Rounded.Chat)
+            PrimaryButton("Collect", onCollect, Modifier.weight(1f), accent = false, icon = Icons.Rounded.Check)
+        }
     }
 }
 
@@ -555,6 +645,65 @@ private fun Arrangeable(arranging: Boolean, title: String, onMove: (Int) -> Unit
         Box(Modifier.padding(6.dp)) {
             content()
             Box(Modifier.matchParentSize().background(Color.White.copy(alpha = 0.25f)).clickable(remember { MutableInteractionSource() }, null) {})
+        }
+    }
+}
+
+/** One small box in the top card: "Spent today ₹0", "Profit in November ₹1,750". */
+@Composable
+private fun HeroBox(label: String, value: String, color: Color, modifier: Modifier) {
+    Column(modifier.clip(RoundedCornerShape(14.dp)).background(Color.White.copy(alpha = 0.08f)).border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(14.dp))
+        .padding(horizontal = 10.dp, vertical = 8.dp)) {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = Brand.Blue100.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(value, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.ExtraBold), color = color, maxLines = 1)
+    }
+}
+
+/** + Fee: find any student and record any amount (part payment or advance too). Abhyasika members open their page to renew or collect. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecordAnySheet(students: List<StudentWithFees>, members: List<LibraryMember>, t: Long, onMember: (Long) -> Unit, onClose: () -> Unit) {
+    val ctx = LocalContext.current
+    val db = remember { AppDb.get(ctx) }
+    val scope = rememberCoroutineScope()
+    var q by remember { mutableStateOf("") }
+    var pick by remember { mutableStateOf<StudentWithFees?>(null) }
+    var amount by remember { mutableStateOf("") }
+    var mode by remember { mutableStateOf("Cash") }
+    ModalBottomSheet(onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+        Column(Modifier.verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 18.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            val s = pick
+            if (s == null) {
+                SheetTitle("Record a payment", "Find the student or Abhyasika member")
+                SearchBox(q, { q = it }, "Search name or mobile")
+                val sMatch = students.filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) }.take(40)
+                val mMatch = members.filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) }.take(40)
+                if (sMatch.isNotEmpty()) Text("STUDENTS", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
+                sMatch.forEach { st ->
+                    val bal = (st.totalFee - st.paid).coerceAtLeast(0)
+                    OptionRow(Icons.Rounded.School, Brand.Blue700, st.name, if (bal > 0) "Balance ${rupees(bal)}" else "Fully paid") {
+                        pick = st; amount = (if (st.dueNow > 0) st.dueNow else bal).takeIf { it > 0 }?.toString() ?: ""
+                    }
+                }
+                if (mMatch.isNotEmpty()) Text("ABHYASIKA", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
+                mMatch.forEach { m -> OptionRow(Icons.Rounded.EventSeat, Brand.Green600, "${m.name} · Seat ${m.seatNo}", "Opens the member page to renew or collect") { onClose(); onMember(m.id) } }
+                if (sMatch.isEmpty() && mMatch.isEmpty()) Text("No one matches", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
+            } else {
+                val bal = (s.totalFee - s.paid).coerceAtLeast(0)
+                val a = amount.toLongOrNull() ?: 0L
+                SheetTitle("Record a payment", "${s.name} · balance ${rupees(bal)}")
+                DigitsField("Amount received", amount, 8, { amount = it }, prefix = "₹ ", supporting = "Any amount: part payment or advance")
+                Text("Paid by", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                ModeChoice(mode) { mode = it }
+                PrimaryButton("Save payment", {
+                    scope.launch {
+                        val pid = db.students().insertPayment(StudentPayment(studentId = s.id, amount = a, paidOn = t, mode = mode))
+                        `in`.vidyadhan.academy.telegram.TelegramBot.studentPaid(ctx, s.id, a, mode, pid)
+                    }
+                    onClose()
+                }, Modifier.fillMaxWidth(), enabled = a > 0, icon = Icons.Rounded.Check)
+                SoftButton("Choose someone else", { pick = null }, Modifier.fillMaxWidth())
+            }
         }
     }
 }

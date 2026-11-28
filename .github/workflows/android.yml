@@ -9,6 +9,11 @@ on:
 permissions:
   contents: write
 
+# a newer push cancels the build still running for the same branch
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,9 +29,26 @@ jobs:
           java-version: "21"
 
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          # keep compiled code between builds on this branch too (by default only main saves it)
+          cache-read-only: false
 
-      - name: Unit tests
-        run: chmod +x gradlew && ./gradlew --no-daemon testDebugUnitTest
+      # tests and the signed APK in one Gradle run, so the app is compiled once and Gradle starts once
+      - name: Tests and signed release APK
+        env:
+          SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
+          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          if [ -z "$SIGNING_KEYSTORE_B64" ]; then echo "::error::SIGNING_KEYSTORE_B64 secret is missing"; exit 1; fi
+          echo "$SIGNING_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
+          export SIGNING_KEYSTORE="$RUNNER_TEMP/release.p12"
+          # shrinking (R8) is the slowest part: only for main
+          SHRINK=false; [ "$GITHUB_REF_NAME" = "main" ] && SHRINK=true
+          ./gradlew --no-daemon --build-cache testDebugUnitTest assembleRelease -Pshrink=$SHRINK
+          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Vidhyadhan-$VERSION.apk"
 
       - name: Upload test reports
         if: failure()
@@ -43,19 +65,6 @@ jobs:
           path: |
             android/app/build/shots
             android/app/schemas
-
-      - name: Build signed release APK
-        env:
-          SIGNING_KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_B64 }}
-          SIGNING_PASSWORD: ${{ secrets.SIGNING_PASSWORD }}
-        run: |
-          if [ -z "$SIGNING_KEYSTORE_B64" ]; then echo "::error::SIGNING_KEYSTORE_B64 secret is missing"; exit 1; fi
-          echo "$SIGNING_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.p12"
-          export SIGNING_KEYSTORE="$RUNNER_TEMP/release.p12"
-          ./gradlew --no-daemon assembleRelease
-          VERSION=$(grep -oP 'versionName = "\K[^"]+' app/build.gradle.kts)
-          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/Vidhyadhan-$VERSION.apk"
 
       - name: Keep the APK with this build
         uses: actions/upload-artifact@v4

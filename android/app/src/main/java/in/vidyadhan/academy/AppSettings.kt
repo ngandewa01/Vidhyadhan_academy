@@ -34,6 +34,8 @@ object AppSettings {
     var welcomed: Boolean get() = get("welcomed", "") == "1"; set(v) = put("welcomed", if (v) "1" else "")
     var cloudAcademy: String get() = get("cloudAcademy", ""); set(v) = put("cloudAcademy", v)
     var cloudDevice: Long get() = get("cloudDevice", "0").toLongOrNull() ?: 0; set(v) = put("cloudDevice", v.toString())
+    /** This phone's own id in the cloud's list of devices; made once and kept. */
+    val installId: String get() = get("installId", "").ifBlank { java.util.UUID.randomUUID().toString().also { put("installId", it) } }
     var cloudLast: Long get() = get("cloudLast", "0").toLongOrNull() ?: 0; set(v) = put("cloudLast", v.toString())
 
     var academyName: String get() = get("name", "Vidyadhan Academy"); set(v) = put("name", v)
@@ -80,6 +82,11 @@ object AppSettings {
     /** The students' Telegram group (registered by sending /students there). */
     var botStudentsChat: Long get() = get("botStudents", "0").toLongOrNull() ?: 0; set(v) = put("botStudents", v.toString())
     // MPSC news (AI). The key is shared with the academy's other phones through the cloud; once saved it is not edited.
+    var aiPrimary: String get() = get("aiPrimary", "GEMINI"); set(v) = put("aiPrimary", v)
+    var aiBackup: String get() = get("aiBackup", "NONE"); set(v) = put("aiBackup", v)
+    /** Key of an AI other than Gemini (Gemini keeps its own setting above). */
+    fun keyOf(name: String): String = get("key_$name", "")
+    fun setKeyOf(name: String, v: String) = put("key_$name", v.trim())
     var geminiKey: String get() = get("gemKey", ""); set(v) = put("gemKey", v)
     /** True when the key came from the Firebase console (Remote Config). */
     var geminiFromFirebase: Boolean get() = get("gemFb", "") == "1"; set(v) = put("gemFb", if (v) "1" else "")
@@ -97,6 +104,8 @@ object AppSettings {
     /** Telegram chat of a student, learnt when they press Start in the bot; keyed by @username (lower case). */
     fun telegramChat(username: String): Long? = s["tg_${username.lowercase().removePrefix("@")}"]?.toLongOrNull()
     fun setTelegramChat(username: String, chat: Long) = put("tg_${username.lowercase().removePrefix("@")}", chat.toString())
+    /** Forgets one Telegram link (they can connect again with the join link). */
+    fun clearTelegramChat(username: String) = put("tg_${username.lowercase().removePrefix("@")}", "")
     fun telegramChats(): Map<String, Long> = s.filterKeys { it.startsWith("tg_") }.mapNotNull { (k, v) -> v.toLongOrNull()?.let { k.removePrefix("tg_") to it } }.toMap()
 
     /** Day (epoch day) of the last successful backup; 0 = never. */
@@ -116,6 +125,9 @@ object AppSettings {
 
     /** Day the birthday strip was closed with ×; it stays hidden for the rest of that day. */
     var birthdayHiddenOn: Long get() = get("bdayHidden", "0").toLong(); set(v) = put("bdayHidden", v.toString())
+    /** The one-time repair of old-book payments has run on this phone. */
+    var cycleRepaired: Boolean get() = get("cycleRepaired", "") == "1"; set(v) = put("cycleRepaired", if (v) "1" else "")
+    var oldBookRepaired: Boolean get() = get("oldBookRepaired", "") == "1"; set(v) = put("oldBookRepaired", if (v) "1" else "")
 
     /** Dashboard cards in the owner's order, and the ones they hid (long-press → arrange). */
     var homeOrder: List<String> get() = get("homeOrder", "").split(",").filter { it.isNotBlank() }; set(v) = put("homeOrder", v.joinToString(","))

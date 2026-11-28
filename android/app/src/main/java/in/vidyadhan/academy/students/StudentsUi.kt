@@ -41,7 +41,11 @@ import java.time.ZoneOffset
 
 /** Details handed over from an enquiry that has joined. */
 data class Prefill(val name: String, val mobile: String, val course: String)
-object Handoff { var prefill by mutableStateOf<Prefill?>(null) }
+object Handoff {
+    var prefill by mutableStateOf<Prefill?>(null)
+    /** A filter to open the Students list with (from the dashboard). */
+    var studentFilter by mutableStateOf<String?>(null)
+}
 
 private sealed interface Screen {
     data object List : Screen
@@ -77,12 +81,14 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
     val all by vm.list.collectAsStateWithLifecycle()
     val members by vm.members.collectAsStateWithLifecycle()
     var filter by rememberSaveable { mutableStateOf("All") }
+    LaunchedEffect(Handoff.studentFilter) { Handoff.studentFilter?.let { filter = it; Handoff.studentFilter = null } }
     val t = today()
     val current = all.filter { it.current }
     val former = all.filter { !it.current }
     val seatOf = members.filter { it.active && it.studentId != null }.associateBy { it.studentId!! }
     val courses = (AppSettings.courseList + current.map { it.course }).filter { it.isNotBlank() }.distinct()
-    val libraryOnly = members.filter { it.active && it.studentId == null }.sortedBy { it.name.lowercase() }
+    // Abhyasika members are listed in the Abhyasika tab, not here
+    val libraryOnly = emptyList<LibraryMember>()
     val chips = listOf("All") + courses + (if (libraryOnly.isNotEmpty()) listOf("Abhyasika") else emptyList()) + listOf("Fees due", "Paid", "Former")
     val libShown = when (filter) {
         "All", "Abhyasika" -> libraryOnly
@@ -90,12 +96,14 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
         "Paid" -> libraryOnly.filter { it.validTill >= t && it.balance == 0L }
         else -> emptyList()
     }
+    var q by rememberSaveable { mutableStateOf("") }
     val shown = (if (filter == "Former") former else current)
+        .filter { q.isBlank() || it.name.contains(q, true) || it.mobile.contains(q) || it.telegram.contains(q.removePrefix("@"), true) }
         .filter {
             when (filter) {
                 "All", "Former" -> true
                 "Abhyasika" -> false
-                "Fees due" -> it.totalFee > it.paid
+                "Fees due" -> it.dueNow > 0
                 "Paid" -> it.totalFee <= it.paid
                 else -> it.course == filter
             }
@@ -115,6 +123,7 @@ private fun StudentList(vm: StudentsViewModel, onAdd: () -> Unit, onOpen: (Long)
             }
         }) {
         Column {
+            SearchBox(q, { q = it }, "Search name, mobile or @telegram", Modifier.padding(start = 14.dp, end = 14.dp, top = 16.dp, bottom = 4.dp))
             if (shown.isEmpty() && libShown.isEmpty()) EmptyState(Icons.Rounded.School,
                 if (all.isEmpty()) "No students yet" else if (filter == "Former") "No former students" else "No matches",
                 if (all.isEmpty()) "Tap “Admit” to add your first student." else if (filter == "Former") "Students who finish or leave are kept here with their records." else "Try a different name or filter.",
@@ -143,19 +152,22 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color.White).pressCard(RoundedCornerShape(18.dp), onClick)
         .padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.Top) {
-            if (s.photo.isNotBlank()) Avatar(s.name, 42.dp, photo = s.photo)
-            else Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brand.Blue100), Alignment.Center) {
-                Text(initials(s.name), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Blue700)
+            Box {
+                if (s.photo.isNotBlank()) Avatar(s.name, 42.dp, photo = s.photo)
+                else Box(Modifier.size(42.dp).clip(RoundedCornerShape(14.dp)).background(Brand.Blue100), Alignment.Center) {
+                    Text(initials(s.name), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Blue700)
+                }
+                // red dot: this student came from the old book
+                if (s.khataKey.isNotBlank()) Box(Modifier.align(Alignment.TopEnd).size(12.dp).clip(CircleShape).background(Brand.Red600).border(2.dp, Color.White, CircleShape))
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(s.name, Modifier.weight(1f, fill = false), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis)
-                    Spacer(Modifier.width(6.dp))
-                    Text(rollNo(s.id, s.joinedOn), style = MaterialTheme.typography.labelSmall, color = Brand.Slate400, maxLines = 1)
-                }
-                Text(s.course + if (s.batch.isNotBlank()) " · ${s.batch}" else "", style = MaterialTheme.typography.labelMedium, color = Brand.Blue700, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(s.name, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis)
+                Text(s.course + (if (s.batch.isNotBlank()) " · ${s.batch}" else "") + " · ${rollNo(s.id, s.joinedOn)}", style = MaterialTheme.typography.labelMedium, color = Brand.Blue700, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val info = s.mobile.takeIf { it.isNotBlank() }?.let { "+91 $it" }.orEmpty()
+                if (info.isNotBlank()) Text(info, style = MaterialTheme.typography.labelSmall, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!s.current) Box(Modifier.padding(top = 6.dp)) { StatusChip(s.leftReason.ifBlank { "Former" }, Tone.Neutral) }
             }
             if (s.telegram.isNotBlank()) {
                 Spacer(Modifier.width(6.dp))
@@ -164,7 +176,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
                     Icon(Icons.AutoMirrored.Rounded.Send, null, tint = Color(0xFF0369A1), modifier = Modifier.size(11.dp)); Spacer(Modifier.width(3.dp))
                     Text("@${s.telegram}", style = MaterialTheme.typography.labelSmall, color = Color(0xFF0369A1), maxLines = 1)
                 }
-            } else if (!s.current) { Spacer(Modifier.width(6.dp)); StatusChip(s.leftReason.ifBlank { "Former" }, Tone.Neutral) }
+            }
         }
         val pills = seat != null || advance > 0
         if (pills) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -198,6 +210,7 @@ private fun StudentCard(s: StudentWithFees, seat: LibraryMember?, t: Long, onCli
                 },
                 Modifier.weight(1f), style = MaterialTheme.typography.labelMedium,
                 color = when { left == 0L && s.current -> Brand.Green700; s.nextDue != null && s.nextDue < t -> Brand.Red600; else -> Brand.Slate600 }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Spacer(Modifier.width(8.dp))
             Text("Manage plan", style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = Brand.Blue700)
             Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
         }
@@ -244,6 +257,9 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
     var dob by remember { mutableStateOf<Long?>(null) }
     var photo by remember { mutableStateOf("") }
     var aadhaarPhoto by remember { mutableStateOf("") }
+    var guardian by remember { mutableStateOf("") }
+    var guardianMobile by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }
     var viewPhoto by remember { mutableStateOf<String?>(null) }
     var fee by remember { mutableStateOf("") }
     var count by remember { mutableIntStateOf(AppSettings.defaultInstallments) }
@@ -253,12 +269,17 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
     var customised by remember { mutableStateOf(false) }
     LaunchedEffect(existing, existingPlan) {
         val s = existing
-        if (!loaded && s != null && existingPlan.isNotEmpty()) {
+        // wait for the plan too, except for students with no fee (imported from the old khata: they have no plan)
+        if (!loaded && s != null && (existingPlan.isNotEmpty() || s.totalFee == 0L)) {
             name = s.name; mobile = s.mobile; aadhaar = s.aadhaar; course = s.course; fee = s.totalFee.toString(); joined = s.joinedOn
             batch = s.batch; dob = s.dob; photo = s.photo; aadhaarPhoto = s.aadhaarPhoto; telegram = s.telegram
-            count = existingPlan.size; first = existingPlan.first().dueOn
-            rows.clear(); rows.addAll(existingPlan.map { PlanRow(it.amount.toString(), it.dueOn, it.label) })
-            customised = true; loaded = true
+            guardian = s.guardianName; guardianMobile = s.guardianMobile; address = s.address
+            if (existingPlan.isNotEmpty()) {
+                count = existingPlan.size; first = existingPlan.first().dueOn
+                rows.clear(); rows.addAll(existingPlan.map { PlanRow(it.amount.toString(), it.dueOn, it.label) })
+                customised = true
+            }
+            loaded = true
         }
     }
     val feeN = fee.toLongOrNull() ?: 0L
@@ -267,7 +288,10 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
     }
     val planTotal = rows.sumOf { it.amount.toLongOrNull() ?: 0L }
     val planOk = rows.isNotEmpty() && rows.all { (it.amount.toLongOrNull() ?: 0) > 0 } && planTotal == feeN
-    val valid = name.isNotBlank() && mobile.length == 10 && (aadhaar.isEmpty() || aadhaar.length == 12) && feeN > 0 && planOk
+    // students imported from the old khata may have no number and no fee yet: their money is on the khata
+    val khataLinked = existing?.khataKey?.isNotBlank() == true
+    val valid = name.isNotBlank() && (mobile.length == 10 || (mobile.isEmpty() && khataLinked)) && (aadhaar.isEmpty() || aadhaar.length == 12) &&
+        ((feeN > 0 && planOk) || (khataLinked && feeN == 0L))
     val photoPicker = rememberPhotoPicker("Student photo", photo.isNotBlank(), { photo = it }, { photo = "" })
     val aadhaarPicker = rememberPhotoPicker("Aadhaar card photo", aadhaarPhoto.isNotBlank(), { aadhaarPhoto = it }, { aadhaarPhoto = "" })
     HideBottomNav()
@@ -284,6 +308,9 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
                 DocPhoto("Aadhaar card photo", aadhaarPhoto, aadhaarPicker.open) { viewPhoto = aadhaarPhoto }
                 OptionalDateField("Date of birth (optional)", dob, { dob = it })
                 DateField("Joining date", joined, { joined = it })
+                Field(guardian, { guardian = it }, "Parent / guardian name (optional)", Icons.Rounded.Person)
+                DigitsField("Guardian mobile (optional)", guardianMobile, 10, { guardianMobile = it }, Icons.Rounded.Phone, phone = true)
+                Field(address, { address = it }, "Address (optional)", Icons.Rounded.Home, singleLine = false, minLines = 2)
             }
             FormCard("Course and batch", Icons.Rounded.School, Brand.Saffron600) {
                 ChoicePills(AppSettings.courseList, course, { course = it })
@@ -329,7 +356,8 @@ private fun StudentForm(vm: StudentsViewModel, id: Long, onCancel: () -> Unit, o
             PrimaryButton(if (id == 0L) "Add student" else "Save changes", {
                 val s = (existing ?: Student(name = "", mobile = "", totalFee = 0, joinedOn = joined)).copy(
                     id = if (id == 0L) 0 else id, name = name.trim(), mobile = mobile, aadhaar = aadhaar, course = course, totalFee = feeN, joinedOn = joined,
-                    batch = batch, dob = dob, photo = photo, aadhaarPhoto = aadhaarPhoto, telegram = telegram)
+                    batch = batch, dob = dob, photo = photo, aadhaarPhoto = aadhaarPhoto, telegram = telegram,
+                    guardianName = guardian.trim(), guardianMobile = guardianMobile, address = address.trim())
                 val plan = rows.sortedBy { it.due }.mapIndexed { i, r -> Installment(studentId = s.id, number = i + 1, amount = r.amount.toLong(), dueOn = r.due, label = r.label.trim()) }
                 vm.save(s, plan, onSaved)
             }, Modifier.weight(1.6f), enabled = valid, icon = Icons.Rounded.Check)
@@ -362,10 +390,12 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     var linking by remember { mutableStateOf(false) }
     var refund by remember { mutableStateOf(false) }
     var resplit by remember { mutableStateOf(false) }
+    var split by remember { mutableStateOf(false) }
     var remind by remember { mutableStateOf(false) }
     var tgMessage by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var deletePay by remember { mutableStateOf<StudentPayment?>(null) }
+    var editPay by remember { mutableStateOf<StudentPayment?>(null) }
     var saved by remember { mutableStateOf<StudentPayment?>(null) }
     var showAadhaar by remember { mutableStateOf(false) }
     var viewPhoto by remember { mutableStateOf<String?>(null) }
@@ -376,17 +406,23 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     val balance = (st.totalFee - paid).coerceAtLeast(0)
     val statuses = allocate(plan, paid)
     val next = statuses.firstOrNull { !it.fullyPaid }
+    val latestPay = payments.maxWithOrNull(compareBy({ it.paidOn }, { it.id }))
     val frac = if (st.totalFee == 0L) 0f else paid.toFloat() / st.totalFee
 
     var receiptFor by remember { mutableStateOf<StudentPayment?>(null) }
     fun receipt(p: StudentPayment) { receiptFor = p }
     fun receiptOf(p: StudentPayment): ReceiptData {
-        val upTo = payments.filter { it.paidOn < p.paidOn || (it.paidOn == p.paidOn && it.id <= p.id) }.sumOf { it.amount }
-        return ReceiptData("${AppSettings.receiptPrefix}-S${p.id.toString().padStart(5, '0')}", p.paidOn, "FEE RECEIPT  /  फी पावती", st.name,
-            listOf("Mobile" to "+91 ${st.mobile}", "Course" to (st.course + if (st.batch.isNotBlank()) " · ${st.batch}" else ""), "Payment mode" to p.mode.ifBlank { "—" }) +
-                (if (p.note.isNotBlank()) listOf("Note" to p.note) else emptyList()),
-            p.amount, listOf("Total fee" to rupees(st.totalFee), "Paid so far" to rupees(upTo), "Balance" to rupees((st.totalFee - upTo).coerceAtLeast(0))),
-            footnote = next?.let { "Next installment ${rupees(it.remaining)} on ${it.inst.dueOn.asDate()}" }.orEmpty())
+        val before = payments.filter { it.paidOn < p.paidOn || (it.paidOn == p.paidOn && it.id < p.id) }.sumOf { it.amount }
+        val upTo = before + p.amount
+        val k = allocate(plan, before).indexOfFirst { !it.fullyPaid } + 1
+        val nextAfter = allocate(plan, upTo).firstOrNull { !it.fullyPaid }
+        val note = p.note.replace("From old book", "Old book")
+        return ReceiptData("${AppSettings.receiptPrefix}-S${p.id.toString().padStart(5, '0')}", p.paidOn, "FEE RECEIPT", st.name,
+            listOf("Mobile" to "+91 ${st.mobile}"), p.amount,
+            listOf("Total fee" to rupees(st.totalFee), "Paid so far" to rupees(upTo), "Balance" to rupees((st.totalFee - upTo).coerceAtLeast(0))),
+            forText = "${st.course} course fee" + if (st.batch.isNotBlank()) " · ${st.batch} batch" else "",
+            forSub = listOfNotNull(if (k > 0 && plan.size > 1) "Installment $k of ${plan.size}" else null, p.mode.ifBlank { null }, note.ifBlank { null }).joinToString(" · "),
+            nextAmount = nextAfter?.remaining ?: 0L, nextDue = nextAfter?.inst?.dueOn)
     }
 
     val m = seat
@@ -443,7 +479,8 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
             // refundable deposit and advance credit
             Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val held = m != null && m.depositPaid && m.depositReturnedOn == null && m.deposit > 0
-                MoneyBox("REFUNDABLE DEPOSIT", rupees(m?.deposit ?: 0) + " (" + when { m == null || m.deposit == 0L -> "None"; held -> "Held"; m.depositReturnedOn != null -> "Refunded"; else -> "Not paid" } + ")",
+                // the deposit is for an Abhyasika seat only: shown when the student has one (Combo)
+                if (m != null) MoneyBox("REFUNDABLE DEPOSIT", rupees(m?.deposit ?: 0) + " (" + when { m == null || m.deposit == 0L -> "None"; held -> "Held"; m.depositReturnedOn != null -> "Refunded"; else -> "Not paid" } + ")",
                     Brand.Green700, Brand.Green50, if (held) "Refund deposit" else null, Modifier.weight(1f).fillMaxHeight()) { refund = true }
                 MoneyBox("ADVANCE CREDIT", rupees(advanceOf(paid, plan, t)), Brand.Amber700, Brand.Amber50, if (balance > 0) "+ Add ${rupees(minOf(balance, 1000L))} advance" else null,
                     Modifier.weight(1f).fillMaxHeight()) { payFor = minOf(balance, 1000L) }
@@ -460,6 +497,8 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                 statuses.forEach { s2 -> ScheduleRow(s2, paidOn[s2.inst.number], t, onCollect = { payFor = s2.remaining }) }
             }
             if (balance > 0) SoftButton("Record a payment", { payFor = next?.remaining ?: balance }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
+            val splitRest = leftToSplit(st.totalFee, plan, paid)
+            if (balance > 0 && splitRest > 0) SoftButton("Split ${rupees(splitRest)} into installments", { split = true }, Modifier.fillMaxWidth(), icon = Icons.Rounded.DateRange)
             else Text("All installments cleared ✓", style = MaterialTheme.typography.labelLarge, color = Brand.Green700)
 
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(horizontal = 14.dp, vertical = 4.dp)) {
@@ -477,6 +516,11 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                 InfoRow(Icons.Rounded.School, "Course", st.course + (if (st.batch.isNotBlank()) " · ${st.batch}" else "") + " · joined ${st.joinedOn.asDate()}")
                 if (st.dob != null) { HorizontalDivider(color = Brand.Line); InfoRow(Icons.Rounded.Cake, "Birthday", LocalDate.ofEpochDay(st.dob).format(java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy"))) }
                 HorizontalDivider(color = Brand.Line)
+                if (st.guardianName.isNotBlank() || st.guardianMobile.isNotBlank()) {
+                    InfoRow(Icons.Rounded.Person, "Parent / guardian", listOf(st.guardianName, st.guardianMobile.takeIf { it.isNotBlank() }?.let { "+91 $it" }.orEmpty()).filter { it.isNotBlank() }.joinToString(" · "))
+                    HorizontalDivider(color = Brand.Line)
+                }
+                if (st.address.isNotBlank()) { InfoRow(Icons.Rounded.Home, "Address", st.address); HorizontalDivider(color = Brand.Line) }
                 InfoRow(Icons.Rounded.CreditCard, "Aadhaar", if (st.aadhaar.isBlank()) "Not added" else if (showAadhaar) st.aadhaar.chunked(4).joinToString(" ") else maskAadhaar(st.aadhaar)) {
                     if (st.aadhaar.isNotBlank()) SmallIconButton(if (showAadhaar) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility, "Show", Brand.Slate500) { showAadhaar = !showAadhaar }
                 }
@@ -493,30 +537,30 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
                                 Text("+ " + rupees(p.amount), style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.ExtraBold), color = Brand.Green700)
-                                Text(p.paidOn.asDate() + (if (p.mode.isNotBlank()) " · ${p.mode}" else "") + (if (p.note.isNotBlank()) " · ${p.note}" else ""),
+                                Text(p.paidOn.asDate() + (if (p.mode.isNotBlank()) " · ${p.mode}" else "") + (if (p.note.isNotBlank()) " · ${p.note.replace("From old book", "Old book")}" else ""),
                                     style = MaterialTheme.typography.bodySmall, color = Brand.Slate500, maxLines = 1)
                             }
-                            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send receipt on WhatsApp", Brand.WhatsAppDark) { whatsappReceipt(ctx, receiptOf(p), st.mobile) }
+                            SmallIconButton(Icons.AutoMirrored.Rounded.Chat, "Send receipt on WhatsApp", Brand.WhatsAppDark) { if (p.id == latestPay?.id) receiptFor = p else whatsappReceipt(ctx, receiptOf(p), st.mobile) }
                             Spacer(Modifier.width(6.dp))
                             SmallIconButton(Icons.Rounded.ReceiptLong, "Receipt", Brand.Blue600) { receiptFor = p }
                             Spacer(Modifier.width(6.dp))
-                            SmallIconButton(Icons.Rounded.DeleteOutline, "Delete payment", Brand.Slate400) { deletePay = p }
+                            SmallIconButton(Icons.Rounded.Edit, "Edit payment", Brand.Slate600) { editPay = p }
                         }
                     }
                 }
                 NotesSection("STUDENT", st.id)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                // one button per line so the full names fit with large text
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SoftButton("Admission form", {
-                        shareAdmissionForm(ctx, "ADMISSION FORM  /  प्रवेश अर्ज", "${AppSettings.receiptPrefix}-A${st.id.toString().padStart(4, '0')}", st.name, st.photo,
-                            listOf("Mobile" to "+91 ${st.mobile}", "Aadhaar" to st.aadhaar.chunked(4).joinToString(" ").ifBlank { "—" },
-                                "Date of birth" to (st.dob?.asDate() ?: "—"), "Course" to st.course, "Batch" to st.batch.ifBlank { "—" },
-                                "Joining date" to st.joinedOn.asDate(), "Total fee" to rupees(st.totalFee)),
-                            "Fee plan", listOf(listOf("No.", "Due date", "Amount")) + plan.map { listOf("${it.number}", it.dueOn.asDate(), rupees(it.amount)) })
-                    }, Modifier.weight(1f), icon = Icons.Rounded.Description)
-                    if (st.leftOn == null) SoftButton("Former student", { leaving = true }, Modifier.weight(1f), color = Brand.Slate600, icon = Icons.Rounded.History)
+                        shareAdmissionForm(ctx, AdmissionDoc("ADMISSION FORM", "${AppSettings.receiptPrefix}-A${st.id.toString().padStart(4, '0')}", st.joinedOn,
+                            st.name, st.mobile, st.photo, listOfNotNull(st.course, st.batch.ifBlank { null }, "Joined ${st.joinedOn.asDate()}"),
+                            st.dob, st.aadhaar, st.guardianName, st.guardianMobile, st.address, "FEES · TOTAL ${rupees(st.totalFee)}",
+                            statuses.map { s2 -> Triple("Installment ${s2.inst.number} · ${s2.inst.dueOn.asDate()}", rupees(s2.inst.amount),
+                                if (s2.fullyPaid) "PAID" else "${rupees(s2.remaining)} DUE") }))
+                    }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Description)
+                    if (st.leftOn == null) SoftButton("Mark as former student", { leaving = true }, Modifier.fillMaxWidth(), color = Brand.Slate600, icon = Icons.Rounded.History)
+                    SoftButton("Delete student", { confirmDelete = true }, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.Rounded.DeleteOutline)
                 }
-                Text("Delete student", Modifier.align(Alignment.CenterHorizontally).clip(RoundedCornerShape(8.dp)).clickable { confirmDelete = true }.padding(8.dp),
-                    style = MaterialTheme.typography.labelLarge, color = Brand.Red600)
                 Spacer(Modifier.height(20.dp))
         }
     }
@@ -627,13 +671,23 @@ private fun StudentDetail(vm: StudentsViewModel, id: Long, onBack: () -> Unit, o
     if (refund) seat?.let { m ->
         ConfirmDialog("Refund ${rupees(m.deposit)} deposit?", "Records the deposit as returned to ${st.name} today.", "Refund", onConfirm = { vm.returnDeposit(m); refund = false }, onDismiss = { refund = false })
     }
+    if (split) SplitSheet(leftToSplit(st.totalFee, plan, paid), paid, t, onSave = { rows -> vm.splitBalance(st, plan, paid, rows); split = false }) { split = false }
     if (resplit) ConfirmDialog("Re-split the balance equally?", "Paid installments stay. The ${rupees(balance)} still due is divided equally over the ${statuses.count { !it.fullyPaid }} unpaid installments, on their dates.",
         "Re-split", onConfirm = { vm.resplit(st, plan, paid); resplit = false }, onDismiss = { resplit = false })
-    receiptFor?.let { p -> ReceiptActions(receiptOf(p), st.mobile, "s${st.id}", onDelete = { deletePay = p }, onDismiss = { receiptFor = null }) }
+    receiptFor?.let { p -> ReceiptActions(receiptOf(p), st.mobile, "s${st.id}", onDelete = { deletePay = p }, onDismiss = { receiptFor = null },
+        next = if (p.id == latestPay?.id) next?.let { it.remaining to it.inst.dueOn } else null,
+        fullyPaid = p.id == latestPay?.id && balance == 0L,
+        onChangeNext = { a, d ->
+            if (changeNextPlan(plan, paid, a, d) == null) android.widget.Toast.makeText(ctx, "That is more than the balance after this installment", android.widget.Toast.LENGTH_LONG).show()
+            else vm.changeNext(st, plan, paid, a, d)
+        }) }
+    editPay?.let { p -> EditPaymentSheet(p, onSave = { vm.updatePayment(it); editPay = null }, onDelete = { editPay = null; deletePay = p }, onClose = { editPay = null }) }
     deletePay?.let { p -> ConfirmDialog("Delete this payment?", "${rupees(p.amount)} received on ${p.paidOn.asDate()} will be removed.", "Delete", danger = true,
         onConfirm = { vm.deletePayment(p); deletePay = null }, onDismiss = { deletePay = null }) }
-    if (confirmDelete) ConfirmDialog("Delete ${st.name}?", "This removes the student, their installments and payments. It cannot be undone.", "Delete", danger = true,
-        onConfirm = { Photos.delete(ctx, st.photo); Photos.delete(ctx, st.aadhaarPhoto); vm.delete(st); confirmDelete = false; onBack() }, onDismiss = { confirmDelete = false })
+    if (confirmDelete) DeletePersonDialog("Delete ${st.name}?", "This removes the student, their installments and payments. It cannot be undone.",
+        `in`.vidyadhan.academy.telegram.TelegramBot.isLinked("s${st.id}"),
+        onConfirm = { tg -> if (tg) `in`.vidyadhan.academy.telegram.TelegramBot.unlink("s${st.id}")
+            Photos.delete(ctx, st.photo); Photos.delete(ctx, st.aadhaarPhoto); vm.delete(st); confirmDelete = false; onBack() }, onDismiss = { confirmDelete = false })
     viewPhoto?.let { PhotoViewer(it) { viewPhoto = null } }
 }
 
@@ -748,4 +802,97 @@ private fun MemberLedgerCard(m: LibraryMember, t: Long, onClick: () -> Unit) {
             Icon(Icons.Rounded.ChevronRight, null, tint = Brand.Blue700, modifier = Modifier.size(16.dp))
         }
     }
+}
+
+/** Change a payment that was recorded: amount, date, mode or note. Delete is here too. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditPaymentSheet(p: StudentPayment, onSave: (StudentPayment) -> Unit, onDelete: () -> Unit, onClose: () -> Unit) {
+    var amount by remember(p.id) { mutableStateOf(p.amount.toString()) }
+    var mode by remember(p.id) { mutableStateOf(p.mode) }
+    var date by remember(p.id) { mutableLongStateOf(p.paidOn) }
+    var note by remember(p.id) { mutableStateOf(p.note) }
+    val a = amount.toLongOrNull() ?: 0L
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+        Column(Modifier.verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SheetTitle("Edit payment", "The balance, installments and reports update when you save")
+            DigitsField("Amount received", amount, 8, { amount = it }, prefix = "₹ ")
+            DateField("Date received", date, { date = it })
+            Text("Paid by", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+            ModeChoice(mode) { mode = it }
+            OutlinedTextField(note, { note = it }, Modifier.fillMaxWidth(), label = { Text("Note (optional)") }, singleLine = true, shape = RoundedCornerShape(16.dp))
+            PrimaryButton("Save changes", { onSave(p.copy(amount = a, paidOn = date, mode = mode, note = note.trim())) }, Modifier.fillMaxWidth(), enabled = a > 0, icon = Icons.Rounded.Check)
+            SoftButton("Delete payment", onDelete, Modifier.fillMaxWidth(), color = Brand.Red600, icon = Icons.Rounded.DeleteOutline)
+        }
+    }
+}
+
+/** Split what is still to pay: equal (number of installments, first date, gap) or unequal (each amount and date). */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SplitSheet(rest: Long, paidSoFar: Long, t: Long, onSave: (List<Pair<Long, Long>>) -> Unit, onClose: () -> Unit) {
+    var unequal by remember { mutableStateOf(false) }
+    var count by remember { mutableIntStateOf(3) }
+    var first by remember { mutableLongStateOf(LocalDate.ofEpochDay(t).plusMonths(1).toEpochDay()) }
+    var gap by remember { mutableIntStateOf(1) }
+    fun equalRows(): List<Pair<Long, Long>> {
+        val each = rest / count; val extra = rest - each * count
+        return (0 until count).map { i -> (each + if (i == 0) extra else 0L) to LocalDate.ofEpochDay(first).plusMonths((i * gap).toLong()).toEpochDay() }
+    }
+    // unequal starts from the equal split, to change as needed
+    val rows = remember { mutableStateListOf<PlanRow>().apply { equalRows().forEach { add(PlanRow(it.first.toString(), it.second)) } } }
+    ModalBottomSheet(onDismissRequest = onClose, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Color.White) {
+        Column(Modifier.verticalScroll(rememberScrollState()).imePadding().padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SheetTitle("Split the balance", "${rupees(paidSoFar)} already paid stays as it is · ${rupees(rest)} to split")
+            Segmented(listOf("eq" to "Equal", "un" to "Unequal"), if (unequal) "un" else "eq", { unequal = it == "un" })
+            if (!unequal) {
+                Text("Number of installments", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(2, 3, 4, 5, 6, 9, 12).forEach { n -> Pick("$n", count == n) { count = n } }
+                }
+                DateField("First installment due", first, { first = it })
+                Text("Then every", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(1, 2, 3).forEach { g -> Pick(if (g == 1) "1 month" else "$g months", gap == g) { gap = g } }
+                }
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Brand.Slate50).border(1.dp, Brand.Line, RoundedCornerShape(14.dp)).padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    equalRows().forEach { (a, d) ->
+                        Row { Text(d.asDate(), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Brand.Slate600)
+                            Text(rupees(a), style = MaterialTheme.typography.titleSmall, color = Brand.Ink) }
+                    }
+                }
+                PrimaryButton("Save installments", { onSave(equalRows()) }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Check)
+            } else {
+                Text("Each installment: amount and due date", style = MaterialTheme.typography.labelLarge, color = Brand.Slate500)
+                rows.toList().forEachIndexed { i, r ->
+                    // amount and remove on one line, the due date full width under it (fits large text)
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, Brand.Line, RoundedCornerShape(16.dp)).padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            DigitsField("Installment ${i + 1}", r.amount, 7, { rows[i] = r.copy(amount = it) }, prefix = "₹ ", modifier = Modifier.weight(1f))
+                            if (rows.size > 1) SmallIconButton(Icons.Rounded.Close, "Remove installment ${i + 1}", Brand.Slate500) { rows.removeAt(i) }
+                        }
+                        DateField("Due on", r.due, { rows[i] = r.copy(due = it) }, Modifier.fillMaxWidth())
+                    }
+                }
+                SoftButton("Add installment", {
+                    rows.add(PlanRow("", LocalDate.ofEpochDay(rows.lastOrNull()?.due ?: first).plusMonths(1).toEpochDay()))
+                }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Add)
+                val left = rest - rows.sumOf { it.amount.toLongOrNull() ?: 0L }
+                Text(when { left == 0L -> "Adds up to ${rupees(rest)} ✓"; left > 0 -> "${rupees(left)} still to assign"; else -> "${rupees(-left)} more than the balance" },
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (left == 0L) Brand.Green50 else Brand.Red50).padding(horizontal = 12.dp, vertical = 9.dp),
+                    style = MaterialTheme.typography.titleSmall, color = if (left == 0L) Brand.Green700 else Brand.Red600)
+                PrimaryButton("Save installments", { onSave(rows.map { (it.amount.toLongOrNull() ?: 0L) to it.due }) }, Modifier.fillMaxWidth(),
+                    enabled = left == 0L && rows.all { (it.amount.toLongOrNull() ?: 0L) > 0 }, icon = Icons.Rounded.Check)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Pick(text: String, on: Boolean, onClick: () -> Unit) {
+    Text(text, Modifier.clip(RoundedCornerShape(12.dp)).background(if (on) Brand.Blue700 else Color.White)
+        .border(1.dp, if (on) Brand.Blue700 else Brand.Line, RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(horizontal = 14.dp, vertical = 9.dp),
+        style = MaterialTheme.typography.labelLarge, color = if (on) Color.White else Brand.Ink)
 }

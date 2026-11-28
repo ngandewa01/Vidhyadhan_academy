@@ -29,6 +29,8 @@ fun summarise(s: Student, plan: List<Installment>, payments: List<StudentPayment
         if (paid >= s.totalFee) null else next?.inst?.dueOn,
         if (paid >= s.totalFee) 0 else next?.remaining ?: (s.totalFee - paid),
         s.leftOn, s.leftReason, s.telegram, s.joinedOn, advanceOf(paid, plan, today()),
+        khataKey = s.khataKey,
+        dueNow = if (paid >= s.totalFee) 0 else (plan.filter { it.dueOn <= today() }.sumOf { it.amount } - paid).coerceAtLeast(0),
     )
 }
 
@@ -47,4 +49,50 @@ suspend fun studentsWithFeesNow(dao: StudentDao): List<StudentWithFees> {
     val byPlan = dao.installmentList().groupBy { it.studentId }
     val byPay = dao.paymentList().groupBy { it.studentId }
     return dao.allStudents().map { summarise(it, byPlan[it.id].orEmpty(), byPay[it.id].orEmpty()) }
+}
+
+/** What is still to pay on the plan: the fee minus fully paid installments and the paid part of a part-paid one. */
+fun leftToSplit(totalFee: Long, plan: List<Installment>, paid: Long): Long {
+    val st = allocate(plan, paid)
+    return (totalFee - st.filter { it.fullyPaid }.sumOf { it.inst.amount } - st.filter { it.partlyPaid }.sumOf { it.covered }).coerceAtLeast(0)
+}
+
+/**
+ * Splits what is still to pay into [rows] (amount to due date). Paid installments stay; a part-paid one keeps only what
+ * was paid. Null when the rows do not add up to exactly what is left, or an amount is not above zero.
+ */
+fun splitPlan(studentId: Long, totalFee: Long, plan: List<Installment>, paid: Long, rows: List<Pair<Long, Long>>): List<Installment>? {
+    val st = allocate(plan, paid)
+    val rest = leftToSplit(totalFee, plan, paid)
+    if (rows.isEmpty() || rows.any { it.first <= 0 } || rows.sumOf { it.first } != rest) return null
+    val kept = st.filter { it.fullyPaid }.map { it.inst } + st.filter { it.partlyPaid }.map { it.inst.copy(amount = it.covered) }
+    val added = rows.map { (a, d) -> Installment(studentId = studentId, number = 0, amount = a, dueOn = d) }
+    return (kept.sortedWith(compareBy({ it.dueOn }, { it.number })) + added.sortedBy { it.dueOn })
+        .mapIndexed { i, x -> x.copy(id = 0, number = i + 1) }
+}
+
+/**
+ * Sets the next unpaid installment to [newRemaining] still to pay, due on [newDue]. Lowering it moves the difference to
+ * the installment after it (or a new one a month later); raising it takes the difference from the ones after it.
+ * Null when there is nothing unpaid or the later installments cannot cover a raise. The total stays the same.
+ */
+fun changeNextPlan(plan: List<Installment>, paid: Long, newRemaining: Long, newDue: Long): List<Installment>? {
+    val st = allocate(plan, paid)
+    val i = st.indexOfFirst { !it.fullyPaid }
+    if (i < 0 || newRemaining <= 0) return null
+    val insts = st.map { it.inst }.toMutableList()
+    val diff = st[i].remaining - newRemaining
+    insts[i] = insts[i].copy(amount = st[i].covered + newRemaining, dueOn = newDue)
+    if (diff > 0) {
+        if (i + 1 < insts.size) insts[i + 1] = insts[i + 1].copy(amount = insts[i + 1].amount + diff)
+        else insts += Installment(studentId = insts[i].studentId, number = 0, amount = diff, dueOn = java.time.LocalDate.ofEpochDay(newDue).plusMonths(1).toEpochDay())
+    } else if (diff < 0) {
+        var need = -diff
+        for (j in i + 1 until insts.size) {
+            val take = minOf(need, insts[j].amount); insts[j] = insts[j].copy(amount = insts[j].amount - take); need -= take
+            if (need == 0L) break
+        }
+        if (need > 0) return null
+    }
+    return insts.filter { it.amount > 0 }.mapIndexed { k, x -> x.copy(id = 0, number = k + 1) }
 }
