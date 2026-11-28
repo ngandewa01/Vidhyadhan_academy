@@ -3,6 +3,7 @@ package `in`.vidyadhan.academy.library
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -72,29 +73,22 @@ internal fun MembersPage(vm: LibraryViewModel, filter: MemberFilter, setFilter: 
                     SoftButton("Plans", onPlans, Modifier.weight(1f), icon = Icons.Rounded.Loyalty)
                 }
             }
+            // one row of filters with live counts (replaces the big grid and the status dropdown)
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatTile("Total members", count(MemberFilter.All), Icons.Rounded.Groups, Brand.Blue600, filter == MemberFilter.All, Modifier.weight(1f)) { setFilter(MemberFilter.All) }
-                        StatTile("Active", count(MemberFilter.Active), Icons.Rounded.CheckCircle, Brand.Green600, filter == MemberFilter.Active, Modifier.weight(1f)) { setFilter(MemberFilter.Active) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatTile("Ending soon", count(MemberFilter.Ending), Icons.Rounded.HourglassBottom, Brand.Blue500, filter == MemberFilter.Ending, Modifier.weight(1f)) { setFilter(MemberFilter.Ending) }
-                        StatTile("Part paid", count(MemberFilter.Partly), Icons.Rounded.Payments, Brand.Saffron600, filter == MemberFilter.Partly, Modifier.weight(1f)) { setFilter(MemberFilter.Partly) }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        StatTile("Expired", count(MemberFilter.Expired), Icons.Rounded.ErrorOutline, Brand.Red600, filter == MemberFilter.Expired, Modifier.weight(1f)) { setFilter(MemberFilter.Expired) }
-                        StatTile("Left", count(MemberFilter.Past), Icons.Rounded.History, Brand.Slate500, filter == MemberFilter.Past, Modifier.weight(1f)) { setFilter(MemberFilter.Past) }
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(MemberFilter.All to "All", MemberFilter.Active to "Active", MemberFilter.Ending to "Ending soon",
+                        MemberFilter.Partly to "Part paid", MemberFilter.Expired to "Expired", MemberFilter.Past to "Left").forEach { (f, l) ->
+                        val on = filter == f
+                        Text("$l (${count(f)})", Modifier.clip(RoundedCornerShape(50)).background(if (on) Brand.Blue700 else Color.White)
+                            .border(1.dp, if (on) Brand.Blue700 else Brand.Line, RoundedCornerShape(50)).clickable { setFilter(f) }.padding(horizontal = 12.dp, vertical = 7.dp),
+                            style = MaterialTheme.typography.labelMedium, color = if (on) Color.White else Brand.Slate600, maxLines = 1)
                     }
                 }
             }
             item {
                 Column(Modifier.fillMaxWidth().softCard(RoundedCornerShape(22.dp), 4.dp).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     SearchBox(query, { query = it }, "Search name, mobile, seat")
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Dropdown("Status", filter.label, MemberFilter.entries.map { it.label }, Modifier.weight(1f)) { l -> setFilter(MemberFilter.entries.first { it.label == l }) }
-                        Dropdown("Sort by", sort, listOf("Seat number", "Name", "Valid till"), Modifier.weight(1f)) { sort = it }
-                    }
+                    Dropdown("Sort by", sort, listOf("Seat number", "Name", "Valid till"), Modifier.fillMaxWidth()) { sort = it }
                 }
             }
             if (shown.isEmpty()) item {

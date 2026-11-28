@@ -182,7 +182,7 @@ class ScreenshotTest {
         backButton()
         nav("Dashboard"); shot("15-dashboard")
         rule.onNodeWithContentDescription("Reminders").performClick(); settle(); shot("20a-reminders")
-        rule.onAllNodesWithText("fees due", substring = true)[0].performClick(); settle(); shot("20b-quick-collect")
+        rule.onNodeWithText("Quick collect", substring = true).performClick(); settle(); shot("20b-quick-collect")
         rule.onAllNodes(hasText("Collect") and hasClickAction())[1].performClick(); settle(); shot("20c-confirm")
         back(); back(); settle()
         rule.onNodeWithContentDescription("Search").performClick(); settle()

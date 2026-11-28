@@ -97,6 +97,7 @@ fun EnquiriesTab(
 }
 
 @Composable
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 private fun EnquiryList(vm: EnquiriesViewModel, sub: String, setSub: (String) -> Unit, admitFrom: Enquiry?, onAdmit: (Enquiry?) -> Unit,
                         onAdd: () -> Unit, onOpen: (Long) -> Unit, onAdmitted: (String, Long) -> Unit) {
     val ctx = LocalContext.current
