@@ -187,7 +187,7 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(x.title, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = Brand.Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${x.subtitle} · ${relativeDay(x.day)}", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${x.subtitle} · ${relativeDay(x.day)}", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
                     Spacer(Modifier.width(8.dp))
                     Column(horizontalAlignment = Alignment.End) {
