@@ -364,15 +364,17 @@ fun HomeTab(onGo: (Go, Long) -> Unit) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SheetTitle("Today's alerts & Telegram feed", if (`in`.vidyadhan.academy.telegram.TelegramBot.connected)
                 "Due reminders and birthday wishes go out by the bot at ${"%02d:%02d".format(AppSettings.reminderHour, AppSettings.reminderMinute)}" else "Everything that needs you today")
-            if (feesDue > 0) OptionRow(Icons.Rounded.CurrencyRupee, Brand.Red600, "$feesDue student fee${if (feesDue == 1) "" else "s"} due", "Tap to collect") { showReminders = false; showCollect = true }
             if (callsToday > 0) OptionRow(Icons.Rounded.Call, Brand.Saffron500, "$callsToday enquir${if (callsToday == 1) "y" else "ies"} to call") { showReminders = false; onGo(Go.Enquiries, 0) }
-            if (libDue > 0) OptionRow(Icons.Rounded.EventSeat, Brand.Teal700, "$libDue Abhyasika due${if (libDue == 1) "" else "s"}") { showReminders = false; onGo(Go.MemberDues, 0) }
             if (birthdays.isNotEmpty()) OptionRow(Icons.Rounded.Cake, Brand.Saffron500, "${birthdays.size} birthday${if (birthdays.size == 1) "" else "s"} today") { showReminders = false; showBirthdays = true }
             if (alerts == 0) Text("Nothing needs you today ✓", style = MaterialTheme.typography.bodyLarge, color = Brand.Slate500)
             // the people behind the counts: each one can be reminded straight from here
             val dueStudents = students.filter { it.nextDue != null && it.nextDue <= t }.sortedBy { it.nextDue }
             if (dueStudents.isNotEmpty()) {
-                Text("ACADEMY · FEES DUE", style = MaterialTheme.typography.labelMedium, color = Brand.Slate500, modifier = Modifier.padding(top = 6.dp))
+                Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("ACADEMY · FEES DUE", Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = Brand.Slate500)
+                    // the one place to record money: Quick collect (every row here only reminds)
+                    Text("Quick collect ›", Modifier.clickable { showReminders = false; showCollect = true }.padding(4.dp), style = MaterialTheme.typography.labelLarge, color = Brand.Blue700)
+                }
                 dueStudents.take(8).forEach { s ->
                     val due = s.nextDue ?: t
                     ReminderPerson(s.name, "Instalment ${if (due < t) "overdue since" else "due"} ${shortDate(due)} · ${rupees(s.nextDueAmount)}", due < t,
